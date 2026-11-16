@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chime</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
+<style>
+  /* 外の景色以外は白と黒だけ */
+  :root { --fg:#fff; --dim:#fff; --warn:#fff; --bad:#fff; --good:#fff; --line:#fff; }
+  * { box-sizing:border-box; }
+  html,body { margin:0; background:#000; color:var(--fg); font-family:'DotGothic16','MS Gothic',monospace; }
+  #app { max-width:1140px; margin:0 auto; padding:12px 16px; }
+  #top { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+  /* 最大 832x611（従来の1.3倍）。ブラウザの幅・高さが足りなければ縦横比を保って縮小 */
+  #viewWrap { position:relative; flex:1 1 560px; max-width:min(832px, calc((100vh - 26px) * 832 / 611)); border:1px solid var(--line); }
+  #view { display:block; width:100%; height:auto; }
+  /* 画面内オーバーレイ：ログ（下）、戦闘コマンド（ログの上） */
+  #hud { position:absolute; left:0; right:0; bottom:0; padding:6px 8px; pointer-events:none; }
+  #cmd { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:6px; pointer-events:auto; }
+  #cmd:empty { display:none; }
+  #cmd .who { margin-right:6px; color:var(--warn); background:#000; padding:2px 6px; }
+  /* 一時メッセージ：枠なし。各行に黒い帯を敷き、時間が経つと消える */
+  #log { display:flex; flex-direction:column; align-items:flex-start; gap:2px; font-size:14px; line-height:1.5; }
+  #log div { background:#000; padding:0 6px; transition:opacity .4s; }
+  #log div.fade { opacity:0; }
+  #log .warn { color:var(--warn); } #log .bad { color:var(--bad); } #log .good { color:var(--good); } #log .sys { color:var(--dim); }
+  #dialog { position:absolute; left:4%; right:4%; bottom:4%; background:#000; border:2px solid var(--fg);
+            padding:10px 14px; font-size:16px; line-height:1.6; display:none; cursor:pointer; z-index:2; }
+  #dialog .next { float:right; color:var(--dim); font-size:13px; }
+  #dialog .portrait { float:left; height:120px; margin:-4px 14px -4px -4px; image-rendering:pixelated; }
+  #dialog .text { min-height:3.2em; }
+  #dialog::after { content:''; display:block; clear:both; }
+  #side { flex:0 0 240px; display:flex; flex-direction:column; gap:8px; }
+  /* 現在地：プレイ画面の右上の内側 */
+  #loc { position:absolute; top:8px; right:10px; font-size:15px; background:#000; padding:2px 6px; pointer-events:none; z-index:1; }
+  #map { border:1px solid var(--line); width:240px; height:150px; }
+  /* ステータスの下：枠なしの一行 */
+  #menuHint { font-size:14px; }
+  /* メニュー（M）：プレイ画面の上に重ねる */
+  #menu { position:absolute; left:6%; right:6%; top:8%; background:#000; border:2px solid var(--fg); padding:12px 16px;
+          font-size:14px; line-height:1.7; display:none; z-index:3; }
+  #menu h3 { margin:0 0 6px; font-size:16px; font-weight:normal; }
+  #menu .close { margin-top:8px; }
+  button { font-family:inherit; font-size:14px; background:#000; color:var(--fg); border:1px solid var(--fg); padding:4px 10px; cursor:pointer; }
+  button:hover { background:#fff; color:#000; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  th,td { border:1px solid var(--line); padding:3px 5px; text-align:left; }
+  th { color:var(--dim); font-weight:normal; }
+  td.num { text-align:right; }
+  tr.dead td { color:var(--bad); }
+  .shake { animation:shake .25s; }
+  @keyframes shake { 0%,100%{transform:translate(0,0)} 25%{transform:translate(-6px,3px)} 50%{transform:translate(5px,-3px)} 75%{transform:translate(-3px,2px)} }
+  @media (max-width:640px){ #side{flex:1 1 100%;} #map{width:100%;height:auto;} }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="top">
+    <div id="viewWrap">
+      <canvas id="view" width="832" height="611"></canvas>
+      <div id="hud">
+        <div id="cmd"></div>
+        <div id="log"></div>
+      </div>
+      <div id="loc"></div>
+      <div id="dialog"></div>
+      <div id="menu">
+        <h3>ヘルプ</h3>
+        <div>テンキー 5 前進 / 2 後退 / 4 左を向く / 6 右を向く</div>
+        <div>テンキー 1 左へ平行移動 / 3 右へ平行移動</div>
+        <div>Space・Enter 話す・調べる・階段を使う</div>
+        <div>H 手当て（佐伯先生の呪文）</div>
+        <div>戦闘中：数字キーで行動を選ぶ / Esc ひとつ戻る</div>
+        <div>落とし物は、そのマスに乗ると拾う</div>
+        <h3 style="margin-top:10px">持ち物</h3>
+        <div id="items">なし</div>
+        <div class="close">M・Esc 閉じる</div>
+      </div>
+    </div>
+    <div id="side">
+      <table id="party"></table>
+      <div id="menuHint">M : Menu</div>
+      <canvas id="map" width="240" height="150"></canvas>
+    </div>
+  </div>
+</div>
+<script src="school.js"></script>
+<script src="events.js"></script>
+<script src="game.js"></script>
+</body>
+</html>

@@ -1,0 +1,1041 @@
+'use strict';
+// =====================================================================
+//  Chime — 放課後の校舎ダンジョン（プロトタイプ）
+//  校舎データは school.js、人物・サブシナリオは events.js
+// =====================================================================
+const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
+const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
+// (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
+function stairAt(fl, x, y) {
+  for (const st of MAPS[fl].stairs) { const i = stairCells(st).findIndex(([cx, cy]) => cx === x && cy === y); if (i >= 0) return { st, i }; }
+  return null;
+}
+// 自分の目の前にある、今の向きで昇り降りできる階段
+function stairAhead() {
+  const d = state.dir, h = stairAt(state.fl, state.x + DIRS[d][0], state.y + DIRS[d][1]);
+  return h && h.i === 0 && h.st.dir === d ? h.st : null;
+}
+// カーテン：廊下（部屋の外・階段ホール）の窓には無い。部屋の窓は最初すべて閉まっていて、
+// 廊下の窓の目の前で外を見たとき（state.flags.reveal）に部屋ごとの設定で開く
+//   closed：ずっと閉まったまま / partial：一部の窓だけ閉まったまま / それ以外：すべて開く
+const CURTAIN = { 保健室: 'closed', 校長室: 'closed', 放送室: 'closed', 視聴覚室: 'closed', 放送準備室: 'closed',
+  職員室: 'partial', 理科室: 'partial', 音楽室: 'partial', 図書室: 'partial', 美術室: 'partial', '3年E組': 'partial' };
+const NO_CURTAIN_ROOMS = ['鐘楼'];
+const edgeHash = (fl, x, y, d) => { // 辺ごとに決まった乱数の種（両側から見ても同じ値）
+  if (d === 2) { y++; d = 0; } else if (d === 1) { x++; d = 3; }
+  return ((fl * 73856093) ^ (x * 19349663) ^ (y * 83492791) ^ (d * 2654435761)) >>> 0;
+};
+// 窓の辺のカーテン：null（無い／開いている）か、ドレープを描くための種
+function curtainAt(fl, x, y, d) {
+  const nx = x + DIRS[d][0], ny = y + DIRS[d][1];
+  const [cx, cy] = inMap(fl, x, y) ? [x, y] : [nx, ny]; // 校舎の内側のマス
+  const r = roomAt(fl, cx, cy);
+  if (!r || NO_CURTAIN_ROOMS.includes(r.name)) return null;
+  const seed = edgeHash(fl, x, y, d), mode = CURTAIN[r.name];
+  if (!state.flags.reveal || mode === 'closed') return seed;
+  if (mode === 'partial' && (Math.imul(seed ^ (seed >>> 15), 2246822519) >>> 0) % 5 < 2) return seed; // 4割ほど閉まったまま
+  return null;
+}
+const isFace = e => e !== OPEN;               // 見た目として面がある（壁・扉・窓）
+const isBlocking = e => e === WALL || e === WIN; // 通れない
+
+// ---------------------------------------------------------------------
+//  Characters / spells / monsters
+// ---------------------------------------------------------------------
+function mkChar(o) {
+  return Object.assign({ lv: 1, exp: 0, defend: false, spells: [] }, o, { hp: o.maxhp, mp: o.maxmp });
+}
+const HERO = () => mkChar({ id: 'hero', name: 'Player', cls: '生徒', maxhp: 20, maxmp: 0, atk: [3, 8], ac: 7, agi: 10, grow: { hp: [4, 8], mp: 0 } });
+const RECRUITS = {
+  saeki: () => mkChar({ id: 'saeki', name: '佐伯', cls: '教員', maxhp: 15, maxmp: 8, atk: [2, 6], ac: 8, agi: 7, spells: ['heal', 'scold'], grow: { hp: [3, 6], mp: 3 } }),
+  mizuno: () => mkChar({ id: 'mizuno', name: '水野', cls: '図書委員', maxhp: 10, maxmp: 10, atk: [1, 4], ac: 9, agi: 12, spells: ['spark', 'thunder'], grow: { hp: [2, 4], mp: 4 } }),
+};
+const SPELLS = {
+  heal: { name: '手当て', mp: 2 },
+  scold: { name: '一喝', mp: 3 },
+  spark: { name: '火花', mp: 2 },
+  thunder: { name: '雷鳴', mp: 4 },
+};
+const MONS = {
+  shoe:     { name: '呪いの上履き', img: 'image/monster_cursed_shoe.png', ih: 95, lift: 0, hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 8,  exp: 4,   shape: 'shoe',     grp: [2, 4] },
+  dust:     { name: 'ほこりの精', img: 'image/monster_dust_spirit.png', ih: 85, lift: 30,   hp: [2, 4],   atk: [1, 2],  ac: 9, agi: 12, exp: 3,   shape: 'dust',     grp: [2, 5] },
+  model:    { name: '人体模型', img: 'image/monster_anatomical_model.png', ih: 230, lift: 0,     hp: [7, 11],  atk: [2, 5],  ac: 7, agi: 6,  exp: 10,  shape: 'model',    grp: [1, 2] },
+  skel:     { name: '骨格標本', img: 'image/monster_skeleton_.png', ih: 245, lift: 0,     hp: [10, 15], atk: [2, 7],  ac: 6, agi: 9,  exp: 16,  shape: 'skeleton', grp: [1, 3] },
+  homework: { name: '宿題の亡霊', img: 'image/monster_homework_wraith.png', ih: 205, lift: 20,   hp: [8, 12],  atk: [2, 5],  ac: 5, agi: 11, exp: 14,  shape: 'ghost',    grp: [1, 3] },
+  book:     { name: '人喰い辞書', img: 'image/monster_man_eating_dictionary.png', ih: 115, lift: 20,   hp: [6, 10],  atk: [3, 6],  ac: 6, agi: 10, exp: 12,  shape: 'book',     grp: [1, 3] },
+  shadow:   { name: '黒板の影', img: 'image/monster_blackboard_shadow.png', ih: 255, lift: 0,     hp: [14, 20], atk: [3, 8],  ac: 5, agi: 10, exp: 26,  shape: 'shadow',   grp: [1, 3] },
+  portrait: { name: '見つめる肖像画', img: 'image/monster_watching_portrait_.png', ih: 165, lift: 50, hp: [12, 16], atk: [2, 9], ac: 4, agi: 8,  exp: 22,  shape: 'portrait', grp: [1, 2] },
+  // ゾンビ（人の大きさ）
+  wander:   { name: 'さまよう生徒', img: 'image/zombie_01_wanderer-realistic.png', ih: 240, lift: 0,  hp: [6, 9],   atk: [1, 4],  ac: 8, agi: 5,  exp: 7,   shape: 'model',    grp: [1, 3] },
+  gaper:    { name: 'うめく亡者', img: 'image/zombie_07_gaper-realistic.png', ih: 245, lift: 0,     hp: [8, 11],  atk: [2, 5],  ac: 7, agi: 6,  exp: 10,  shape: 'model',    grp: [1, 3] },
+  longarm:  { name: '手長の亡者', img: 'image/zombie_04_longarm-realistic.png', ih: 255, lift: 0,   hp: [10, 14], atk: [2, 7],  ac: 6, agi: 8,  exp: 15,  shape: 'model',    grp: [1, 2] },
+  fungal:   { name: 'キノコ憑き', img: 'image/zombie_05_fungal_host-realistic.png', ih: 245, lift: 0, hp: [12, 16], atk: [2, 6],  ac: 6, agi: 5,  exp: 17,  shape: 'model',    grp: [1, 2] },
+  boneshell:{ name: '半骨の亡者', img: 'image/zombie_08_bone_shell-realistic.png', ih: 245, lift: 0, hp: [14, 19], atk: [3, 8],  ac: 5, agi: 8,  exp: 24,  shape: 'skeleton', grp: [1, 2] },
+  kimono:   { name: '着物の亡者', img: 'image/zombie_09_grave_risen_japanese.png', ih: 235, lift: 0, hp: [15, 20], atk: [3, 9],  ac: 5, agi: 9,  exp: 27,  shape: 'model',    grp: [1, 2] },
+  // ラスボス：鐘の番人（鐘を守り、槌で打ち鳴らす）
+  bell:     { name: '鐘の番人', img: 'image/monster_time_warden_boss.png', ih: 260, lift: 0,     hp: [80, 80], atk: [5, 11], ac: 3, agi: 9,  exp: 240, shape: 'bell',     grp: [1, 1], boss: true },
+};
+const FLOOR_MONS = {
+  1: ['shoe', 'dust', 'model', 'wander', 'gaper'],
+  2: ['model', 'skel', 'homework', 'book', 'gaper', 'longarm', 'fungal'],
+  3: ['skel', 'shadow', 'portrait', 'homework', 'boneshell', 'kimono'],
+  4: ['shadow', 'boneshell', 'kimono'],
+};
+
+// ---------------------------------------------------------------------
+//  Utils
+// ---------------------------------------------------------------------
+const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+const DIR_NAME = ['北', '東', '南', '西'];
+const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+const pick = a => a[Math.floor(Math.random() * a.length)];
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const SPD = 380;
+
+let state, mode = 'explore', battle = null, menuOpts = [], dialogQ = null;
+
+const START = [4, 2]; // A棟1F 保健室のベッドの脇
+function newGame() {
+  state = {
+    fl: 1, x: START[0], y: START[1], dir: 2,
+    party: [HERO()], flags: {}, items: [],
+    seen: Object.fromEntries(Object.keys(MAPS).map(k => [k, new Set()])),
+    cool: 6, room: null,
+  };
+}
+
+const itemAt = (fl, x, y) => ITEMS.find(it => it.fl === fl && it.x === x && it.y === y && !state.flags['got_' + it.id]) || null;
+function npcAt(fl, x, y) {
+  return NPCS.find(n => n.fl === fl && n.x === x && n.y === y && !(n.hide && n.hide(state))) || null;
+}
+const aliveParty = () => state.party.filter(c => c.hp > 0);
+
+// ---------------------------------------------------------------------
+//  Rendering: wireframe first-person view
+// ---------------------------------------------------------------------
+const cv = document.getElementById('view');
+const g = cv.getContext('2d');
+// 画面 640x470（16:10 から正方形へ約4割寄せ）。1マスの見た目は正方形（横縦比 1.0）
+const VW = 640, VH = 470, CX = 320, CY = 235, FY = 235, FX = FY;
+const DEPTH = 6, LAT = 4;
+
+function P(lat, d, h) { d = Math.max(d, 0.08); return [CX + lat / d * FX, CY - h / d * FY]; }
+function lerp2(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+// face from e1 (screen-left end) to e2 (screen-right end), each [lat, d]
+function quad(e1, e2, u0, u1, h0, h1) {
+  const a = lerp2(e1, e2, u0), b = lerp2(e1, e2, u1);
+  return [P(a[0], a[1], h1), P(b[0], b[1], h1), P(b[0], b[1], h0), P(a[0], a[1], h0)];
+}
+function path(pts) { g.beginPath(); g.moveTo(pts[0][0], pts[0][1]); for (let i = 1; i < pts.length; i++) g.lineTo(pts[i][0], pts[i][1]); g.closePath(); }
+function lineCol(d) { return `rgba(255,255,255,${clamp(1.08 - d / 6.5, 0.18, 1)})`; }
+
+// --- 空と街並み：方位（東→西）で滑らかに変わるパノラマ ---
+// 空は無限遠なので、画面の各列の色は「その列の視線の方位」だけで決まる。
+// 西（夕日側）が最も明るく、東が最も暗い。間は連続的に補間する。
+const SKY_EAST = [[0, '#101c36'], [0.4, '#16162e'], [0.68, '#201024'], [0.86, '#2e0e18'], [1, '#420e14']];
+const SKY_WEST = [[0, '#1c2e52'], [0.4, '#2c2046'], [0.68, '#641e34'], [0.86, '#ac2a2c'], [1, '#e04a36']];
+const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+const mixCol = (a, b, t) => { const A = hex(a), B = hex(b); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',') + ')'; };
+// 方位 az（度, 北=0 東=90 南=180 西=270）→ 西らしさ 0..1
+// 東西の差は控えめに：0..1 の範囲を中間(0.5)へ6割寄せる（東 0.3 〜 西 0.7）
+const westness = az => 0.4 * Math.pow((1 + Math.cos((az - 270) * Math.PI / 180)) / 2, 1.6) + 0.6 * 0.5;
+const colAzimuth = (dir, x) => dir * 90 + Math.atan((x - CX) / FX) * 180 / Math.PI;
+const azToX = (dir, az) => { const r = ((az - dir * 90) % 360 + 540) % 360 - 180; if (Math.abs(r) > 80) return null; return CX + Math.tan(r * Math.PI / 180) * FX; };
+
+function seeded(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
+// 360°分の星と建物（単位：度）。画面中央付近で 1度 ≒ FX*π/180 px
+const PX_PER_DEG = FX * Math.PI / 180;
+const PANO = (() => {
+  const R = seeded(4242), stars = [], far = [], near = [];
+  for (let i = 0; i < 140; i++) stars.push({ az: R() * 360, y: R() * CY * 0.4, a: 0.15 + R() * 0.35 });
+  // 遠景：横長が基本、ごくたまに小さな縦長
+  for (let az = 0; az < 360;) {
+    let w, h;
+    if (R() < 0.06) { w = 3 + R() * 3; h = 10 + R() * 9; } else { w = 6 + R() * 16; h = 3 + R() * 7; }
+    w /= PX_PER_DEG; h *= 0.5 + 1.1 * (0.5 + 0.5 * Math.sin(az * 4 * Math.PI / 180 + 1.3)); far.push({ az, w, h }); az += w;
+  }
+  // 近景：まばらに少し大きめの横長（屋上の塔屋つき）
+  for (let az = R() * 15; az < 360;) {
+    const w = (16 + R() * 30) / PX_PER_DEG, h = 10 + R() * 12;
+    near.push({ az, w, h, roof: R() < 0.5 ? { o: R() * (w - 12 / PX_PER_DEG), w: (6 + R() * 6) / PX_PER_DEG } : null });
+    az += w + (R() < 0.4 ? R() * 6 : 20 + R() * 90) / PX_PER_DEG;
+  }
+  // 遠くの山並み（方位の関数）：いくつかの正弦波の和。0 未満は地平線に沈む
+  const waves = Array.from({ length: 7 }, (_, i) => ({ k: [3, 5, 8, 13, 21, 34, 55][i], a: [7, 6, 5, 3.5, 2.5, 1.5, 0.8][i], p: R() * Math.PI * 2 }));
+  const ridge = az => Math.max(0, 13 + waves.reduce((v, w) => v + w.a * (1 - 2 * Math.abs(Math.sin(w.k * (az + 60) * Math.PI / 360 + w.p))), 0));
+  return { stars, far, near, ridge };
+})();
+
+const skyCanvases = {}, townCanvases = {};
+function buildSky(dir) {
+  const c = document.createElement('canvas'); c.width = VW; c.height = VH;
+  let x = c.getContext('2d');
+  const STRIP = 4;
+  for (let sx = 0; sx < VW; sx += STRIP) {
+    const t = westness(colAzimuth(dir, sx + STRIP / 2));
+    const gr = x.createLinearGradient(0, 0, 0, CY + 4);
+    SKY_EAST.forEach(([o, col], i) => gr.addColorStop(o, mixCol(col, SKY_WEST[i][1], t)));
+    x.fillStyle = gr; x.fillRect(sx, 0, STRIP, CY + 4);
+  }
+  for (const st of PANO.stars) {
+    const px = azToX(dir, st.az); if (px === null || px < 0 || px > VW) continue;
+    x.fillStyle = 'rgba(220,230,255,' + st.a + ')'; x.fillRect(px, st.y, 1, 1);
+  }
+  skyCanvases[dir] = c;
+
+  const c2 = document.createElement('canvas'); c2.width = VW; c2.height = VH;
+  x = c2.getContext('2d');
+  const rect = (az, w, top, bottom) => {
+    const x0 = azToX(dir, az), x1 = azToX(dir, az + w);
+    if (x0 === null || x1 === null || x1 < x0) return;
+    x.fillRect(x0, top, x1 - x0 + 0.5, bottom - top);
+  };
+  x.fillStyle = '#2a0e16';
+  x.beginPath(); x.moveTo(0, CY + 1);
+  for (let sx = 0; sx <= VW; sx += 2) x.lineTo(sx, CY - PANO.ridge(colAzimuth(dir, sx)));
+  x.lineTo(VW, CY + 1); x.closePath(); x.fill();
+  x.fillStyle = '#1a0a10';
+  for (const bl of PANO.far) rect(bl.az, bl.w, CY - bl.h, CY + 1);
+  x.fillStyle = '#050307';
+  x.fillRect(0, CY, VW, VH - CY);
+  for (const bl of PANO.near) {
+    rect(bl.az, bl.w, CY - bl.h, CY + 1);
+    if (bl.roof) rect(bl.az + bl.roof.o, bl.roof.w, CY - bl.h - 3, CY - bl.h);
+  }
+  townCanvases[dir] = c2;
+}
+[0, 1, 2, 3].forEach(buildSky);
+
+function drawWindow(e1, e2, d, curtain) {
+  const q = quad(e1, e2, 0.1, 0.9, -0.12, 0.4);
+  if (curtain != null) {
+    // 閉じたカーテン：枠の中は黒、下から伸びる高さの違う縦線（ひだ）
+    g.strokeStyle = lineCol(d); g.lineWidth = 1.5;
+    path(q); g.stroke();
+    // ひだ5本：どの窓も同じパターン。pos＝窓の幅に対する位置（両端から離し、間隔を少しばらつかせる）、ht＝高さ
+    const DRAPE = [{ pos: 0.18, ht: 0.62 }, { pos: 0.35, ht: 0.7 }, { pos: 0.5, ht: 0.45 }, { pos: 0.67, ht: 0.53 }, { pos: 0.82, ht: 0.74 }];
+    g.lineWidth = 1;
+    for (const { pos, ht } of DRAPE) {
+      const u = 0.1 + 0.8 * pos;
+      const a = quad(e1, e2, u, u, -0.12, -0.12 + 0.52 * ht);
+      g.beginPath(); g.moveTo(...a[3]); g.lineTo(...a[0]); g.stroke();
+    }
+    return;
+  }
+  g.save(); path(q); g.clip();
+  // 空は無限遠：窓の向きではなく、プレイヤーの視線方向のパノラマを使う
+  g.drawImage(skyCanvases[state.dir], 0, 0);
+  g.drawImage(townCanvases[state.dir], 0, 0);
+  g.restore();
+  g.strokeStyle = lineCol(d); g.lineWidth = 1.5;
+  path(q); g.stroke();
+  // 外枠＋中央の縦桟1本（引き違い窓）
+  const m2 = quad(e1, e2, 0.5, 0.5, -0.12, 0.4); g.beginPath(); g.moveTo(...m2[0]); g.lineTo(...m2[3]); g.stroke();
+}
+function drawDoor(e1, e2, d) {
+  g.strokeStyle = lineCol(d); g.lineWidth = 1.5;
+  path(quad(e1, e2, 0.22, 0.78, -0.5, 0.3)); g.stroke();
+  path(quad(e1, e2, 0.3, 0.7, 0.05, 0.22)); g.stroke();          // glass slot
+  path(quad(e1, e2, 0.36, 0.64, 0.34, 0.42)); g.stroke();        // name plate
+  const k = quad(e1, e2, 0.68, 0.7, -0.08, -0.04); path(k); g.stroke(); // handle
+}
+// edgeL / edgeR：画面上で左右の縦線を描くか（同一平面で壁が続く場合は描かない）
+function drawFace(e1, e2, kind, d, edgeL = true, edgeR = true, curtain = null) {
+  const q = quad(e1, e2, 0, 1, -0.5, 0.5);
+  // 黒で塗り＋左右の縦の辺も黒でなぞる（隣の面との継ぎ目から奥の線が透けないように）
+  path(q); g.fillStyle = '#000'; g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1.5;
+  g.beginPath(); g.moveTo(...q[0]); g.lineTo(...q[3]); g.moveTo(...q[1]); g.lineTo(...q[2]); g.stroke(); // 縦の継ぎ目だけ
+  g.strokeStyle = lineCol(d); g.lineWidth = 1.5;
+  // 端を少し延ばして（square）、隣の面の黒い縦なぞりで天井際・床際の線が途切れないように
+  const seg = (a, b) => { g.lineCap = 'square'; g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke(); g.lineCap = 'butt'; };
+  seg(q[0], q[1]); seg(q[3], q[2]);           // 天井際・床際
+  if (edgeL) seg(q[0], q[3]);
+  if (edgeR) seg(q[1], q[2]);
+  if (kind === WIN) drawWindow(e1, e2, d, curtain);
+  else if (kind === DOOR) drawDoor(e1, e2, d);
+}
+// 階段（ソリッド）。局所座標 u：進む方向 0..2（2マス）、v：横 -A..A、h：高さ
+// 上り：床 -0.5 から天井 +0.5 へ。下り：床 -0.5 から下の階の床 -1.5 へ（床に開いた吹き抜け）
+const STEPS = 7, STAIR_A = 0.44;
+function drawStairSolid(st) {
+  const [sx, sy] = DIRS[st.dir], [tx, ty] = DIRS[(st.dir + 1) % 4];
+  const ox = st.x - sx * 0.5 - state.x, oy = st.y - sy * 0.5 - state.y; // 手前の辺の中心（自分からの相対）
+  const [fx, fy] = DIRS[state.dir], [rx, ry] = DIRS[(state.dir + 1) % 4];
+  // 局所 (u,v,h) → 視点座標 [横, 奥行, 高さ]
+  const V = (u, v, h) => { const wx = ox + sx * u + tx * v, wy = oy + sy * u + ty * v; return [wx * rx + wy * ry, wx * fx + wy * fy, h]; };
+  const N = (nu, nv, nh) => { const wx = sx * nu + tx * nv, wy = sy * nu + ty * nv; return [wx * rx + wy * ry, wx * fx + wy * fy, nh]; };
+  const faces = [];
+  const add = (pts, n) => {
+    const p = pts.map(q => V(...q)), nn = N(...n), c = p[0];
+    if (nn[0] * -c[0] + nn[1] * -c[1] + nn[2] * -c[2] <= 1e-6) return; // 裏向きは描かない（視点は原点）
+    const m = p.reduce((a, q) => [a[0] + q[0] / p.length, a[1] + q[1] / p.length, a[2] + q[2] / p.length], [0, 0, 0]);
+    faces.push({ p, dist: Math.hypot(m[0], m[1], m[2]), dmin: Math.min(...p.map(q => q[1])) });
+  };
+  const A = STAIR_A, dd = 2 / STEPS, rh = 1 / STEPS;
+  if (st.up) {
+    const prof = [[0, -0.5]];
+    for (let k = 0; k < STEPS; k++) {
+      const u0 = k * dd, u1 = u0 + dd, h0 = -0.5 + k * rh, h1 = h0 + rh;
+      add([[u0, -A, h0], [u0, A, h0], [u0, A, h1], [u0, -A, h1]], [-1, 0, 0]); // 蹴込み
+      add([[u0, -A, h1], [u0, A, h1], [u1, A, h1], [u1, -A, h1]], [0, 0, 1]);  // 踏み板
+      prof.push([u0, h1], [u1, h1]);
+    }
+    prof.push([2, -0.5]);
+    add(prof.map(([u, h]) => [u, -A, h]), [0, -1, 0]); // 側面（段々の形）
+    add(prof.map(([u, h]) => [u, A, h]).reverse(), [0, 1, 0]);
+  } else {
+    const prof = [[0, -0.5], [2, -0.5]];
+    const low = [];
+    for (let k = 0; k < STEPS; k++) {
+      const u0 = k * dd, u1 = u0 + dd, h1 = -0.5 - (k + 1) * rh, h0 = h1 + rh;
+      add([[u0, -A, h1], [u0, A, h1], [u1, A, h1], [u1, -A, h1]], [0, 0, 1]);  // 踏み板
+      add([[u0, -A, h0], [u0, A, h0], [u0, A, h1], [u0, -A, h1]], [1, 0, 0]);  // 段の落ち（奥向き）
+      low.push([u0, h1], [u1, h1]);
+    }
+    add([[2, -A, -0.5], [2, A, -0.5], [2, A, -1.5], [2, -A, -1.5]], [-1, 0, 0]); // 吹き抜けの奥の壁
+    const wall = prof.concat(low.slice().reverse()); // 床の高さ〜段の上の、吹き抜けの側壁
+    add(wall.map(([u, h]) => [u, -A, h]), [0, 1, 0]);
+    add(wall.map(([u, h]) => [u, A, h]), [0, -1, 0]);
+  }
+  faces.sort((a, b) => b.dist - a.dist);
+  g.lineJoin = 'bevel'; g.lineWidth = 1.5; g.fillStyle = '#000'; g.strokeStyle = '#fff';
+  for (const fc of faces) {
+    if (fc.p.every(q => q[1] < 0.06)) continue; // 自分より後ろ
+    path(fc.p.map(q => P(...q))); g.fill(); g.stroke();
+  }
+  // 上り階段：天井に開いた穴（枠だけ）。マス2つ分の幅・長さ、天井の高さ h=+0.5
+  if (st.up) {
+    const c = [[0, -0.5], [2, -0.5], [2, 0.5], [0, 0.5]].map(([u, v]) => V(u, v, 0.5));
+    g.strokeStyle = lineCol(Math.max(0.5, Math.min(...c.map(q => q[1])))); g.lineWidth = 1.5;
+    for (let i = 0; i < 4; i++) {
+      const a = c[i], b = c[(i + 1) % 4];
+      if (a[1] < 0.06 || b[1] < 0.06) continue; // 自分より後ろにかかる辺は描かない
+      g.beginPath(); g.moveTo(...P(...a)); g.lineTo(...P(...b)); g.stroke();
+    }
+  }
+  g.lineJoin = 'miter';
+}
+// --- 家具：マス中心 (l,f)。寸法はワールド座標（hx 東西・hy 南北の半分）で、向きに合わせて回す ---
+// 1 = 約 230cm（天井高）。床 h=-0.5
+const FURN = {
+  bed: { hx: 0.26, hy: 0.39, top: -0.5 + 0.22 },  // 幅120×長さ180×高さ50cm（横縦比 2:3）、頭は北
+  desk: { hx: 0.14, hy: 0.1, top: -0.5 + 0.31 },  // 天板65×45cm、高さ72cm
+};
+function viewHalf(kind) {
+  const p = FURN[kind], sideways = DIRS[state.dir][0] !== 0; // 東西を向いていると南北の長さが横幅になる
+  return sideways ? [p.hy, p.hx] : [p.hx, p.hy]; // [横, 奥行]
+}
+// ベッド・机：天板（板1枚）と、四隅から床へ下ろす直線の脚4本
+// 天板の角は lineJoin='bevel' にして、鋭角の角が尖って脚の位置からはみ出さないようにする
+function drawTable(kind, l, f) {
+  const [a, b] = viewHalf(kind), top = FURN[kind].top;
+  const x0 = l - a, x1 = l + a, d0 = f - b, d1 = f + b;
+  g.strokeStyle = lineCol(f); g.lineWidth = 1.5; g.fillStyle = '#000'; g.lineJoin = 'bevel';
+  for (const [x, d] of [[x0, d1], [x1, d1], [x0, d0], [x1, d0]]) { g.beginPath(); g.moveTo(...P(x, d, top)); g.lineTo(...P(x, d, -0.5)); g.stroke(); }
+  path([P(x0, d0, top), P(x1, d0, top), P(x1, d1, top), P(x0, d1, top)]); g.fill(); g.stroke();
+  g.lineJoin = 'miter';
+}
+// 落とし物：画像があれば床に置いた絵（幅 w は実物より少し大きめ）、なければ小さな箱
+function drawItem(l, f, it) {
+  const im = ITEM_IMG[it.id] && getImage(ITEM_IMG[it.id].src);
+  if (im) {
+    const w = ITEM_IMG[it.id].w, h = w * im.naturalHeight / im.naturalWidth;
+    const a = P(l - w / 2, f, -0.5 + h), b = P(l + w / 2, f, -0.5);
+    g.imageSmoothingEnabled = false; g.drawImage(im, a[0], a[1], b[0] - a[0], b[1] - a[1]);
+    return;
+  }
+  const a = 0.1, h0 = -0.5, h1 = -0.42;
+  g.strokeStyle = lineCol(f); g.fillStyle = '#000'; g.lineWidth = 1.5;
+  path([P(l - a, f - a, h1), P(l + a, f - a, h1), P(l + a, f + a, h1), P(l - a, f + a, h1)]); g.fill(); g.stroke();
+  path([P(l - a, f - a, h1), P(l + a, f - a, h1), P(l + a, f - a, h0), P(l - a, f - a, h0)]); g.fill(); g.stroke();
+}
+function drawHanging(l, f, dc) {
+  const im = getImage(dc.img); if (!im) return;
+  const h = dc.w * im.naturalHeight / im.naturalWidth;
+  const a = P(l - dc.w / 2, f, 0.5), b = P(l + dc.w / 2, f, 0.5 - h);
+  g.imageSmoothingEnabled = false; g.drawImage(im, a[0], a[1], b[0] - a[0], b[1] - a[1]);
+}
+function drawPerson(l, f, col) {
+  g.strokeStyle = col; g.fillStyle = '#000'; g.lineWidth = Math.max(1, 2.2 / f);
+  const line = (a, b) => { g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke(); };
+  line(P(l - 0.05, f, -0.2), P(l - 0.07, f, -0.5)); line(P(l + 0.05, f, -0.2), P(l + 0.07, f, -0.5));
+  path([P(l - 0.13, f, 0.08), P(l + 0.13, f, 0.08), P(l + 0.1, f, -0.22), P(l - 0.1, f, -0.22)]); g.fill(); g.stroke();
+  line(P(l - 0.13, f, 0.07), P(l - 0.17, f, -0.18)); line(P(l + 0.13, f, 0.07), P(l + 0.17, f, -0.18));
+  const hc = P(l, f, 0.18); g.beginPath(); g.arc(hc[0], hc[1], 0.08 / f * FX * 0.9, 0, Math.PI * 2); g.fill(); g.stroke();
+}
+// --- キャラ画像（ドット絵）：透過PNG、黒塗り＋白線。読み込み完了で再描画 ---
+const IMAGES = {};
+function getImage(src) {
+  if (!IMAGES[src]) {
+    const im = new Image();
+    im.onload = () => { if (state) render(); };
+    im.src = src; IMAGES[src] = im;
+  }
+  const im = IMAGES[src];
+  return im.complete && im.naturalWidth ? im : null;
+}
+// 床に立つ立ち絵（足元 h=-0.5）。画像の縦＝身長 ht(cm)。保健の先生 158cm が 0.688（1マス=1.0）になる縮尺
+const CM = 0.86 * 0.8 / 158;
+function drawSprite(l, f, im, ht = 158) {
+  const top = P(l, f, -0.5 + ht * CM), bot = P(l, f, -0.5);
+  const h = bot[1] - top[1], w = h * im.naturalWidth / im.naturalHeight;
+  g.imageSmoothingEnabled = false;
+  g.drawImage(im, top[0] - w / 2, top[1], w, h);
+}
+function drawBellIcon(l, f) {
+  g.strokeStyle = '#fff'; g.fillStyle = '#000'; g.lineWidth = Math.max(1, 2.5 / f);
+  const pts = [P(l - 0.08, f, 0.3), P(l + 0.08, f, 0.3), P(l + 0.14, f, 0.0), P(l + 0.22, f, -0.12), P(l - 0.22, f, -0.12), P(l - 0.14, f, 0.0)];
+  path(pts); g.fill(); g.stroke();
+  const a = P(l, f, 0.3), b = P(l, f, 0.5); g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.stroke();
+}
+
+const TALK_DIST = 0.42; // 会話中に相手を表示する距離（隣のマスは 1.0）
+function drawNpc(n, l, f) {
+  const im = n.img && getImage(n.img);
+  if (im) drawSprite(l, f, im, n.ht); else if (n.boss) drawBellIcon(l, f); else drawPerson(l, f, '#fff');
+}
+function renderView() {
+  // 描画は 640x470 の論理座標。キャンバス実寸（1.3倍）に合わせて拡大し、線をくっきり保つ
+  g.setTransform(cv.width / VW, 0, 0, cv.height / VH, 0, 0);
+  g.fillStyle = "#000"; g.fillRect(0, 0, VW, VH);
+  const dir = state.dir, [fx, fy] = DIRS[dir], [rx, ry] = DIRS[(dir + 1) % 4];
+  const wx = (f, l) => state.x + fx * f + rx * l, wy = (f, l) => state.y + fy * f + ry * l;
+  // 相対マス (f 前方, l 右) の辺。side：0 奥 / 1 右 / 2 手前 / 3 左
+  const E = (f, l, side) => edgeAt(state.fl, wx(f, l), wy(f, l), (dir + side) % 4);
+  const CU = (f, l, side) => curtainAt(state.fl, wx(f, l), wy(f, l), (dir + side) % 4);
+  const order = [];
+  for (let l = LAT; l >= 1; l--) order.push(-l, l);
+  order.push(0);
+  const talking = dialogQ && dialogQ.npc;
+  // 視線に平行な面：画面左端 e1／右端 e2。右側の壁は奥が左、左側の壁は手前が左
+  const sideFace = (lat, f, e, nFar, nNear, cu) => {
+    if (!isFace(e)) return;
+    if (lat > 0) drawFace([lat, f + 0.5], [lat, f - 0.5], e, f, !isFace(nFar), !isFace(nNear), cu);
+    else drawFace([lat, f - 0.5], [lat, f + 0.5], e, f, !isFace(nNear), !isFace(nFar), cu);
+  };
+  // 面の端の縦線は、同じ直線上に面が続く場合は描かない（角・端だけ線を引く）
+  for (let f = DEPTH; f >= 0; f--) {
+    for (const l of order) {
+      // 奥の辺（正面向きの面）
+      const far = E(f, l, 0);
+      if (isFace(far)) drawFace([l - 0.5, f + 0.5], [l + 0.5, f + 0.5], far, f + 0.5, !isFace(E(f, l - 1, 0)), !isFace(E(f, l + 1, 0)), far === WIN ? CU(f, l, 0) : null);
+      // マスの中身（階段・人）
+      if (f >= 1 && inMap(state.fl, wx(f, l), wy(f, l))) {
+        const sa = stairAt(state.fl, wx(f, l), wy(f, l));
+        if (sa) {
+          // もう一方のマスの (f,l)。こちらが先（f が大きい、同じなら |l| が大きい）なら描く
+          const [ox2, oy2] = stairCells(sa.st)[1 - sa.i], dx = ox2 - state.x, dy = oy2 - state.y;
+          const f2 = dx * fx + dy * fy, l2 = dx * rx + dy * ry;
+          if (f > f2 || (f === f2 && Math.abs(l) > Math.abs(l2))) drawStairSolid(sa.st);
+        }
+        const pr = propAt(state.fl, wx(f, l), wy(f, l));
+        if (pr) drawTable(pr, l, f);
+        const it = itemAt(state.fl, wx(f, l), wy(f, l));
+        if (it) drawItem(l, f, it);
+        // 吊るされた物（鐘楼の鐘など）：天井から下げる
+        for (const dc of DECOR) if (dc.fl === state.fl && dc.x === wx(f, l) && dc.y === wy(f, l) && !(dc.hide && dc.hide(state))) drawHanging(l, f, dc);
+        const n = npcAt(state.fl, wx(f, l), wy(f, l));
+        if (n && Math.abs(l) <= 1 && n !== talking) drawNpc(n, l, f);
+      }
+      // 横の辺（視線に平行な面）。辺 lat=k+0.5 は一意に描く：右側(l>=1)はマスの左辺、左側(l<=-1)はマスの右辺
+      if (l >= 1) sideFace(l - 0.5, f, E(f, l, 3), E(f + 1, l, 3), E(f - 1, l, 3), E(f, l, 3) === WIN ? CU(f, l, 3) : null);
+      if (l <= -1) sideFace(l + 0.5, f, E(f, l, 1), E(f + 1, l, 1), E(f - 1, l, 1), E(f, l, 1) === WIN ? CU(f, l, 1) : null);
+    }
+  }
+  // 会話中：相手を目の前に寄せて大きく表示
+  if (talking && !battle) drawNpc(dialogQ.npc, 0, TALK_DIST);
+  const held = dialogQ && dialogQ.item && ITEM_IMG[dialogQ.item] && getImage(ITEM_IMG[dialogQ.item].src);
+  if (held && !battle) {
+    const w = 220, h = w * held.naturalHeight / held.naturalWidth;
+    g.imageSmoothingEnabled = false; g.drawImage(held, CX - w / 2, CY - h / 2 - 40, w, h);
+  }
+  if (battle) renderBattle();
+}
+
+// ---------------------------------------------------------------------
+//  Monster wireframes
+// ---------------------------------------------------------------------
+function drawMonster(shape, x, y, s, col) {
+  g.save(); g.translate(x, y); g.scale(s, s);
+  g.strokeStyle = col; g.fillStyle = '#000'; g.lineWidth = 2 / s;
+  const L = (...p) => { g.beginPath(); g.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) g.lineTo(p[i], p[i + 1]); g.stroke(); };
+  const C = (cx, cy, r, fill = true) => { g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); if (fill) g.fill(); g.stroke(); };
+  const eyes = (y0, dx, r = 4) => { C(-dx, y0, r); C(dx, y0, r); g.fillStyle = col; g.beginPath(); g.arc(-dx, y0, r / 2.5, 0, 7); g.arc(dx, y0, r / 2.5, 0, 7); g.fill(); g.fillStyle = '#000'; };
+  switch (shape) {
+    case 'shoe':
+      g.beginPath(); g.moveTo(-60, 0); g.lineTo(65, 0); g.quadraticCurveTo(92, -6, 78, -34); g.lineTo(18, -46); g.lineTo(-38, -58);
+      g.quadraticCurveTo(-68, -52, -60, 0); g.closePath(); g.fill(); g.stroke();
+      L(-62, -10, 82, -10); L(40, -40, 50, -2); g.beginPath(); g.ellipse(-12, -50, 26, 7, -0.15, 0, 7); g.stroke();
+      eyes(-30, 14, 5);
+      L(54, -18, 60, -12, 66, -18, 72, -12, 78, -18);
+      break;
+    case 'dust': {
+      g.beginPath();
+      for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2, r = 42 + (i % 2 ? 10 : -2) + Math.sin(i * 2.3) * 5; g.lineTo(Math.cos(a) * r, -45 + Math.sin(a) * r * 0.85); }
+      g.closePath(); g.fill(); g.stroke(); eyes(-50, 14, 6); L(-10, -28, 0, -32, 10, -28); break;
+    }
+    case 'model':
+      C(0, -175, 22); L(0, -197, 0, -153);
+      g.beginPath(); g.rect(-34, -150, 68, 90); g.fill(); g.stroke(); L(0, -150, 0, -60);
+      C(14, -128, 8, false); g.beginPath(); g.ellipse(18, -100, 10, 14, 0, 0, 7); g.stroke(); L(4, -80, 30, -76);
+      L(-34, -145, -55, -95, -48, -60); L(34, -145, 55, -95, 50, -62);
+      L(-20, -60, -24, -10); L(20, -60, 24, -10); L(-40, 0, 40, 0); L(0, -10, 0, 0); L(-24, -10, 24, -10);
+      eyes(-180, 9, 4); break;
+    case 'skeleton':
+      C(0, -178, 22); g.beginPath(); g.rect(-12, -160, 24, 12); g.stroke(); eyes(-182, 9, 6);
+      L(0, -148, 0, -60);
+      for (let i = 0; i < 5; i++) { const yy = -140 + i * 14, w = 34 - i * 3; g.beginPath(); g.ellipse(0, yy, w, 6, 0, Math.PI, 0, true); g.stroke(); }
+      L(-36, -144, -52, -100, -46, -58); L(36, -144, 52, -100, 46, -58);
+      g.beginPath(); g.ellipse(0, -58, 26, 10, 0, 0, 7); g.stroke();
+      L(-16, -52, -20, -4, -30, 0); L(16, -52, 20, -4, 30, 0); break;
+    case 'ghost':
+      g.beginPath(); g.moveTo(-50, -20); g.quadraticCurveTo(-58, -170, 0, -175); g.quadraticCurveTo(58, -170, 50, -20);
+      for (let i = 0; i < 5; i++) g.quadraticCurveTo(40 - i * 20, -5 - (i % 2) * 20, 30 - i * 20, -20);
+      g.closePath(); g.fill(); g.stroke(); eyes(-125, 16, 7);
+      g.beginPath(); g.ellipse(0, -95, 9, 12, 0, 0, 7); g.stroke();
+      g.save(); g.translate(45, -80); g.rotate(0.25); g.beginPath(); g.rect(-18, -26, 36, 50); g.fill(); g.stroke();
+      for (let i = 0; i < 5; i++) L(-12, -16 + i * 9, 12, -16 + i * 9); g.restore(); break;
+    case 'book':
+      g.beginPath(); g.moveTo(-80, -40); g.lineTo(0, -10); g.lineTo(80, -40); g.lineTo(80, -120); g.lineTo(0, -95); g.lineTo(-80, -120); g.closePath(); g.fill(); g.stroke();
+      L(0, -95, 0, -10);
+      for (let i = 0; i < 6; i++) { L(-70, -104 + i * 10 + i * 2, -12, -82 + i * 10); L(12, -82 + i * 10, 70, -104 + i * 10 + i * 2); }
+      L(-6, -90, 0, -78, 6, -90); L(-6, -60, 0, -48, 6, -60); L(-6, -30, 0, -18, 6, -30);
+      eyes(-135, 20, 7); break;
+    case 'shadow':
+      g.beginPath(); g.rect(-75, -200, 150, 110); g.fill(); g.stroke(); L(-80, -88, 80, -88);
+      g.beginPath(); g.moveTo(-30, -92); g.quadraticCurveTo(-34, -180, 0, -185); g.quadraticCurveTo(34, -180, 30, -92); g.stroke();
+      g.setLineDash([4, 4]); L(-50, -110, -20, -170); L(40, -120, 60, -180); g.setLineDash([]);
+      eyes(-150, 11, 5); L(-30, -88, -40, 0); L(30, -88, 40, 0); L(-40, 0, 40, 0); break;
+    case 'portrait':
+      g.beginPath(); g.rect(-60, -200, 120, 150); g.fill(); g.stroke(); g.beginPath(); g.rect(-50, -190, 100, 130); g.stroke();
+      g.beginPath(); g.ellipse(0, -130, 26, 34, 0, 0, 7); g.stroke();
+      L(-26, -138, -36, -170, 0, -178, 36, -170, 26, -138);
+      eyes(-135, 11, 5); L(-10, -110, 10, -110); L(-40, -60, -30, -80, 30, -80, 40, -60);
+      L(-30, -50, -30, 0); L(30, -50, 30, 0); L(-50, 0, 50, 0); break;
+    case 'bell':
+      L(-90, -240, 90, -240); L(0, -240, 0, -215);
+      g.beginPath(); g.moveTo(-30, -215); g.lineTo(30, -215); g.quadraticCurveTo(52, -200, 55, -120); g.quadraticCurveTo(60, -70, 95, -55);
+      g.lineTo(-95, -55); g.quadraticCurveTo(-60, -70, -55, -120); g.quadraticCurveTo(-52, -200, -30, -215); g.closePath(); g.fill(); g.stroke();
+      L(-80, -65, 80, -65); L(-60, -100, 60, -100);
+      L(20, -205, 30, -170, 18, -140, 28, -110);
+      C(0, -38, 14); L(0, -55, 0, -52);
+      g.fillStyle = '#fff'; g.beginPath(); g.arc(-22, -150, 6, 0, 7); g.arc(22, -150, 6, 0, 7); g.fill();
+      break;
+  }
+  g.restore();
+}
+
+// 被弾時の赤い点滅用：画像の不透明部分だけを塗った版をキャッシュ
+const TINTS = {};
+function tinted(im, col) {
+  const key = im.src + col;
+  if (!TINTS[key]) {
+    const c = document.createElement('canvas'); c.width = im.naturalWidth; c.height = im.naturalHeight;
+    const x = c.getContext('2d'); x.drawImage(im, 0, 0);
+    x.globalCompositeOperation = 'source-atop'; x.globalAlpha = 1; x.fillStyle = col; x.fillRect(0, 0, c.width, c.height);
+    TINTS[key] = c;
+  }
+  return TINTS[key];
+}
+// 画像があれば画像、なければワイヤーフレーム。戻り値は頭の上端の y
+function drawEnemy(m, x, y, s, flash) {
+  const im = m.img && getImage(m.img);
+  if (!im) { drawMonster(m.shape, x, y, s, '#fff'); return y - 170 * s; }
+  const h = m.ih * s, w = h * im.naturalWidth / im.naturalHeight, top = y - m.lift * s - h;
+  g.imageSmoothingEnabled = false;
+  g.drawImage(flash ? tinted(im, '#fff') : im, x - w / 2, top, w, h);
+  return top;
+}
+function renderBattle() {
+  g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 0, VW, VH);
+  const m = MONS[battle.kind];
+  const n = battle.enemies.length;
+  const s = m.boss ? 1.1 : (n >= 4 ? 0.62 : n === 3 ? 0.75 : 0.9);
+  const bellIm = m.boss && getImage('image/chime.png');
+  if (bellIm) { const bw = 90, bh = bw * bellIm.naturalHeight / bellIm.naturalWidth; g.imageSmoothingEnabled = false; g.drawImage(bellIm, CX - 200 - bw / 2, 58, bw, bh); }
+  battle.enemies.forEach((e, i) => {
+    if (e.hp <= 0) return;
+    const x = VW * (i + 1) / (n + 1), y = m.boss ? 345 : 320; // 下部のログ・コマンドに被らない高さ
+    const top = drawEnemy(m, x, y, s, e.flash);
+    if (e.sleep > 0) { g.fillStyle = '#fff'; g.font = '18px DotGothic16, monospace'; g.textAlign = 'center'; g.fillText('Zz', x + 40 * s, top + 10); }
+  });
+  const alive = battle.enemies.filter(e => e.hp > 0).length;
+  g.font = '18px DotGothic16, monospace'; g.textAlign = 'center';
+  const label = `${m.name}  ×${alive}`;
+  const w = g.measureText(label).width + 28;
+  g.fillStyle = '#000'; g.fillRect(CX - w / 2, 12, w, 30); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.strokeRect(CX - w / 2, 12, w, 30);
+  g.fillStyle = '#fff'; g.fillText(label, CX, 33);
+}
+
+// ---------------------------------------------------------------------
+//  Minimap / HUD
+// ---------------------------------------------------------------------
+const mc = document.getElementById('map'), mg = mc.getContext('2d');
+// オートマップ：実際に立ったマスだけを記録（地図に描かれるのは、そのマスの四方の壁だけ）
+function markSeen() {
+  state.seen[state.fl].add(state.x + ',' + state.y);
+}
+function renderMap() {
+  const F = MAPS[state.fl], cs = 10, ox = Math.round(mc.width / 2 - (state.x + 0.5) * cs), oy = Math.round(mc.height / 2 - (state.y + 0.5) * cs), S = state.seen[state.fl];
+  mg.fillStyle = '#000'; mg.fillRect(0, 0, mc.width, mc.height);
+  const seen = (x, y) => S.has(x + ',' + y);
+  for (let y = 0; y < F.H; y++) for (let x = 0; x < F.W; x++) {
+    if (!seen(x, y)) continue;
+    const px = ox + x * cs, py = oy + y * cs;
+    const n = npcAt(state.fl, x, y);
+    const pr = propAt(state.fl, x, y);
+    if (pr) { mg.fillStyle = '#fff'; pr === 'bed' ? mg.fillRect(px + 3, py + 1, cs - 6, cs - 2) : mg.fillRect(px + 3, py + 3, cs - 6, cs - 6); }
+    if (n) { mg.fillStyle = '#fff'; mg.beginPath(); mg.arc(px + cs / 2, py + cs / 2, 3, 0, 7); mg.fill(); }
+  }
+  for (const st of F.stairs) {
+    const [ex, ey] = stairEntry(st); if (!seen(ex, ey) && !state.flags.mapAll) continue;
+    mg.fillStyle = '#fff'; mg.font = '10px monospace'; mg.textAlign = 'center';
+    for (const [x, y] of stairCells(st)) mg.fillText(st.up ? '▲' : '▼', ox + x * cs + cs / 2, oy + y * cs + cs - 2);
+  }
+  // 辺：どちらかの側のマスに立ったことがあれば描く
+  // 白一色：壁＝実線、窓＝点線、扉＝壁の切れ目（両端だけ短い壁）
+  mg.lineWidth = 2; mg.strokeStyle = '#fff';
+  const seg = (k, x0, y0, x1, y1) => {
+    if (k === OPEN || k === DOOR) return;
+    mg.setLineDash(k === WIN ? [2, 2] : []); mg.beginPath(); mg.moveTo(x0, y0); mg.lineTo(x1, y1); mg.stroke(); mg.setLineDash([]);
+  };
+  for (let y = 0; y <= F.H; y++) for (let x = 0; x < F.W; x++) if (seen(x, y) || seen(x, y - 1)) {
+    const k = F.h[y][x], px = ox + x * cs, py = oy + y * cs;
+    if (k === DOOR) { seg(WALL, px, py, px + 3, py); seg(WALL, px + cs - 3, py, px + cs, py); seg(DOOR, px + 3, py, px + cs - 3, py); } else seg(k, px, py, px + cs, py);
+  }
+  for (let y = 0; y < F.H; y++) for (let x = 0; x <= F.W; x++) if (seen(x, y) || seen(x - 1, y)) {
+    const k = F.v[y][x], px = ox + x * cs, py = oy + y * cs;
+    if (k === DOOR) { seg(WALL, px, py, px, py + 3); seg(WALL, px, py + cs - 3, px, py + cs); seg(DOOR, px, py + 3, px, py + cs - 3); } else seg(k, px, py, px, py + cs);
+  }
+  const px = ox + state.x * cs + cs / 2, py = oy + state.y * cs + cs / 2, [dx, dy] = DIRS[state.dir];
+  mg.fillStyle = '#ffffff'; mg.beginPath();
+  mg.moveTo(px + dx * 5, py + dy * 5); mg.lineTo(px - dx * 3 - dy * 4, py - dy * 3 + dx * 4); mg.lineTo(px - dx * 3 + dy * 4, py - dy * 3 - dx * 4); mg.closePath(); mg.fill();
+}
+function renderHUD() {
+  // プレイ画面の右上（内側）に現在地：例「B棟 1F 保健室 [2, 1] 南」
+  document.getElementById('loc').textContent = `${placeName(state.fl, state.x, state.y)} [${state.x}, ${state.y}] ${DIR_NAME[state.dir]}`;
+  document.getElementById('loc').style.display = battle ? 'none' : ''; // 戦闘中は敵の名前と重ならないよう隠す
+  const rows = state.party.map(c => `<tr class="${c.hp <= 0 ? 'dead' : ''}" title="${c.cls} / AC ${c.ac}"><td>${c.name}</td><td class="num">${c.lv}</td>` +
+    `<td class="num">${c.hp}/${c.maxhp}</td><td class="num">${c.maxmp ? c.mp : '-'}</td>` +
+    `<td>${c.hp <= 0 ? '不能' : c.defend ? '防御' : 'OK'}</td></tr>`).join('');
+  document.getElementById('party').innerHTML =
+    '<tr><th>Name</th><th>Lv</th><th>HP</th><th>MP</th><th>Status</th></tr>' + rows;
+}
+function render() { renderView(); renderMap(); renderHUD(); }
+
+// ---------------------------------------------------------------------
+//  Log / dialog / command menu
+// ---------------------------------------------------------------------
+const logEl = document.getElementById('log');
+// メッセージは画面の中に一時的に出す（複数行）。一定時間で消える
+const LOG_MAX = 5, LOG_MS = 3500;
+function log(msg, cls = '') {
+  const d = document.createElement('div'); d.textContent = msg; if (cls) d.className = cls;
+  logEl.appendChild(d);
+  while (logEl.children.length > LOG_MAX) logEl.removeChild(logEl.firstChild);
+  setTimeout(() => { d.classList.add('fade'); setTimeout(() => d.remove(), 400); }, LOG_MS);
+}
+const dlgEl = document.getElementById('dialog');
+// npc を渡すと、会話中はそのキャラを目の前（近距離）に大きく表示する
+function showDialog(lines, cb, npc, item) {
+  dialogQ = { lines: lines.slice(), cb, prev: mode, npc, item };
+  mode = 'dialog';
+  if (npc || item) render();
+  advanceDialog();
+}
+function advanceDialog() {
+  if (!dialogQ) return;
+  if (!dialogQ.lines.length) {
+    const { cb, prev } = dialogQ; dialogQ = null; dlgEl.style.display = 'none';
+    mode = prev === 'dialog' ? 'explore' : prev;
+    render(); if (cb) cb(); return;
+  }
+  const line = dialogQ.lines.shift();
+  dlgEl.innerHTML = '';
+  if (dialogQ.portrait) {
+    const p = document.createElement('img'); p.src = dialogQ.portrait; p.className = 'portrait'; dlgEl.appendChild(p);
+  }
+  const t = document.createElement('div'); t.className = 'text'; t.textContent = line; dlgEl.appendChild(t);
+  const nx = document.createElement('div'); nx.className = 'next'; nx.textContent = dialogQ.lines.length ? '▼ Space' : '■ Space'; dlgEl.appendChild(nx);
+  dlgEl.style.display = 'block';
+  if (line.startsWith('★')) log(line.replace('★ ', ''), 'good');
+}
+dlgEl.addEventListener('click', advanceDialog);
+
+const cmdEl = document.getElementById('cmd');
+function setMenu(title, opts) {
+  menuOpts = opts;
+  cmdEl.innerHTML = '';
+  if (title) { const s = document.createElement('span'); s.className = 'who'; s.textContent = title; cmdEl.appendChild(s); }
+  opts.forEach(([label, fn], i) => {
+    const b = document.createElement('button'); b.textContent = `${i + 1} ${label}`; b.onclick = () => { if (mode === 'battle') fn(); };
+    cmdEl.appendChild(b);
+  });
+}
+function clearMenu() { menuOpts = []; cmdEl.innerHTML = ''; }
+function shake() { const w = document.getElementById('viewWrap'); w.classList.remove('shake'); void w.offsetWidth; w.classList.add('shake'); }
+
+// ---------------------------------------------------------------------
+//  Exploration
+// ---------------------------------------------------------------------
+const CURTAIN_LINES = ['カーテンが閉まっている。', 'カーテンの隙間からも、外の様子はうかがえない。'];
+const windowLine = (x, y, d) => pick(curtainAt(state.fl, x, y, d) != null ? CURTAIN_LINES : WINDOW_LINES);
+const WINDOW_LINES = ['窓の外は燃えるような夕焼けだ。', '遠くの街並みが茜色に沈んでいく。', '窓は固く閉ざされ、びくともしない。', '紫からオレンジへ――空はずっと同じ色のままだ。'];
+
+// offset: 0 前進 / 2 後退 / 3 左平行 / 1 右平行（向きは変えない）
+function move(offset) {
+  const d = (state.dir + offset) % 4;
+  const nx = state.x + DIRS[d][0], ny = state.y + DIRS[d][1];
+  const e = edgeAt(state.fl, state.x, state.y, d);
+  if (isBlocking(e) || !inMap(state.fl, nx, ny)) { log(e === WIN ? windowLine(state.x, state.y, d) : 'ゴツン。壁だ。', 'sys'); return; }
+  const lk = e === DOOR && lockAt(state.fl, state.x, state.y, d);
+  if (lk && !state.flags[lk]) { log('扉には鍵がかかっている。', 'sys'); return; }
+  if (e === DOOR) log('扉を開けて通り抜けた。', 'sys');
+  const sa = stairAt(state.fl, nx, ny);
+  if (sa) {
+    if (offset === 0 && sa.i === 0 && sa.st.dir === d) { useStairs(sa.st); return; }
+    log('階段の側面だ。', 'sys'); return;
+  }
+  const pr = propAt(state.fl, nx, ny);
+  if (pr) { log(pr === 'bed' ? 'ベッドがある。' : '机がある。', 'sys'); return; }
+  const n = npcAt(state.fl, nx, ny);
+  if (n) { log(`${n.name}がいる。［Space］で話しかける`, 'sys'); return; }
+  state.x = nx; state.y = ny;
+  afterStep();
+}
+function turn(delta) { state.dir = (state.dir + delta + 4) % 4; markSeen(); render(); stairHint(); checkReveal(); }
+function stairHint() { const st = stairAhead(); if (st) log(st.up ? '上り階段だ。［5］で上る' : '下り階段だ。［5］で下りる', 'sys'); }
+// 昇り降り：つながる階の同じ id の階段の手前のマスへ。向きは階段に背を向ける
+function useStairs(st) {
+  const fl = +Object.keys(MAPS).find(k => +k !== state.fl && MAPS[k].stairs.some(t => t.id === st.id));
+  const dst = MAPS[fl].stairs.find(t => t.id === st.id);
+  const [ex, ey] = stairEntry(dst);
+  Object.assign(state, { fl, x: ex, y: ey, dir: (dst.dir + 2) % 4, room: null, cool: 3 });
+  log(`${st.up ? '階段を上った' : '階段を下りた'}。${MAPS[fl].name}`, 'sys');
+  markSeen(); render();
+}
+// きっかけ：廊下の窓の目の前（距離0）で外を向いた瞬間、部屋のカーテンが開く
+function checkReveal() {
+  if (state.flags.reveal || battle || mode !== 'explore') return;
+  if (edgeAt(state.fl, state.x, state.y, state.dir) !== WIN || curtainAt(state.fl, state.x, state.y, state.dir) != null) return;
+  state.flags.reveal = true;
+  showDialog([
+    '窓の外は、燃えるような夕焼けだった。',
+    '紫からオレンジへ――見たこともないほど鮮やかな空。',
+  ], () => render());
+}
+
+function afterStep() {
+  markSeen();
+  const a = areaAt(state.fl, state.x, state.y), r = roomAt(state.fl, state.x, state.y);
+  const rn = placeName(state.fl, state.x, state.y);
+  if (rn !== state.room) { state.room = rn; if (a) log(`― ${a.bld ? a.bld + ' ' : ''}${a.name} ―`, 'sys'); }
+  render();
+  const it = itemAt(state.fl, state.x, state.y);
+  if (it) {
+    state.flags['got_' + it.id] = true;
+    if (it.get) it.get(); else state.items.push(it.id);
+    showDialog([...it.text, `★ ${ITEM_NAME[it.id]}を 手に入れた`], () => render(), null, it.id);
+    return;
+  }
+  stairHint();
+  checkReveal();
+  if (mode !== 'explore') return;
+  state.cool--;
+  const safe = r && r.safe;
+  if (!safe && state.cool <= 0 && Math.random() < 0.09) {
+    const list = FLOOR_MONS[state.fl], k = pick(list), m = MONS[k];
+    startBattle(k, rnd(m.grp[0], m.grp[1]));
+  }
+}
+
+function interact() {
+  const fx = state.x + DIRS[state.dir][0], fy = state.y + DIRS[state.dir][1];
+  const ahead = edgeAt(state.fl, state.x, state.y, state.dir);
+  const n = !isBlocking(ahead) && npcAt(state.fl, fx, fy);
+  if (n) {
+    const lines = n.talk(state);
+    showDialog(lines, () => { if (n.after) n.after(state); render(); }, n);
+    return;
+  }
+  const st = stairAhead();
+  if (st) { useStairs(st); return; }
+  if (ahead === WIN) { log(windowLine(state.x, state.y, state.dir), 'sys'); return; }
+  if (ahead === DOOR) { log('扉だ。前に進めば通り抜けられる。', 'sys'); return; }
+  log('特に何もない。', 'sys');
+}
+
+function healAll() { state.party.forEach(c => { c.hp = c.maxhp; c.mp = c.maxmp; }); }
+
+function fieldHeal() {
+  const caster = state.party.find(c => c.hp > 0 && c.spells.includes('heal') && c.mp >= SPELLS.heal.mp);
+  if (!caster) { log('手当てを使える仲間がいない（またはMP不足）', 'sys'); return; }
+  const tgt = state.party.filter(c => c.hp > 0 && c.hp < c.maxhp).sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp)[0];
+  if (!tgt) { log('誰も怪我をしていない。', 'sys'); return; }
+  caster.mp -= SPELLS.heal.mp;
+  const amt = Math.min(tgt.maxhp - tgt.hp, rnd(8, 14) + caster.lv);
+  tgt.hp += amt;
+  log(`${caster.name}の手当て。${tgt.name}のHPが ${amt} 回復した`, 'good');
+  render();
+}
+
+// ---------------------------------------------------------------------
+//  Battle (Wizardry-style: input all commands, then resolve by speed)
+// ---------------------------------------------------------------------
+const hitChance = (lv, ac) => clamp(0.38 + 0.04 * ac + 0.03 * lv, 0.1, 0.95);
+const enemiesAlive = () => battle.enemies.filter(e => e.hp > 0);
+
+async function startBattle(kind, n, onWin) {
+  const m = MONS[kind];
+  mode = 'busy';
+  battle = {
+    kind, boss: !!m.boss, cmds: [], ci: 0, onWin,
+    enemies: Array.from({ length: n }, () => { const hp = rnd(m.hp[0], m.hp[1]); return { name: m.name, hp, maxhp: hp, atk: m.atk, ac: m.ac, agi: m.agi, lv: state.fl, boss: !!m.boss, sleep: 0, flash: false }; }),
+  };
+  state.cool = 6;
+  shake(); render();
+  log(m.boss ? `${m.name}が 襲いかかってきた！` : `${m.name}が ${n > 1 ? n + '体 ' : ''}あらわれた！`, 'warn');
+  await sleep(500);
+  beginInput();
+}
+function beginInput() { battle.cmds = []; battle.ci = 0; mode = 'battle'; promptNext(); }
+function promptNext() {
+  while (battle.ci < state.party.length && state.party[battle.ci].hp <= 0) battle.ci++;
+  if (battle.ci >= state.party.length) { runRound(); return; }
+  showBattleMenu('main');
+}
+function showBattleMenu(kind) {
+  const c = state.party[battle.ci];
+  if (kind === 'main') {
+    setMenu(`${c.name}の行動：`, [
+      ['たたかう', () => choose({ t: 'fight' })],
+      ['じゅもん', () => c.spells.length ? showBattleMenu('spell') : log(`${c.name}は じゅもんを知らない`, 'sys')],
+      ['ぼうぎょ', () => choose({ t: 'defend' })],
+      ['にげる', () => runAway()],
+    ]);
+  } else {
+    setMenu(`${c.name}のじゅもん：`, [
+      ...c.spells.map(id => [`${SPELLS[id].name} (${SPELLS[id].mp})`, () => c.mp >= SPELLS[id].mp ? choose({ t: 'spell', id }) : log('MPが足りない', 'sys')]),
+      ['もどる', () => showBattleMenu('main')],
+    ]);
+  }
+}
+function choose(cmd) { battle.cmds[battle.ci] = cmd; battle.ci++; promptNext(); }
+function backInput() {
+  let i = battle.ci - 1;
+  while (i >= 0 && state.party[i].hp <= 0) i--;
+  if (i >= 0) { battle.ci = i; showBattleMenu('main'); }
+}
+
+async function runRound() {
+  mode = 'busy'; clearMenu();
+  const actors = [];
+  state.party.forEach((c, i) => {
+    if (c.hp <= 0) return;
+    c.defend = battle.cmds[i].t === 'defend';
+    actors.push({ p: true, c, cmd: battle.cmds[i], ini: c.agi + rnd(1, 8) });
+  });
+  battle.enemies.forEach(e => { if (e.hp > 0) actors.push({ p: false, e, ini: e.agi + rnd(1, 8) }); });
+  actors.sort((a, b) => b.ini - a.ini);
+  renderHUD();
+  for (const a of actors) {
+    if (!enemiesAlive().length || !aliveParty().length) break;
+    if (a.p) { if (a.c.hp > 0) await partyAct(a.c, a.cmd); }
+    else if (a.e.hp > 0) await enemyAct(a.e);
+    render();
+  }
+  state.party.forEach(c => (c.defend = false));
+  await endCheck();
+}
+async function endCheck() {
+  if (!enemiesAlive().length) return victory();
+  if (!aliveParty().length) return defeat();
+  render(); beginInput();
+}
+
+async function hurtEnemy(e, dmg) {
+  e.hp -= dmg; e.flash = true; if (e.sleep && Math.random() < 0.5) e.sleep = 0;
+  render(); log(`${e.name}に ${dmg} のダメージ`);
+  await sleep(SPD); e.flash = false;
+  if (e.hp <= 0) { e.hp = 0; log(`${e.name}を たおした！`, 'good'); }
+  render(); await sleep(SPD / 3);
+}
+async function partyAct(c, cmd) {
+  if (cmd.t === 'defend') { log(`${c.name}は 身を守っている`); await sleep(SPD / 2); return; }
+  if (cmd.t === 'fight') {
+    const e = pick(enemiesAlive());
+    log(`${c.name}の こうげき！`); await sleep(SPD);
+    if (e.sleep > 0 || Math.random() < hitChance(c.lv, e.ac)) await hurtEnemy(e, rnd(c.atk[0], c.atk[1]) + Math.floor(c.lv / 2));
+    else { log('  ……はずれた'); await sleep(SPD); }
+    return;
+  }
+  const sp = SPELLS[cmd.id];
+  if (c.mp < sp.mp) { log(`${c.name}は 気力が足りない！`); await sleep(SPD); return; }
+  c.mp -= sp.mp; renderHUD();
+  log(`${c.name}は ${sp.name}を となえた！`, 'warn'); await sleep(SPD);
+  if (cmd.id === 'heal') {
+    const t = aliveParty().sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp)[0];
+    const amt = Math.min(t.maxhp - t.hp, rnd(8, 14) + c.lv); t.hp += amt;
+    log(`${t.name}のHPが ${amt} 回復した`, 'good'); renderHUD(); await sleep(SPD);
+  } else if (cmd.id === 'scold') {
+    for (const e of enemiesAlive()) {
+      if (Math.random() < (e.boss ? 0.2 : 0.65)) { e.sleep = rnd(1, 3); log(`${e.name}は 縮みあがって眠ってしまった`); }
+      else log(`${e.name}には 効かなかった`);
+      render(); await sleep(SPD / 2);
+    }
+  } else if (cmd.id === 'spark') {
+    await hurtEnemy(pick(enemiesAlive()), rnd(6, 11) + c.lv);
+  } else if (cmd.id === 'thunder') {
+    for (const e of enemiesAlive()) await hurtEnemy(e, rnd(4, 8) + c.lv);
+  }
+}
+function pickTarget() {
+  const alive = aliveParty();
+  const w = alive.map((c, i) => Math.max(1, 3 - i)); // front rank gets hit more
+  let r = Math.random() * w.reduce((a, b) => a + b, 0);
+  for (let i = 0; i < alive.length; i++) { r -= w[i]; if (r <= 0) return alive[i]; }
+  return alive[0];
+}
+async function damageChar(c, dmg) {
+  if (c.defend) dmg = Math.ceil(dmg / 2);
+  c.hp = Math.max(0, c.hp - dmg); shake(); renderHUD();
+  log(`${c.name}は ${dmg} のダメージを受けた`, 'bad');
+  if (c.hp <= 0) log(`${c.name}は 倒れた……`, 'bad');
+  await sleep(SPD);
+}
+async function enemyAct(e) {
+  if (e.sleep > 0) { e.sleep--; log(`${e.name}は 眠っている`, 'sys'); await sleep(SPD / 2); return; }
+  if (e.boss && Math.random() < 0.35) {
+    log('番人が 大槌で鐘を打ち鳴らした！ ゴォォォン……', 'warn'); shake(); await sleep(SPD * 1.5);
+    // 「最後の放送」を聞いていれば、鐘の響きが弱い
+    for (const c of aliveParty()) await damageChar(c, state.flags.q3done ? rnd(1, 3) : rnd(3, 7));
+    return;
+  }
+  const c = pickTarget();
+  log(`${e.name}の こうげき！`); await sleep(SPD);
+  if (Math.random() < hitChance(e.lv, c.ac)) await damageChar(c, rnd(e.atk[0], e.atk[1]));
+  else { log(`  ${c.name}は ひらりとかわした`); await sleep(SPD); }
+}
+async function runAway() {
+  if (mode !== 'battle') return;
+  mode = 'busy'; clearMenu();
+  log('逃げ出した……'); await sleep(SPD);
+  if (!battle.boss && Math.random() < 0.6) {
+    log('うまく逃げきれた。', 'sys'); battle = null; mode = 'explore'; render(); return;
+  }
+  log('しかし 回りこまれてしまった！', 'bad'); await sleep(SPD);
+  for (const e of enemiesAlive()) { if (!aliveParty().length) break; await enemyAct(e); render(); }
+  await endCheck();
+}
+const needExp = lv => 15 * lv * lv;
+function levelUps() {
+  for (const c of state.party) {
+    while (c.hp > 0 && c.exp >= needExp(c.lv)) {
+      c.lv++;
+      const hp = rnd(c.grow.hp[0], c.grow.hp[1]);
+      c.maxhp += hp; c.hp += hp; c.maxmp += c.grow.mp; c.mp += c.grow.mp;
+      c.atk = [c.atk[0] + 1, c.atk[1] + 1]; if (c.lv % 2 === 0) c.ac--;
+      log(`${c.name}は レベル${c.lv}に上がった！`, 'good');
+    }
+  }
+}
+// 見取り図：全階の歩けるマスを「見た」ことにする（壁が描かれる）
+function revealAllMaps() {
+  state.flags.mapAll = true;
+  for (const k of Object.keys(MAPS)) { const F = MAPS[k];
+    for (let y = 0; y < F.H; y++) for (let x = 0; x < F.W; x++) if (F.grid[y][x]) state.seen[k].add(x + ',' + y); }
+}
+async function victory() {
+  const m = MONS[battle.kind];
+  const total = m.exp * battle.enemies.length;
+  const alive = aliveParty();
+  const share = Math.max(1, Math.floor(total / alive.length));
+  const wasBoss = battle.boss, onWin = battle.onWin;
+  battle = null; render();
+  log(`敵を全滅させた！ ひとりあたり 経験値 ${share}`, 'good');
+  alive.forEach(c => { c.exp += share; });
+  levelUps();
+  mode = 'explore';
+  if (onWin) onWin();
+  render();
+  if (wasBoss) {
+    state.flags.bossDown = true;
+    showDialog([
+      '番人が崩れ落ちると、鳴りやまなかった鐘の音が ふっと途切れた。',
+      '窓の外で、夕焼けがゆっくりと夜の藍色に溶けていく……',
+      '― プロトタイプはここまで ―',
+      '（このまま探索を続けられます）',
+    ]);
+  }
+}
+async function defeat() {
+  log('パーティは全滅した……', 'bad');
+  await sleep(800);
+  battle = null; mode = 'explore';
+  showDialog(['パーティは全滅した……', '……気がつくと、保健室のベッドの上だった。'], () => {
+    Object.assign(state, { fl: 1, x: START[0], y: START[1], dir: 2, room: null, cool: 6 });
+    healAll(); markSeen(); render();
+  });
+}
+
+// ---------------------------------------------------------------------
+//  Input
+// ---------------------------------------------------------------------
+const menuEl = document.getElementById('menu');
+function toggleMenu(open) {
+  if (open === undefined) open = mode !== 'menu';
+  if (open && mode !== 'explore') return;
+  mode = open ? 'menu' : 'explore';
+  menuEl.style.display = open ? 'block' : 'none';
+  if (open) document.getElementById('items').textContent = state.items.length ? state.items.map(i => ITEM_NAME[i]).join('、') : 'なし';
+}
+function handleKey(k) {
+  if (mode === 'menu') { if (k === 'm' || k === 'M' || k === 'Escape') toggleMenu(false); return; }
+  if (mode === 'dialog') { if (k === ' ' || k === 'Enter' || k === 'z') advanceDialog(); return; }
+  if (mode === 'battle') {
+    const i = parseInt(k, 10);
+    if (i >= 1 && i <= menuOpts.length) menuOpts[i - 1][1]();
+    else if (k === 'Escape' || k === 'Backspace') backInput();
+    return;
+  }
+  if (mode !== 'explore') return;
+  switch (k) {
+    case 'Numpad5': case 'ArrowUp': case 'w': case 'W': move(0); break;
+    case 'Numpad2': case 'ArrowDown': case 's': case 'S': move(2); break;
+    case 'Numpad4': case 'ArrowLeft': case 'a': case 'A': turn(-1); break;
+    case 'Numpad6': case 'ArrowRight': case 'd': case 'D': turn(1); break;
+    case 'Numpad1': case 'q': case 'Q': move(3); break;
+    case 'Numpad3': case 'e': case 'E': move(1); break;
+    case ' ': case 'Enter': case 'NumpadEnter': interact(); break;
+    case 'h': case 'H': fieldHeal(); break;
+    case 'm': case 'M': toggleMenu(true); break;
+  }
+}
+window.addEventListener('keydown', e => {
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
+  // テンキー：探索中は e.code（NumLock の有無に関係なく）で移動。戦闘・会話中は数字として扱う
+  if (mode === 'explore' && /^Numpad[1-6]$|^NumpadEnter$/.test(e.code)) { e.preventDefault(); handleKey(e.code); return; }
+  if (mode === 'battle' && /^Numpad\d$/.test(e.code)) { handleKey(e.code.slice(-1)); return; }
+  handleKey(e.key);
+});
+
+// ---------------------------------------------------------------------
+//  Boot
+// ---------------------------------------------------------------------
+NPCS.forEach(n => n.img && getImage(n.img));
+Object.values(MONS).forEach(m => m.img && getImage(m.img));
+Object.values(ITEM_IMG).forEach(i => getImage(i.src)); DECOR.forEach(d => getImage(d.img));
+newGame();
+markSeen();
+state.room = placeName(1, START[0], START[1]);
+render();
+showDialog([
+  '……目を覚ますと、保健室のベッドの上だった。',
+  '窓の外は、紫からオレンジへと滲む夕焼け。下校時刻はとうに過ぎている。',
+  'どこかで、鳴りやまないチャイムの音がする。',
+  '（保健の先生は部屋の西側にいる。隣の職員室には誰か残っているだろうか）',
+  '（M でメニュー）',
+]);
+// fonts may load late; redraw once they do
+if (document.fonts) document.fonts.ready.then(() => render());
