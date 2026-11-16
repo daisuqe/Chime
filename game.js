@@ -37,7 +37,26 @@ function curtainAt(fl, x, y, d) {
   return null;
 }
 const isFace = e => e !== OPEN;               // 見た目として面がある（壁・扉・窓）
-const isBlocking = e => e === WALL || e === WIN; // 通れない
+const isBlocking = e => e === WALL || e === WIN || e === FENCE; // 通れない
+
+// 壁の飾り：マス(x,y)から d を向いたときに見える壁の面に何を貼るか（すべて直線の長方形）
+//   教室の黒板／廊下の掲示板・ポスター・消火栓／部屋のポスター。指定があればそれを優先
+function decoAt(fl, x, y, d) {
+  if (edgeAt(fl, x, y, d) !== WALL) return null;
+  const F = MAPS[fl], a = areaAt(fl, x, y);
+  if (!a || a.outdoor) return null;
+  const man = F.deco[x + ',' + y + ',' + d]; if (man) return man;
+  if (/組$/.test(a.name) && d === (a.board ?? 1)) return 'board';
+  if (a.hiwin && !areaAt(fl, x + DIRS[d][0], y + DIRS[d][1])) return 'hiwin';
+  let h = (x * 374761393 + y * 668265263 + d * 2246822519 + fl * 3266489917) >>> 0; // 位置で決まる乱数
+  h = Math.imul(h ^ (h >>> 13), 1274126177) >>> 0; h = (h ^ (h >>> 16)) >>> 0;
+  if (a.kind === 'hall' && a.name !== '昇降口') {
+    const k = h % 16;
+    return k < 4 ? 'bulletin' : k < 7 ? 'poster' : k < 9 ? 'posters' : k === 9 ? 'hydrant' : null;
+  }
+  if (a.kind === 'room' && !a.solid && !/トイレ/.test(a.name)) return h % 7 === 0 ? 'poster' : h % 7 === 1 ? 'clock' : null;
+  return null;
+}
 
 // ---------------------------------------------------------------------
 //  Characters / spells / monsters
@@ -80,6 +99,7 @@ const FLOOR_MONS = {
   2: ['model', 'skel', 'homework', 'book', 'gaper', 'longarm', 'fungal'],
   3: ['skel', 'shadow', 'portrait', 'homework', 'boneshell', 'kimono'],
   4: ['shadow', 'boneshell', 'kimono'],
+  5: ['skel', 'shadow', 'kimono'],
 };
 
 // ---------------------------------------------------------------------
@@ -118,7 +138,7 @@ const cv = document.getElementById('view');
 const g = cv.getContext('2d');
 // 画面 640x470（16:10 から正方形へ約4割寄せ）。1マスの見た目は正方形（横縦比 1.0）
 const VW = 640, VH = 470, CX = 320, CY = 235, FY = 235, FX = FY;
-const DEPTH = 6, LAT = 4;
+const DEPTH = 16, LAT = 6; // 見える奥行きと左右の範囲（体育館や屋上のような広い場所のため広め）
 
 function P(lat, d, h) { d = Math.max(d, 0.08); return [CX + lat / d * FX, CY - h / d * FY]; }
 function lerp2(a, b, t) { return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
@@ -241,8 +261,54 @@ function drawDoor(e1, e2, d) {
   const k = quad(e1, e2, 0.68, 0.7, -0.08, -0.04); path(k); g.stroke(); // handle
 }
 // edgeL / edgeR：画面上で左右の縦線を描くか（同一平面で壁が続く場合は描かない）
-function drawFace(e1, e2, kind, d, edgeL = true, edgeR = true, curtain = null) {
-  const q = quad(e1, e2, 0, 1, -0.5, 0.5);
+function drawFence(e1, e2, d, edgeL, edgeR) {
+  // 高さ 1.2m 相当（h -0.5 〜 0.02）。上下の横木と細い縦桟、端には太めの支柱
+  g.strokeStyle = lineCol(d); g.lineWidth = 1.2;
+  const ln = (u0, h0, u1, h1) => { const a = quad(e1, e2, u0, u1, h0, h1); g.beginPath(); g.moveTo(...a[3]); g.lineTo(...a[1]); g.stroke(); };
+  ln(0, 0.02, 1, 0.02); ln(0, -0.04, 1, -0.04); ln(0, -0.46, 1, -0.46);
+  for (let i = 1; i < 8; i++) ln(i / 8, -0.46, i / 8, -0.04);
+  g.lineWidth = 2;
+  if (edgeL) ln(0, -0.5, 0, 0.02);
+  if (edgeR) ln(1, -0.5, 1, 0.02);
+}
+// 壁に貼る飾り：quad の (u, h) で長方形を並べるだけ
+function drawDeco(e1, e2, d, type, edgeL, edgeR, top = 0.5) {
+  g.strokeStyle = lineCol(d); g.lineWidth = 1.2;
+  const box = (u0, u1, h0, h1) => { path(quad(e1, e2, u0, u1, h0, h1)); g.stroke(); };
+  const ln = (u0, h0, u1, h1) => { const a = quad(e1, e2, u0, u1, h0, h1); g.beginPath(); g.moveTo(...a[3]); g.lineTo(...a[1]); g.stroke(); };
+  if (type === 'hiwin') {
+    const h0 = top - 0.75, h1 = top - 0.2, q = quad(e1, e2, 0.08, 0.92, h0, h1);
+    g.save(); path(q); g.clip(); g.drawImage(skyCanvases[state.dir], 0, 0); g.drawImage(townCanvases[state.dir], 0, 0); g.restore();
+    g.strokeStyle = lineCol(d); g.lineWidth = 1.2; path(q); g.stroke();
+    ln(0.5, h0, 0.5, h1);
+    return;
+  }
+  if (type === 'board') { // 黒板：壁いっぱいに続く。端の面だけ縦の枠
+    const u0 = edgeL ? 0.08 : 0, u1 = edgeR ? 0.92 : 1;
+    ln(u0, 0.3, u1, 0.3); ln(u0, -0.1, u1, -0.1); ln(u0, -0.13, u1, -0.13); // 上枠・下枠・チョーク受け
+    if (edgeL) ln(u0, -0.13, u0, 0.3);
+    if (edgeR) ln(u1, -0.13, u1, 0.3);
+  } else if (type === 'bulletin') { // 掲示板：枠と、貼られた紙
+    box(0.1, 0.9, -0.05, 0.3);
+    box(0.16, 0.36, 0.08, 0.25); box(0.42, 0.58, 0.02, 0.26); box(0.64, 0.84, 0.1, 0.24); box(0.66, 0.8, -0.01, 0.07);
+  } else if (type === 'poster') {
+    box(0.36, 0.64, -0.02, 0.26); ln(0.4, 0.2, 0.6, 0.2); ln(0.4, 0.16, 0.56, 0.16);
+  } else if (type === 'posters') {
+    box(0.18, 0.4, 0.0, 0.24); box(0.56, 0.8, 0.04, 0.22);
+  } else if (type === 'hydrant') { // 消火栓の箱
+    box(0.3, 0.7, -0.42, -0.02); box(0.36, 0.64, -0.36, -0.16); ln(0.36, -0.08, 0.64, -0.08);
+  } else if (type === 'clock') { // 四角い時計
+    box(0.43, 0.57, 0.3, 0.44); ln(0.5, 0.37, 0.5, 0.42); ln(0.5, 0.37, 0.54, 0.37);
+  } else if (type === 'hoop') { // バスケットゴール：板と、その下のリング（四角）。床から約 3m
+    const b = top > 0.5 ? 0.62 : 0.12;
+    box(0.3, 0.7, b, b + 0.3); box(0.42, 0.58, b + 0.06, b + 0.18); box(0.44, 0.56, b - 0.04, b);
+  } else if (type === 'mirror') {
+    box(0.18, 0.82, -0.05, 0.32); ln(0.3, 0.05, 0.42, 0.22); ln(0.36, 0.02, 0.5, 0.22);
+  }
+}
+function drawFace(e1, e2, kind, d, edgeL = true, edgeR = true, curtain = null, deco = null, top = 0.5) {
+  if (kind === FENCE) { drawFence(e1, e2, d, edgeL, edgeR); return; }
+  const q = quad(e1, e2, 0, 1, -0.5, top);
   // 黒で塗り＋左右の縦の辺も黒でなぞる（隣の面との継ぎ目から奥の線が透けないように）
   path(q); g.fillStyle = '#000'; g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1.5;
   g.beginPath(); g.moveTo(...q[0]); g.lineTo(...q[3]); g.moveTo(...q[1]); g.lineTo(...q[2]); g.stroke(); // 縦の継ぎ目だけ
@@ -254,6 +320,7 @@ function drawFace(e1, e2, kind, d, edgeL = true, edgeR = true, curtain = null) {
   if (edgeR) seg(q[1], q[2]);
   if (kind === WIN) drawWindow(e1, e2, d, curtain);
   else if (kind === DOOR) drawDoor(e1, e2, d);
+  else if (deco) drawDeco(e1, e2, d, deco, edgeL, edgeR, top);
 }
 // 階段（ソリッド）。局所座標 u：進む方向 0..2（2マス）、v：横 -A..A、h：高さ
 // 上り：床 -0.5 から天井 +0.5 へ。下り：床 -0.5 から下の階の床 -1.5 へ（床に開いた吹き抜け）
@@ -300,10 +367,15 @@ function drawStairSolid(st) {
   }
   faces.sort((a, b) => b.dist - a.dist);
   g.lineJoin = 'bevel'; g.lineWidth = 1.5; g.fillStyle = '#000'; g.strokeStyle = '#fff';
+  // 下り階段は床に開いた穴の中だけに描く（床下の部分が手前の壁の下からはみ出さないように）
+  const hole = !st.up && [[0, -0.5], [2, -0.5], [2, 0.5], [0, 0.5]].map(([u, v]) => V(u, v, -0.5));
+  const clip = hole && hole.every(q => q[1] > 0.06);
+  if (clip) { g.save(); path(hole.map(q => P(...q))); g.clip(); }
   for (const fc of faces) {
     if (fc.p.every(q => q[1] < 0.06)) continue; // 自分より後ろ
     path(fc.p.map(q => P(...q))); g.fill(); g.stroke();
   }
+  if (clip) g.restore();
   // 上り階段：天井に開いた穴（枠だけ）。マス2つ分の幅・長さ、天井の高さ h=+0.5
   if (st.up) {
     const c = [[0, -0.5], [2, -0.5], [2, 0.5], [0, 0.5]].map(([u, v]) => V(u, v, 0.5));
@@ -328,6 +400,71 @@ function viewHalf(kind) {
 }
 // ベッド・机：天板（板1枚）と、四隅から床へ下ろす直線の脚4本
 // 天板の角は lineJoin='bevel' にして、鋭角の角が尖って脚の位置からはみ出さないようにする
+// 直方体の備品：見えている面だけ黒で塗って白線、面ごとに直線の模様
+const BOX = {
+  getabako: { hx: 0.45, hy: 0.2, h: 0.78 },  // 下駄箱：横長の棚、小さな仕切りが並ぶ
+  stall: { hx: 0.45, hy: 0.45, h: 0.86 },    // トイレの個室
+  sink: { hx: 0.4, hy: 0.2, h: 0.36 },       // 洗面台
+  stage: { hx: 0.5, hy: 0.5, h: 0.26 },      // 体育館のステージ
+  tank: { hx: 0.5, hy: 0.5, h: 0.95 },       // 屋上の給水タンク
+  unit: { hx: 0.32, hy: 0.22, h: 0.32 },     // 室外機
+};
+function drawBox(kind, l, f) {
+  const p = BOX[kind]; if (!p) return;
+  const sideways = DIRS[state.dir][0] !== 0, a = sideways ? p.hy : p.hx, b = sideways ? p.hx : p.hy;
+  const x0 = l - a, x1 = l + a, d0 = f - b, d1 = f + b, h0 = -0.5, h1 = -0.5 + p.h;
+  g.strokeStyle = lineCol(f); g.lineWidth = 1.5; g.fillStyle = '#000'; g.lineJoin = 'bevel';
+  const faces = [];
+  if (x0 > 0) faces.push([[x0, d1], [x0, d0]]);
+  if (x1 < 0) faces.push([[x1, d0], [x1, d1]]);
+  if (d0 > 0.1) faces.push([[x0, d0], [x1, d0]]);
+  for (const [e1, e2] of faces) {
+    path(quad(e1, e2, 0, 1, h0, h1)); g.fill(); g.stroke();
+    const w = Math.hypot(e2[0] - e1[0], e2[1] - e1[1]);
+    const ln = (u0, hh0, u1, hh1) => { const q = quad(e1, e2, u0, u1, hh0, hh1); g.beginPath(); g.moveTo(...q[3]); g.lineTo(...q[1]); g.stroke(); };
+    const rect = (u0, u1, hh0, hh1) => { path(quad(e1, e2, u0, u1, hh0, hh1)); g.stroke(); };
+    g.lineWidth = 1;
+    if (kind === 'getabako') { const n = Math.max(2, Math.round(w / 0.15)); for (let i = 1; i < n; i++) ln(i / n, h0, i / n, h1); for (const t of [0.25, 0.5, 0.75]) ln(0, h0 + p.h * t, 1, h0 + p.h * t); }
+    else if (kind === 'stall') { rect(0.18, 0.82, h0 + 0.04, h1 - 0.04); ln(0.72, h0 + 0.4, 0.76, h0 + 0.4); }
+    else if (kind === 'stage') { ln(0, h1 - 0.05, 1, h1 - 0.05); }
+    else if (kind === 'tank') { for (const t of [0.3, 0.6, 0.85]) ln(0, h0 + p.h * t, 1, h0 + p.h * t); rect(0.4, 0.6, h1 - 0.25, h1 - 0.05); }
+    else if (kind === 'unit') { rect(0.1, 0.6, h0 + 0.05, h1 - 0.05); for (const t of [0.3, 0.5, 0.7]) ln(0.1, h0 + p.h * t, 0.6, h0 + p.h * t); }
+    else if (kind === 'sink') { ln(0, h1 - 0.06, 1, h1 - 0.06); }
+    g.lineWidth = 1.5;
+  }
+  if (h1 < 0) { // 上面
+    path([P(x0, d0, h1), P(x1, d0, h1), P(x1, d1, h1), P(x0, d1, h1)]); g.fill(); g.stroke();
+    if (kind === 'sink') { const ia = a * 0.55, ib = b * 0.55; path([P(l - ia, f - ib, h1), P(l + ia, f - ib, h1), P(l + ia, f + ib, h1), P(l - ia, f + ib, h1)]); g.stroke(); }
+  }
+  g.lineJoin = 'miter';
+}
+// プール：床に開いた水槽。水面（h -0.78）と、見える内壁。コースロープは南北に直線
+function drawPool(X, Y, WP, wline, f) {
+  const H = -0.78, isP = (x, y) => propAt(state.fl, x, y) === 'pool';
+  const col = lineCol(f);
+  const corners = [[X - 0.5, Y - 0.5], [X + 0.5, Y - 0.5], [X + 0.5, Y + 0.5], [X - 0.5, Y + 0.5]];
+  // 水槽は床の開口部の中だけに描く（手前の柵や壁の下からはみ出さないように）
+  const open = corners.map(([x, y]) => WP(x, y, -0.5)), clip = open.every(Boolean);
+  if (clip) { g.save(); path(open); g.clip(); }
+  const water = corners.map(([x, y]) => WP(x, y, H));
+  if (water.every(Boolean)) { path(water); g.fillStyle = '#000'; g.fill(); }
+  // 内壁：隣がプールでない辺。視点の側を向いていれば描く（壁の内側の法線と視線で判定）
+  const sides = [[0, -1, 0, 1], [1, 0, 1, 2], [0, 1, 2, 3], [-1, 0, 3, 0]]; // dx,dy,角i,角j
+  for (const [dx, dy, i, j] of sides) {
+    if (isP(X + dx, Y + dy)) continue;
+    const [ax, ay] = corners[i], [bx, by] = corners[j];
+    // 内側を向く法線は (-dx,-dy)。視点が内側の向きにあれば見える
+    const vx = state.x - (ax + bx) / 2, vy = state.y - (ay + by) / 2;
+    if (-dx * vx + -dy * vy > 0) {
+      const q = [WP(ax, ay, -0.5), WP(bx, by, -0.5), WP(bx, by, H), WP(ax, ay, H)];
+      if (q.every(Boolean)) { path(q); g.fillStyle = '#000'; g.fill(); g.strokeStyle = col; g.lineWidth = 1.2; g.stroke(); }
+    } else wline(ax, ay, bx, by, -0.5, col); // 縁
+    wline(ax, ay, bx, by, H, col);
+  }
+  // コースロープ（各マスの西の境、隣もプールなら）
+  if (isP(X - 1, Y)) wline(X - 0.5, Y - 0.5, X - 0.5, Y + 0.5, H + 0.01, 'rgba(255,255,255,0.45)');
+  if (clip) g.restore();
+}
 function drawTable(kind, l, f) {
   const [a, b] = viewHalf(kind), top = FURN[kind].top;
   const x0 = l - a, x1 = l + a, d0 = f - b, d1 = f + b;
@@ -400,6 +537,30 @@ function renderView() {
   g.setTransform(cv.width / VW, 0, 0, cv.height / VH, 0, 0);
   g.fillStyle = "#000"; g.fillRect(0, 0, VW, VH);
   const dir = state.dir, [fx, fy] = DIRS[dir], [rx, ry] = DIRS[(dir + 1) % 4];
+  // 屋外（屋上・プール）では空と街並みが背景になる
+  const here = areaAt(state.fl, state.x, state.y);
+  if (here && here.outdoor) { g.drawImage(skyCanvases[dir], 0, 0); g.drawImage(townCanvases[dir], 0, 0); }
+  // 世界座標（マスの中心が整数）→ 画面。自分より後ろは null
+  const WP = (X, Y, h) => { const dx = X - state.x, dy = Y - state.y, dd = dx * fx + dy * fy; return dd < 0.12 ? null : P(dx * rx + dy * ry, dd, h); };
+  const wline = (X0, Y0, X1, Y1, h, col) => {
+    // 手前で切れる線は、見える所まで縮める
+    let a = [X0, Y0], b = [X1, Y1];
+    const dep = p => (p[0] - state.x) * fx + (p[1] - state.y) * fy;
+    if (dep(a) < 0.12 && dep(b) < 0.12) return;
+    if (dep(a) < 0.12) { const t = (0.12 - dep(a)) / (dep(b) - dep(a)); a = [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]; }
+    if (dep(b) < 0.12) { const t = (0.12 - dep(b)) / (dep(a) - dep(b)); b = [b[0] + (a[0] - b[0]) * t, b[1] + (a[1] - b[1]) * t]; }
+    const p = WP(a[0], a[1], h), q = WP(b[0], b[1], h); if (!p || !q) return;
+    g.strokeStyle = col; g.lineWidth = 1.2; g.beginPath(); g.moveTo(...p); g.lineTo(...q); g.stroke();
+  };
+  // 床の線（体育館のコート）
+  for (const [x0, y0, x1, y1] of MAPS[state.fl].lines) {
+    const c = 'rgba(255,255,255,0.55)', X0 = x0 - 0.5, Y0 = y0 - 0.5, X1 = x1 - 0.5, Y1 = y1 - 0.5, MX = (X0 + X1) / 2;
+    wline(X0, Y0, X1, Y0, -0.5, c); wline(X1, Y0, X1, Y1, -0.5, c); wline(X1, Y1, X0, Y1, -0.5, c); wline(X0, Y1, X0, Y0, -0.5, c);
+    wline(MX, Y0, MX, Y1, -0.5, c);
+  }
+  // 面の飾り：見ている側のマス (f,l) から side を向いた壁
+  const DC = (f, l, side) => decoAt(state.fl, wx(f, l), wy(f, l), (dir + side) % 4);
+  const TOP = (f, l) => (here && here.ceil && areaAt(state.fl, wx(f, l), wy(f, l)) === here ? here.ceil : 0.5);
   const wx = (f, l) => state.x + fx * f + rx * l, wy = (f, l) => state.y + fy * f + ry * l;
   // 相対マス (f 前方, l 右) の辺。side：0 奥 / 1 右 / 2 手前 / 3 左
   const E = (f, l, side) => edgeAt(state.fl, wx(f, l), wy(f, l), (dir + side) % 4);
@@ -411,15 +572,17 @@ function renderView() {
   // 視線に平行な面：画面左端 e1／右端 e2。右側の壁は奥が左、左側の壁は手前が左
   const sideFace = (lat, f, e, nFar, nNear, cu) => {
     if (!isFace(e)) return;
-    if (lat > 0) drawFace([lat, f + 0.5], [lat, f - 0.5], e, f, !isFace(nFar), !isFace(nNear), cu);
-    else drawFace([lat, f - 0.5], [lat, f + 0.5], e, f, !isFace(nNear), !isFace(nFar), cu);
+    const vl = lat > 0 ? Math.round(lat - 0.5) : Math.round(lat + 0.5); // 見ている側のマス
+    const dc = DC(f, vl, lat > 0 ? 1 : 3), tp = TOP(f, vl);
+    if (lat > 0) drawFace([lat, f + 0.5], [lat, f - 0.5], e, f, !isFace(nFar), !isFace(nNear), cu, dc, tp);
+    else drawFace([lat, f - 0.5], [lat, f + 0.5], e, f, !isFace(nNear), !isFace(nFar), cu, dc, tp);
   };
   // 面の端の縦線は、同じ直線上に面が続く場合は描かない（角・端だけ線を引く）
   for (let f = DEPTH; f >= 0; f--) {
     for (const l of order) {
       // 奥の辺（正面向きの面）
       const far = E(f, l, 0);
-      if (isFace(far)) drawFace([l - 0.5, f + 0.5], [l + 0.5, f + 0.5], far, f + 0.5, !isFace(E(f, l - 1, 0)), !isFace(E(f, l + 1, 0)), far === WIN ? CU(f, l, 0) : null);
+      if (isFace(far)) drawFace([l - 0.5, f + 0.5], [l + 0.5, f + 0.5], far, f + 0.5, !isFace(E(f, l - 1, 0)), !isFace(E(f, l + 1, 0)), far === WIN ? CU(f, l, 0) : null, DC(f, l, 0), TOP(f, l));
       // マスの中身（階段・人）
       if (f >= 1 && inMap(state.fl, wx(f, l), wy(f, l))) {
         const sa = stairAt(state.fl, wx(f, l), wy(f, l));
@@ -430,7 +593,9 @@ function renderView() {
           if (f > f2 || (f === f2 && Math.abs(l) > Math.abs(l2))) drawStairSolid(sa.st);
         }
         const pr = propAt(state.fl, wx(f, l), wy(f, l));
-        if (pr) drawTable(pr, l, f);
+        if (pr === 'pool') drawPool(wx(f, l), wy(f, l), WP, wline, f);
+        else if (pr === 'bed' || pr === 'desk') drawTable(pr, l, f);
+        else if (pr) drawBox(pr, l, f);
         const it = itemAt(state.fl, wx(f, l), wy(f, l));
         if (it) drawItem(l, f, it);
         // 吊るされた物（鐘楼の鐘など）：天井から下げる
@@ -598,7 +763,7 @@ function renderMap() {
   mg.lineWidth = 2; mg.strokeStyle = '#fff';
   const seg = (k, x0, y0, x1, y1) => {
     if (k === OPEN || k === DOOR) return;
-    mg.setLineDash(k === WIN ? [2, 2] : []); mg.beginPath(); mg.moveTo(x0, y0); mg.lineTo(x1, y1); mg.stroke(); mg.setLineDash([]);
+    mg.setLineDash(k === WIN ? [2, 2] : k === FENCE ? [1, 3] : []); mg.beginPath(); mg.moveTo(x0, y0); mg.lineTo(x1, y1); mg.stroke(); mg.setLineDash([]);
   };
   for (let y = 0; y <= F.H; y++) for (let x = 0; x < F.W; x++) if (seen(x, y) || seen(x, y - 1)) {
     const k = F.h[y][x], px = ox + x * cs, py = oy + y * cs;
@@ -680,7 +845,7 @@ function shake() { const w = document.getElementById('viewWrap'); w.classList.re
 //  Exploration
 // ---------------------------------------------------------------------
 const CURTAIN_LINES = ['カーテンが閉まっている。', 'カーテンの隙間からも、外の様子はうかがえない。'];
-const windowLine = (x, y, d) => pick(curtainAt(state.fl, x, y, d) != null ? CURTAIN_LINES : WINDOW_LINES);
+const windowLine = (x, y, d) => edgeAt(state.fl, x, y, d) === FENCE ? '柵の向こうに、夕焼けの空が広がっている。' : pick(curtainAt(state.fl, x, y, d) != null ? CURTAIN_LINES : WINDOW_LINES);
 const WINDOW_LINES = ['窓の外は燃えるような夕焼けだ。', '遠くの街並みが茜色に沈んでいく。', '窓は固く閉ざされ、びくともしない。', '紫からオレンジへ――空はずっと同じ色のままだ。'];
 
 // offset: 0 前進 / 2 後退 / 3 左平行 / 1 右平行（向きは変えない）
@@ -688,7 +853,7 @@ function move(offset) {
   const d = (state.dir + offset) % 4;
   const nx = state.x + DIRS[d][0], ny = state.y + DIRS[d][1];
   const e = edgeAt(state.fl, state.x, state.y, d);
-  if (isBlocking(e) || !inMap(state.fl, nx, ny)) { log(e === WIN ? windowLine(state.x, state.y, d) : 'ゴツン。壁だ。', 'sys'); return; }
+  if (isBlocking(e) || !inMap(state.fl, nx, ny)) { log(e === WIN || e === FENCE ? windowLine(state.x, state.y, d) : 'ゴツン。壁だ。', 'sys'); return; }
   const lk = e === DOOR && lockAt(state.fl, state.x, state.y, d);
   if (lk && !state.flags[lk]) { log('扉には鍵がかかっている。', 'sys'); return; }
   if (e === DOOR) log('扉を開けて通り抜けた。', 'sys');
@@ -698,7 +863,7 @@ function move(offset) {
     log('階段の側面だ。', 'sys'); return;
   }
   const pr = propAt(state.fl, nx, ny);
-  if (pr) { log(pr === 'bed' ? 'ベッドがある。' : '机がある。', 'sys'); return; }
+  if (pr) { log({ bed: 'ベッドがある。', desk: '机がある。', getabako: '下駄箱が並んでいる。', stall: 'トイレの個室だ。', sink: '洗面台がある。', stage: 'ステージだ。', tank: '給水タンクだ。', unit: '室外機が並んでいる。', pool: 'プールの水が、夕焼けを映している。' }[pr] || '何かがある。', 'sys'); return; }
   const n = npcAt(state.fl, nx, ny);
   if (n) { log(`${n.name}がいる。［Space］で話しかける`, 'sys'); return; }
   state.x = nx; state.y = ny;
@@ -761,7 +926,7 @@ function interact() {
   }
   const st = stairAhead();
   if (st) { useStairs(st); return; }
-  if (ahead === WIN) { log(windowLine(state.x, state.y, state.dir), 'sys'); return; }
+  if (ahead === WIN || ahead === FENCE) { log(windowLine(state.x, state.y, state.dir), 'sys'); return; }
   if (ahead === DOOR) { log('扉だ。前に進めば通り抜けられる。', 'sys'); return; }
   log('特に何もない。', 'sys');
 }

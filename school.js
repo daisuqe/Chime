@@ -13,7 +13,7 @@
 //  階段：2マス使うソリッド。stairs(id, x, y, dir, up)：(x,y) から dir 方向へ2マス。
 //        同じ id の階段どうしがつながる（隣の階とは限らない）
 // =====================================================================
-const OPEN = 0, WALL = 1, DOOR = 2, WIN = 3;
+const OPEN = 0, WALL = 1, DOOR = 2, WIN = 3, FENCE = 4; // FENCE：屋外（屋上・プール）の柵。向こうが透けて見える
 
 // 辺のキー：マス(x,y)の d 側。南・東の辺は隣のマスの北・西の辺として数える
 function edgeKey(x, y, d) {
@@ -25,7 +25,7 @@ function edgeKey(x, y, d) {
 
 function makeFloor(name, W, H, build) {
   const F = {
-    name, W, H, areas: [], cells: {}, props: {}, stairs: [], locks: {},
+    name, W, H, areas: [], cells: {}, props: {}, stairs: [], locks: {}, deco: {}, lines: [],
     grid: Array.from({ length: H }, () => Array(W).fill(null)), // マス → 区画（null は虚空）
   };
   const over = [];
@@ -33,7 +33,7 @@ function makeFloor(name, W, H, build) {
     for (let y = Math.min(y0, y1); y <= Math.max(y0, y1); y++)
       for (let x = Math.min(x0, x1); x <= Math.max(x0, x1); x++) F.grid[y][x] = a;
   };
-  const area = o => { const a = Object.assign({ kind: 'room', safe: false, floating: false, bld: '' }, o); a.id = F.areas.length; F.areas.push(a); return a; };
+  const area = o => { const a = Object.assign({ kind: 'room', safe: false, floating: false, outdoor: false, bld: '' }, o); a.id = F.areas.length; F.areas.push(a); return a; };
   const api = {
     // 部屋（長方形）
     room(name, bld, x0, y0, x1, y1, opt = {}) { const a = area({ name, bld, kind: 'room', ...opt }); fill(a, x0, y0, x1, y1); return a; },
@@ -52,6 +52,10 @@ function makeFloor(name, W, H, build) {
     wall: (x, y, d) => over.push([x, y, d, WALL]),
     stairs: (id, x, y, dir, up) => F.stairs.push({ id, x, y, dir, up }),
     prop: (kind, ...xy) => { for (let i = 0; i < xy.length; i += 2) F.props[xy[i] + ',' + xy[i + 1]] = kind; },
+    // 壁の飾りを指定（'board' 黒板 / 'bulletin' 掲示板 / 'poster' / 'hydrant' 消火栓 / 'clock' 時計 / 'hoop' バスケットゴール / 'mirror' 鏡）
+    deco: (x, y, d, type) => { F.deco[x + ',' + y + ',' + d] = type; },
+    // 床の線（体育館のコートなど）：マスの境界で囲む長方形
+    court: (x0, y0, x1, y1) => F.lines.push([x0, y0, x1 + 1, y1 + 1]),
     // 教室の机：5×4 の教室（北に扉）なら 2列×2行、扉の列を通路に空ける
     desks(x0, y0, x1, y1) {
       for (let x = x0 + 1; x < x1; x += 2) for (let y = y0 + 1; y < y1; y++) F.props[x + ',' + y] = 'desk';
@@ -59,7 +63,8 @@ function makeFloor(name, W, H, build) {
   };
   build(api);
   const at = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? F.grid[y][x] : null);
-  const kind = (a, b) => (!a && !b ? OPEN : !a || !b ? WIN : a === b ? OPEN : WALL);
+  // 虚空との境は、屋内なら窓、屋外なら柵
+  const kind = (a, b) => (!a && !b ? OPEN : !a || !b ? ((a || b).outdoor ? FENCE : (a || b).solid ? WALL : WIN) : a === b ? OPEN : WALL);
   F.h = Array.from({ length: H + 1 }, (_, y) => Array.from({ length: W }, (_, x) => kind(at(x, y - 1), at(x, y))));
   F.v = Array.from({ length: H }, (_, y) => Array.from({ length: W + 1 }, (_, x) => kind(at(x - 1, y), at(x, y))));
   for (const [x, y, d, k] of over) {
@@ -83,6 +88,13 @@ const MAPS = {
     m.room('放送室', A, 15, 1, 17, 3); m.door(16, 3, 2); m.prop('desk', 15, 1);
     m.room('用務員室', A, 18, 1, 20, 3, { safe: true }); m.door(19, 3, 2);
     m.stairs('A12', 23, 2, 0, true);
+    // 昇降口：下駄箱が並ぶ。A棟の廊下から南へ抜ける
+    const gen = m.hall('昇降口', A, [[8, 5], [14, 5]]); m.rect(gen, 8, 5, 14, 10);
+    for (let x = 9; x <= 12; x++) m.link(x, 4, 2);
+    m.prop('getabako', 9, 7, 10, 7, 11, 7, 12, 7, 13, 7, 9, 9, 10, 9, 11, 9, 12, 9, 13, 9);
+    // トイレ（昇降口の東）
+    m.room('男子トイレ', A, 15, 5, 17, 7); m.door(15, 6, 3); m.prop('stall', 17, 6, 17, 7); m.prop('sink', 15, 5); m.deco(15, 5, 0, 'mirror');
+    m.room('女子トイレ', A, 15, 8, 17, 10); m.door(15, 9, 3); m.prop('stall', 17, 8, 17, 9, 17, 10); m.prop('sink', 15, 10); m.deco(15, 10, 3, 'mirror');
 
     m.hall('渡り廊下', '', [[6, 5], [6, 11]]); m.link(6, 4, 2); m.link(6, 11, 2);
 
@@ -91,6 +103,12 @@ const MAPS = {
       m.room(n, B, x, 13, x + 4, 16); m.door(x + 2, 13, 0); m.desks(x, 13, x + 4, 16);
     });
     m.stairs('B12', 23, 14, 2, true);
+    // 体育館：B棟の階段ホールから渡り廊下で
+    m.hall('渡り廊下', '', [[22, 17], [22, 21], [18, 21]]); m.link(22, 16, 2);
+    m.room('体育館', '', 2, 19, 17, 26, { solid: true, ceil: 2.0, hiwin: true }); m.door(17, 21, 1);
+    m.prop('stage', 2, 20, 2, 21, 2, 22, 2, 23, 2, 24, 2, 25);
+    m.court(4, 20, 15, 25);
+    m.deco(10, 19, 0, 'hoop'); m.deco(10, 26, 2, 'hoop'); m.deco(9, 19, 0, 'clock');
 
     m.hall('渡り廊下', '', [[25, 4], [26, 4]]); m.link(24, 4, 1); m.link(26, 4, 1);
     m.hall('渡り廊下', '', [[25, 12], [26, 12]]); m.link(24, 12, 1); m.link(26, 12, 1);
@@ -102,6 +120,10 @@ const MAPS = {
     m.room('音楽準備室', C, 28, 11, 32, 12); m.door(28, 11, 3, 'keys');
     m.room('家庭科室', C, 28, 13, 32, 16); m.door(28, 14, 3); m.prop('desk', 30, 14, 30, 15);
     m.stairs('C12', 30, 18, 1, true);
+    // プール：屋外。まわりは柵
+    const pool = m.room('プール', '', 34, 8, 39, 19, { outdoor: true }); m.rect(pool, 33, 18, 33, 18);
+    m.door(32, 18, 1);
+    for (let y = 10; y <= 17; y++) for (let x = 35; x <= 38; x++) m.prop('pool', x, y);
 
     m.hall('渡り廊下', '', [[27, 21], [27, 22]]); m.link(27, 20, 2); m.link(27, 22, 2);
 
@@ -118,10 +140,11 @@ const MAPS = {
     // A棟2F：1F の A棟は東西に長いのに、ここでは南北に長い。しかも 1F の中庭の上にある
     const aCor = m.hall('廊下', A, [[6, 8], [6, 26]]); m.rect(aCor, 2, 23, 5, 26);
     [['2年A組', 8], ['2年B組', 12], ['2年C組', 16]].forEach(([n, y]) => {
-      m.room(n, A, 2, y, 5, y + 3); m.door(5, y + 1, 1); m.prop('desk', 3, y + 2, 3, y + 3, 4, y + 3);
+      m.room(n, A, 2, y, 5, y + 3, { board: 0 }); m.door(5, y + 1, 1); m.prop('desk', 3, y + 2, 3, y + 3, 4, y + 3);
     });
     m.room('生徒会室', A, 2, 20, 5, 22); m.door(5, 21, 1); m.prop('desk', 3, 21);
     m.stairs('A12', 3, 24, 2, false);
+    m.room('トイレ', A, 7, 21, 9, 23); m.door(7, 22, 3); m.prop('stall', 9, 21, 9, 22, 9, 23); m.prop('sink', 7, 21); m.deco(7, 21, 0, 'mirror');
     // 空中廊下：何度も直角に折れながら、何もない宙を渡っていく
     const sky = m.hall('空中廊下', '', [[7, 26], [14, 26], [14, 19], [20, 19], [20, 10], [16, 10], [16, 2]], { floating: true });
     m.rect(sky, 21, 10, 23, 10);
@@ -150,6 +173,7 @@ const MAPS = {
     const bCor = m.hall('廊下', B, [[2, 8], [34, 8]]); m.rect(bCor, 35, 4, 38, 8);
     [2, 7, 12, 17, 22, 27].forEach(x => { m.room('3年E組', B, x, 9, x + 4, 12); m.door(x + 2, 9, 0); m.desks(x, 9, x + 4, 12); });
     m.stairs('B23', 37, 5, 2, false);
+    m.stairs('BR', 35, 6, 0, true); // 屋上へ
     // 空中渡り廊下
     const sky = m.hall('空中渡り廊下', '', [[33, 9], [33, 14], [21, 14]], { floating: true });
     m.rect(sky, 24, 15, 24, 20); m.rect(sky, 25, 20, 25, 20);
@@ -173,6 +197,15 @@ const MAPS = {
     const cor = m.hall('廊下', '', [[20, 9], [20, 4], [10, 4], [10, 14], [4, 14]], { floating: true }); m.rect(cor, 20, 10, 20, 11);
     m.room('鐘楼', '', 2, 15, 7, 21, { floating: true }); m.door(4, 14, 2);
     m.stairs('X34', 20, 10, 2, false);
+  }),
+
+  // ---------------- 屋上：まわりは柵。塔屋（階段室）から出る ----------------
+  5: makeFloor('RF', 40, 28, m => {
+    m.room('屋上', '', 6, 4, 30, 20, { outdoor: true });
+    m.room('塔屋', 'B棟', 16, 10, 19, 13); m.door(19, 11, 1);
+    m.stairs('BR', 17, 11, 2, false);
+    m.prop('tank', 8, 6, 9, 6, 8, 7, 9, 7);
+    m.prop('unit', 24, 17, 25, 17, 26, 17, 24, 6, 25, 6);
   }),
 };
 
