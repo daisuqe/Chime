@@ -837,8 +837,20 @@ function setMenu(title, opts) {
     const b = document.createElement('button'); b.textContent = `${i + 1} ${label}`; b.onclick = () => { if (mode === 'battle') fn(); };
     cmdEl.appendChild(b);
   });
+  updatePad();
 }
-function clearMenu() { menuOpts = []; cmdEl.innerHTML = ''; }
+function clearMenu() { menuOpts = []; cmdEl.innerHTML = ''; updatePad(); }
+// スマホの操作ボタン：戦闘で行動を選ぶ間は、上2段が行動 1〜6、M が「戻る」になる
+const padBtns = [...document.querySelectorAll('#pad button')], PAD_DEFAULT = padBtns.map(b => b.innerHTML);
+function updatePad() {
+  const battleMenu = menuOpts.length > 0;
+  padBtns.forEach((b, i) => {
+    if (!battleMenu) { b.innerHTML = PAD_DEFAULT[i]; b.disabled = false; return; }
+    const o = i < 6 && menuOpts[i];
+    b.innerHTML = o ? `${i + 1}<span>${o[0]}</span>` : i === 6 ? 'M<span>戻る</span>' : '';
+    b.disabled = !o && i !== 6;
+  });
+}
 function shake() { const w = document.getElementById('viewWrap'); w.classList.remove('shake'); void w.offsetWidth; w.classList.add('shake'); }
 
 // ---------------------------------------------------------------------
@@ -1177,6 +1189,20 @@ function handleKey(k) {
     case 'm': case 'M': toggleMenu(true); break;
   }
 }
+// スマホ用の操作ボタン：押した瞬間に反応する。場面によって意味が変わる
+//   会話中：どれを押しても次へ / メニュー中：閉じる / 戦闘中：M がひとつ戻る（行動は画面内のボタンで選ぶ）
+document.querySelectorAll('#pad button').forEach(b => {
+  b.addEventListener('pointerdown', ev => {
+    ev.preventDefault();
+    b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 120);
+    const k = b.dataset.k;
+    if (mode === 'dialog') { advanceDialog(); return; }
+    if (mode === 'menu') { toggleMenu(false); return; }
+    if (mode === 'battle') { const i = padBtns.indexOf(b); if (i < 6 && menuOpts[i]) menuOpts[i][1](); else if (i === 6) backInput(); return; }
+    handleKey(k);
+  });
+});
+menuEl.addEventListener('click', () => toggleMenu(false));
 window.addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
   // テンキー：探索中は e.code（NumLock の有無に関係なく）で移動。戦闘・会話中は数字として扱う

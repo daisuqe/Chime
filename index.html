@@ -52,7 +52,30 @@
   tr.dead td { color:var(--bad); }
   .shake { animation:shake .25s; }
   @keyframes shake { 0%,100%{transform:translate(0,0)} 25%{transform:translate(-6px,3px)} 50%{transform:translate(5px,-3px)} 75%{transform:translate(-3px,2px)} }
-  @media (max-width:640px){ #side{flex:1 1 100%;} #map{width:100%;height:auto;} }
+  /* スマホ用の操作ボタン（ふだんは隠す） */
+  #pad { display:none; --b:min(29vw, 13.5vh); grid-template-columns:repeat(3, var(--b)); gap:8px; justify-content:center; margin:10px 0 4px; }
+  #pad button { width:var(--b); height:var(--b); padding:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+                font-size:calc(var(--b) * 0.34); line-height:1; touch-action:manipulation; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; }
+  #pad button span { font-size:11px; }
+  #pad button:hover { background:#000; color:var(--fg); }
+  #pad button.on { background:#fff; color:#000; }
+  #pad button:disabled { border-color:#333; }
+  /* スマホの縦画面：プレイ画面を全幅、その下にステータスとミニマップ、いちばん下に大きな操作ボタン */
+  @media (max-width:700px), (pointer:coarse) and (orientation:portrait) {
+    #app { padding:6px; }
+    #top { flex-direction:column; gap:6px; }
+    #viewWrap { flex:none; width:100%; max-width:none; }
+    #side { flex:none; width:100%; flex-direction:row; align-items:flex-start; gap:6px; }
+    #party { flex:1 1 auto; width:auto; font-size:12px; }
+    #map { flex:0 0 34%; width:34%; height:auto; }
+    #menuHint { display:none; }
+    #pad { display:grid; }
+    #loc { font-size:12px; top:4px; right:4px; }
+    #log { font-size:12px; }
+    #cmd button { display:none; } /* 戦闘の行動は下の大きなボタンで選ぶ */
+    #dialog { font-size:14px; padding:8px 10px; }
+    #menu { font-size:12px; top:3%; left:3%; right:3%; padding:8px 10px; }
+  }
 </style>
 </head>
 <body>
@@ -76,7 +99,7 @@
         <div>落とし物は、そのマスに乗ると拾う</div>
         <h3 style="margin-top:10px">持ち物</h3>
         <div id="items">なし</div>
-        <div class="close">M・Esc 閉じる</div>
+        <div class="close">M・Esc 閉じる（スマホは画面をタップ）</div>
       </div>
     </div>
     <div id="side">
@@ -84,6 +107,18 @@
       <div id="menuHint">M : Menu</div>
       <canvas id="map" width="240" height="150"></canvas>
     </div>
+  </div>
+  <!-- スマホ用：テンキーと同じ並び（上段 向き・前進、中段 平行移動・後退、下段 メニュー・調べる・手当て） -->
+  <div id="pad">
+    <button data-k="Numpad4">↶<span>左を向く</span></button>
+    <button data-k="Numpad5">↑<span>前進</span></button>
+    <button data-k="Numpad6">↷<span>右を向く</span></button>
+    <button data-k="Numpad1">←<span>左へ</span></button>
+    <button data-k="Numpad2">↓<span>後退</span></button>
+    <button data-k="Numpad3">→<span>右へ</span></button>
+    <button data-k="m">M<span>メニュー・戻る</span></button>
+    <button data-k=" ">●<span>話す・調べる</span></button>
+    <button data-k="h">H<span>手当て</span></button>
   </div>
 </div>
 <script src="school.js"></script>
