@@ -4,6 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Chime</title>
+<!-- ファビコン（ブラウザのタブ）と、iPhone のホーム画面アイコン -->
+<link rel="icon" type="image/png" sizes="32x32" href="image/icon32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="image/icon64.png">
+<link rel="apple-touch-icon" href="image/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-title" content="Chime">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="theme-color" content="#000000">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=DotGothic16&display=swap" rel="stylesheet">
 <style>
@@ -110,9 +118,9 @@
   </div>
   <!-- スマホ用：テンキーと同じ並び（上段 向き・前進、中段 平行移動・後退、下段 メニュー・調べる・手当て） -->
   <div id="pad">
-    <button data-k="Numpad4">↶<span>左を向く</span></button>
+    <button data-k="Numpad4"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"><path d="M16 21V9H5"/><path d="M9 5L5 9l4 4"/></svg><span>左を向く</span></button>
     <button data-k="Numpad5">↑<span>前進</span></button>
-    <button data-k="Numpad6">↷<span>右を向く</span></button>
+    <button data-k="Numpad6"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"><path d="M8 21V9h11"/><path d="M15 5l4 4-4 4"/></svg><span>右を向く</span></button>
     <button data-k="Numpad1">←<span>左へ</span></button>
     <button data-k="Numpad2">↓<span>後退</span></button>
     <button data-k="Numpad3">→<span>右へ</span></button>
