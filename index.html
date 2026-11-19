@@ -19,6 +19,8 @@
   :root { --fg:#fff; --dim:#fff; --warn:#fff; --bad:#fff; --good:#fff; --line:#fff; }
   * { box-sizing:border-box; }
   html,body { margin:0; background:#000; color:var(--fg); font-family:'DotGothic16','MS Gothic',monospace; }
+  /* スマホで長押し・連打しても文字の範囲選択や拡大鏡・メニューが出ないように */
+  body { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
   #app { max-width:1140px; margin:0 auto; padding:12px 16px; }
   #top { display:flex; gap:12px; flex-wrap:wrap; align-items:flex-start; }
   /* 最大 832x611（従来の1.3倍）。ブラウザの幅・高さが足りなければ縦横比を保って縮小 */
@@ -47,10 +49,16 @@
   /* ステータスの下：枠なしの一行 */
   #menuHint { font-size:14px; }
   /* メニュー（M）：プレイ画面の上に重ねる */
-  #menu { position:absolute; left:6%; right:6%; top:8%; background:#000; border:2px solid var(--fg); padding:12px 16px;
-          font-size:14px; line-height:1.7; display:none; z-index:3; }
-  #menu h3 { margin:0 0 6px; font-size:16px; font-weight:normal; }
-  #menu .close { margin-top:8px; }
+  /* プレイ画面の中に収め、中身だけをスクロールする */
+  #menu { position:absolute; left:6%; right:6%; top:5%; bottom:5%; background:#000; border:2px solid var(--fg); padding:12px 16px;
+          font-size:14px; line-height:1.7; display:none; flex-direction:column; z-index:3; }
+  #menu .tabs { display:flex; gap:6px; margin-bottom:8px; }
+  #menu .tabs button { flex:1; }
+  #menu .tabs button.on { background:#fff; color:#000; }
+  #menuBody { flex:1; min-height:0; overflow-y:auto; }
+  #menuBody h4 { margin:8px 0 2px; font-size:14px; font-weight:normal; text-decoration:underline; }
+  #menu .restart { margin-top:10px; }
+  #menu .close { margin-top:8px; cursor:pointer; font-size:12px; }
   button { font-family:inherit; font-size:14px; background:#000; color:var(--fg); border:1px solid var(--fg); padding:4px 10px; cursor:pointer; }
   button:hover { background:#fff; color:#000; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -61,15 +69,16 @@
   .shake { animation:shake .25s; }
   @keyframes shake { 0%,100%{transform:translate(0,0)} 25%{transform:translate(-6px,3px)} 50%{transform:translate(5px,-3px)} 75%{transform:translate(-3px,2px)} }
   /* スマホ用の操作ボタン（ふだんは隠す） */
-  #pad { display:none; --b:min(29vw, 13.5vh); grid-template-columns:repeat(3, var(--b)); gap:8px; justify-content:center; margin:10px 0 4px; }
-  #pad button { width:var(--b); height:var(--b); padding:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
-                font-size:calc(var(--b) * 0.34); line-height:1; touch-action:manipulation; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; }
+  /* ボタンは横長（高さ＝幅の 2/3） */
+  #pad { display:none; --b:min(29vw, 20vh); grid-template-columns:repeat(3, var(--b)); gap:8px; justify-content:center; margin:10px 0 4px; }
+  #pad button { width:var(--b); height:calc(var(--b) * 2 / 3); padding:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
+                font-size:calc(var(--b) * 0.26); line-height:1; touch-action:manipulation; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; }
   #pad button span { font-size:11px; }
   #pad button:hover { background:#000; color:var(--fg); }
   #pad button.on { background:#fff; color:#000; }
   #pad button:disabled { border-color:#333; }
   /* スマホの縦画面：プレイ画面を全幅、その下にステータスとミニマップ、いちばん下に大きな操作ボタン */
-  @media (max-width:700px), (pointer:coarse) and (orientation:portrait) {
+  @media (max-width:700px) and (orientation:portrait), (pointer:coarse) and (orientation:portrait) {
     #app { padding:6px; }
     #top { flex-direction:column; gap:6px; }
     #viewWrap { flex:none; width:100%; max-width:none; }
@@ -82,7 +91,42 @@
     #log { font-size:12px; }
     #cmd button { display:none; } /* 戦闘の行動は下の大きなボタンで選ぶ */
     #dialog { font-size:14px; padding:8px 10px; }
-    #menu { font-size:12px; top:3%; left:3%; right:3%; padding:8px 10px; }
+    #menu { font-size:12px; line-height:1.5; top:2%; bottom:2%; left:2%; right:2%; padding:6px 8px; }
+    #menu .tabs button { padding:2px 4px; }
+    #menuBody h4 { margin:4px 0 0; font-size:12px; }
+    #menu .close { margin-top:4px; font-size:10px; }
+  }
+  /* スマホの横画面：PC と同じくプレイ画面の右にステータスとミニマップ、下に操作ボタンを横1列
+     並び：左へ・左を向く・直進・右を向く・右へ・話す・手当・メニュー（後退は使わない）
+     戦闘で行動を選ぶ間は、行動 1〜6 と「戻る」が並ぶ */
+  @media (pointer:coarse) and (orientation:landscape) {
+    #app { display:grid; grid-template-columns:auto 220px; grid-template-areas:'view side' 'pad pad';
+           gap:6px; padding:6px; max-width:none; justify-content:center; align-items:start; }
+    #top { display:contents; }
+    #viewWrap { grid-area:view; flex:none; width:calc((100vh - 86px) * 832 / 611); max-width:calc(100vw - 244px); }
+    #side { grid-area:side; flex:none; width:220px; gap:6px; }
+    #map { width:220px; height:auto; }
+    #menuHint { display:none; }
+    #pad { grid-area:pad; display:flex; gap:6px; margin:0; }
+    #pad button { flex:1; width:auto; height:60px; font-size:22px; }
+    #pad:not(.battle) button[data-k="Numpad2"] { display:none; }
+    #pad:not(.battle) button[data-k="Numpad1"] { order:1; }
+    #pad:not(.battle) button[data-k="Numpad4"] { order:2; }
+    #pad:not(.battle) button[data-k="Numpad5"] { order:3; }
+    #pad:not(.battle) button[data-k="Numpad6"] { order:4; }
+    #pad:not(.battle) button[data-k="Numpad3"] { order:5; }
+    #pad:not(.battle) button[data-k=" "] { order:6; }
+    #pad:not(.battle) button[data-k="h"] { order:7; }
+    #pad:not(.battle) button[data-k="m"] { order:8; }
+    #pad.battle button:disabled { display:none; }
+    #loc { font-size:12px; top:4px; right:4px; }
+    #log { font-size:12px; }
+    #cmd button { display:none; }
+    #dialog { font-size:14px; padding:6px 10px; }
+    #menu { font-size:12px; line-height:1.5; top:2%; bottom:2%; left:2%; right:2%; padding:6px 8px; }
+    #menu .tabs button { padding:2px 4px; }
+    #menuBody h4 { margin:4px 0 0; font-size:12px; }
+    #menu .close { margin-top:4px; font-size:10px; }
   }
 </style>
 </head>
@@ -98,17 +142,20 @@
       <div id="loc"></div>
       <div id="dialog"></div>
       <div id="menu">
-        <h3>ヘルプ</h3>
+        <div class="tabs"><button data-tab="help">ヘルプ</button><button data-tab="prog">進捗</button><button data-tab="log">ログ</button></div>
+        <div id="menuBody"></div>
+        <div class="close">M・Esc 閉じる ／ ← → 切り替え ／ ↑ ↓ スクロール（ここをタップでも閉じる）</div>
+      </div>
+      <template id="helpText">
         <div>テンキー 5 前進 / 2 後退 / 4 左を向く / 6 右を向く</div>
         <div>テンキー 1 左へ平行移動 / 3 右へ平行移動</div>
         <div>Space・Enter 話す・調べる・階段を使う</div>
-        <div>H 手当て（佐伯先生の呪文）</div>
+        <div>H 回復（手当て・合唱を使える先生がいるとき）</div>
+        <div>職員室の先生は1人だけ連れて行ける。職員室で話しかけると交代できる</div>
         <div>戦闘中：数字キーで行動を選ぶ / Esc ひとつ戻る</div>
         <div>落とし物は、そのマスに乗ると拾う</div>
-        <h3 style="margin-top:10px">持ち物</h3>
-        <div id="items">なし</div>
-        <div class="close">M・Esc 閉じる（スマホは画面をタップ）</div>
-      </div>
+        <div>進み具合は自動で保存され、次に開くと続きから始まる</div>
+      </template>
     </div>
     <div id="side">
       <table id="party"></table>
@@ -119,14 +166,14 @@
   <!-- スマホ用：テンキーと同じ並び（上段 向き・前進、中段 平行移動・後退、下段 メニュー・調べる・手当て） -->
   <div id="pad">
     <button data-k="Numpad4"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"><path d="M16 21V9H5"/><path d="M9 5L5 9l4 4"/></svg><span>左を向く</span></button>
-    <button data-k="Numpad5">↑<span>前進</span></button>
+    <button data-k="Numpad5">↑<span>直進</span></button>
     <button data-k="Numpad6"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"><path d="M8 21V9h11"/><path d="M15 5l4 4-4 4"/></svg><span>右を向く</span></button>
     <button data-k="Numpad1">←<span>左へ</span></button>
     <button data-k="Numpad2">↓<span>後退</span></button>
     <button data-k="Numpad3">→<span>右へ</span></button>
-    <button data-k="m">M<span>メニュー・戻る</span></button>
-    <button data-k=" ">●<span>話す・調べる</span></button>
-    <button data-k="h">H<span>手当て</span></button>
+    <button data-k="m">M<span>メニュー</span></button>
+    <button data-k=" ">●<span>話す</span></button>
+    <button data-k="h">H<span>手当</span></button>
   </div>
 </div>
 <script src="school.js"></script>

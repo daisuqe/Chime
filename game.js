@@ -74,6 +74,11 @@ const SPELLS = {
   scold: { name: '一喝', mp: 3 },
   spark: { name: '火花', mp: 2 },
   thunder: { name: '雷鳴', mp: 4 },
+  lecture: { name: '長い話', mp: 2 },     // 敵1体を確実に近く眠らせる
+  chalk: { name: 'チョーク投げ', mp: 2 }, // 敵1体にダメージ
+  quiz: { name: '抜き打ちテスト', mp: 4 }, // 敵全体に小ダメージ
+  chorus: { name: '合唱', mp: 4 },       // 仲間全員を少し回復
+  drill: { name: '避難訓練', mp: 3 },    // この回、仲間全員が身を守る
 };
 const MONS = {
   shoe:     { name: '呪いの上履き', img: 'image/monster_cursed_shoe.png', ih: 95, lift: 0, hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 8,  exp: 4,   shape: 'shoe',     grp: [2, 4] },
@@ -93,6 +98,13 @@ const MONS = {
   kimono:   { name: '着物の亡者', img: 'image/zombie_09_grave_risen_japanese.png', ih: 235, lift: 0, hp: [15, 20], atk: [3, 9],  ac: 5, agi: 9,  exp: 27,  shape: 'model',    grp: [1, 2] },
   // ラスボス：鐘の番人（鐘を守り、槌で打ち鳴らす）
   bell:     { name: '鐘の番人', img: 'image/monster_time_warden_boss.png', ih: 260, lift: 0,     hp: [80, 80], atk: [5, 11], ac: 3, agi: 9,  exp: 240, shape: 'bell',     grp: [1, 1], boss: true },
+};
+// 敵の実際の大きさ：cm＝画像の縦の高さ、up＝床から浮いている高さ（cm）。人物の立ち絵と同じ縮尺で描く
+const MON_SIZE = {
+  shoe: { cm: 30 }, dust: { cm: 40, up: 45 }, model: { cm: 165 }, skel: { cm: 170 }, homework: { cm: 150, up: 20 },
+  book: { cm: 45, up: 70 }, shadow: { cm: 180 }, portrait: { cm: 110, up: 70 },
+  wander: { cm: 168 }, gaper: { cm: 172 }, longarm: { cm: 185 }, fungal: { cm: 165 }, boneshell: { cm: 170 }, kimono: { cm: 160 },
+  bell: { cm: 215 },
 };
 const FLOOR_MONS = {
   1: ['shoe', 'dust', 'model', 'wander', 'gaper'],
@@ -119,8 +131,9 @@ const START = [4, 2]; // A棟1F 保健室のベッドの脇
 function newGame() {
   state = {
     fl: 1, x: START[0], y: START[1], dir: 2,
-    party: [HERO()], flags: {}, items: [],
-    seen: Object.fromEntries(Object.keys(MAPS).map(k => [k, new Set()])),
+    party: [HERO()], flags: {}, items: [], history: [], time: 0,
+    seen: Object.fromEntries(Object.keys(MAPS).map(k => [k, new Set()])),  // 見たマス
+    seenE: Object.fromEntries(Object.keys(MAPS).map(k => [k, new Set()])), // 見た壁（辺）
     cool: 6, room: null,
   };
 }
@@ -601,7 +614,7 @@ function renderView() {
         // 吊るされた物（鐘楼の鐘など）：天井から下げる
         for (const dc of DECOR) if (dc.fl === state.fl && dc.x === wx(f, l) && dc.y === wy(f, l) && !(dc.hide && dc.hide(state))) drawHanging(l, f, dc);
         const n = npcAt(state.fl, wx(f, l), wy(f, l));
-        if (n && Math.abs(l) <= 1 && n !== talking) drawNpc(n, l, f);
+        if (n && Math.abs(l) <= 1 && n !== talking && !battle) drawNpc(n, l, f); // 戦闘中は戦闘の敵だけを描く
       }
       // 横の辺（視線に平行な面）。辺 lat=k+0.5 は一意に描く：右側(l>=1)はマスの左辺、左側(l<=-1)はマスの右辺
       if (l >= 1) sideFace(l - 0.5, f, E(f, l, 3), E(f + 1, l, 3), E(f - 1, l, 3), E(f, l, 3) === WIN ? CU(f, l, 3) : null);
@@ -712,18 +725,39 @@ function drawEnemy(m, x, y, s, flash) {
   g.drawImage(flash ? tinted(im, '#fff') : im, x - w / 2, top, w, h);
   return top;
 }
+// 敵を、目の前の床に立つ実物大で描く（探索画面の背景と同じ遠近）
+//   奥行き：ふつう 1.5 マス先、小さい敵は 1 マス先、ボスは立っていた場所（約1マス先）。前が壁ならその手前まで
+//   左右：通路の幅（±0.35 マス）に収まるよう並べ、数が多いときは前後に少しずらす
+function enemySpots(n, kind) {
+  const sz = MON_SIZE[kind] || { cm: 160 };
+  let free = 0; // 正面に何マス空いているか
+  for (let x = state.x, y = state.y; free < 3 && edgeAt(state.fl, x, y, state.dir) === OPEN; free++) { x += DIRS[state.dir][0]; y += DIRS[state.dir][1]; }
+  const base = Math.min(MONS[kind].boss ? 1.1 : sz.cm < 60 ? 1.0 : 1.5, free + 0.45);
+  const gap = Math.min(0.42, 0.7 / Math.max(1, n - 1));
+  return Array.from({ length: n }, (_, i) => ({ l: (i - (n - 1) / 2) * gap, f: base + (n >= 3 && i % 2 ? 0.45 : 0) }));
+}
+function drawEnemyAt(kind, l, f, flash) {
+  const m = MONS[kind], sz = MON_SIZE[kind] || { cm: 160 }, im = m.img && getImage(m.img);
+  const up = (sz.up || 0) * CM, ht = sz.cm * CM;
+  const top = P(l, f, -0.5 + up + ht), bot = P(l, f, -0.5 + up);
+  const h = bot[1] - top[1];
+  if (!im) { drawMonster(m.shape, bot[0], bot[1], h / 240, '#fff'); return top; }
+  const w = h * im.naturalWidth / im.naturalHeight;
+  g.imageSmoothingEnabled = false;
+  g.drawImage(flash ? tinted(im, '#fff') : im, top[0] - w / 2, top[1], w, h);
+  return top;
+}
 function renderBattle() {
   g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 0, VW, VH);
   const m = MONS[battle.kind];
   const n = battle.enemies.length;
-  const s = m.boss ? 1.1 : (n >= 4 ? 0.62 : n === 3 ? 0.75 : 0.9);
-  const bellIm = m.boss && getImage('image/chime.png');
-  if (bellIm) { const bw = 90, bh = bw * bellIm.naturalHeight / bellIm.naturalWidth; g.imageSmoothingEnabled = false; g.drawImage(bellIm, CX - 200 - bw / 2, 58, bw, bh); }
-  battle.enemies.forEach((e, i) => {
+  // 鐘楼の鐘（探索画面に描かれているので、戦闘では重ねない）
+  const spots = enemySpots(n, battle.kind);
+  // 奥の敵から順に描く
+  battle.enemies.map((e, i) => ({ e, p: spots[i] })).sort((a, b) => b.p.f - a.p.f).forEach(({ e, p }) => {
     if (e.hp <= 0) return;
-    const x = VW * (i + 1) / (n + 1), y = m.boss ? 345 : 320; // 下部のログ・コマンドに被らない高さ
-    const top = drawEnemy(m, x, y, s, e.flash);
-    if (e.sleep > 0) { g.fillStyle = '#fff'; g.font = '18px DotGothic16, monospace'; g.textAlign = 'center'; g.fillText('Zz', x + 40 * s, top + 10); }
+    const top = drawEnemyAt(battle.kind, p.l, p.f, e.flash);
+    if (e.sleep > 0) { g.fillStyle = '#fff'; g.font = '18px DotGothic16, monospace'; g.textAlign = 'center'; g.fillText('Zz', top[0] + 24, top[1] + 4); }
   });
   const alive = battle.enemies.filter(e => e.hp > 0).length;
   g.font = '18px DotGothic16, monospace'; g.textAlign = 'center';
@@ -738,8 +772,31 @@ function renderBattle() {
 // ---------------------------------------------------------------------
 const mc = document.getElementById('map'), mg = mc.getContext('2d');
 // オートマップ：実際に立ったマスだけを記録（地図に描かれるのは、そのマスの四方の壁だけ）
+// オートマップ：視界に入った範囲だけを記録する
+//   ・前方2マスまで（2マス先のマスの向こう側の壁＝こちらを向いた壁まで）
+//   ・左右は前方の距離と同じだけ広がる扇形。自分の真横と後ろは記録しない
+//   ・視線は「何もない辺」だけを通る（壁・閉じた扉・窓の向こうは記録しない）
+//   ・記録する壁は、各マスの奥と左右の辺（こちらに背を向けた辺は見えないので記録しない）
+const SIGHT = 2;
 function markSeen() {
-  state.seen[state.fl].add(state.x + ',' + state.y);
+  const fl = state.fl, S = state.seen[fl], SE = state.seenE[fl], dir = state.dir;
+  const [fx, fy] = DIRS[dir], [rx, ry] = DIRS[(dir + 1) % 4];
+  const cx = (f, l) => state.x + fx * f + rx * l, cy = (f, l) => state.y + fy * f + ry * l;
+  const vis = new Set(['0,0']), q = [[0, 0]];
+  while (q.length) {
+    const [f, l] = q.shift();
+    for (const [df, dl, side] of [[1, 0, 0], [0, 1, 1], [0, -1, 3]]) {
+      const nf = f + df, nl = l + dl, k = nf + ',' + nl;
+      if (nf > SIGHT || Math.abs(nl) > nf || vis.has(k)) continue;
+      if (edgeAt(fl, cx(f, l), cy(f, l), (dir + side) % 4) !== OPEN || !inMap(fl, cx(nf, nl), cy(nf, nl))) continue;
+      vis.add(k); q.push([nf, nl]);
+    }
+  }
+  for (const k of vis) {
+    const [f, l] = k.split(',').map(Number), x = cx(f, l), y = cy(f, l);
+    S.add(x + ',' + y);
+    for (const side of [0, 1, 3]) SE.add(edgeKey(x, y, (dir + side) % 4));
+  }
 }
 function renderMap() {
   const F = MAPS[state.fl], cs = 10, ox = Math.round(mc.width / 2 - (state.x + 0.5) * cs), oy = Math.round(mc.height / 2 - (state.y + 0.5) * cs), S = state.seen[state.fl];
@@ -765,11 +822,12 @@ function renderMap() {
     if (k === OPEN || k === DOOR) return;
     mg.setLineDash(k === WIN ? [2, 2] : k === FENCE ? [1, 3] : []); mg.beginPath(); mg.moveTo(x0, y0); mg.lineTo(x1, y1); mg.stroke(); mg.setLineDash([]);
   };
-  for (let y = 0; y <= F.H; y++) for (let x = 0; x < F.W; x++) if (seen(x, y) || seen(x, y - 1)) {
+  const SE = state.seenE[state.fl], all = state.flags.mapAll;
+  for (let y = 0; y <= F.H; y++) for (let x = 0; x < F.W; x++) if (all ? seen(x, y) || seen(x, y - 1) : SE.has('h' + x + ',' + y)) {
     const k = F.h[y][x], px = ox + x * cs, py = oy + y * cs;
     if (k === DOOR) { seg(WALL, px, py, px + 3, py); seg(WALL, px + cs - 3, py, px + cs, py); seg(DOOR, px + 3, py, px + cs - 3, py); } else seg(k, px, py, px + cs, py);
   }
-  for (let y = 0; y < F.H; y++) for (let x = 0; x <= F.W; x++) if (seen(x, y) || seen(x - 1, y)) {
+  for (let y = 0; y < F.H; y++) for (let x = 0; x <= F.W; x++) if (all ? seen(x, y) || seen(x - 1, y) : SE.has('v' + x + ',' + y)) {
     const k = F.v[y][x], px = ox + x * cs, py = oy + y * cs;
     if (k === DOOR) { seg(WALL, px, py, px, py + 3); seg(WALL, px, py + cs - 3, px, py + cs); seg(DOOR, px, py + 3, px, py + cs - 3); } else seg(k, px, py, px, py + cs);
   }
@@ -787,7 +845,7 @@ function renderHUD() {
   document.getElementById('party').innerHTML =
     '<tr><th>Name</th><th>Lv</th><th>HP</th><th>MP</th><th>Status</th></tr>' + rows;
 }
-function render() { renderView(); renderMap(); renderHUD(); }
+function render() { renderView(); renderMap(); renderHUD(); saveSoon(); }
 
 // ---------------------------------------------------------------------
 //  Log / dialog / command menu
@@ -795,7 +853,14 @@ function render() { renderView(); renderMap(); renderHUD(); }
 const logEl = document.getElementById('log');
 // メッセージは画面の中に一時的に出す（複数行）。一定時間で消える
 const LOG_MAX = 5, LOG_MS = 3500;
+const HISTORY_MAX = 300;
+function remember(text) {
+  if (!state) return;
+  state.history.push(text);
+  if (state.history.length > HISTORY_MAX) state.history.splice(0, state.history.length - HISTORY_MAX);
+}
 function log(msg, cls = '') {
+  remember(msg.trim());
   const d = document.createElement('div'); d.textContent = msg; if (cls) d.className = cls;
   logEl.appendChild(d);
   while (logEl.children.length > LOG_MAX) logEl.removeChild(logEl.firstChild);
@@ -817,6 +882,7 @@ function advanceDialog() {
     render(); if (cb) cb(); return;
   }
   const line = dialogQ.lines.shift();
+  if (!line.startsWith('★')) remember(line); // ★ の行は log() 側で残る
   dlgEl.innerHTML = '';
   if (dialogQ.portrait) {
     const p = document.createElement('img'); p.src = dialogQ.portrait; p.className = 'portrait'; dlgEl.appendChild(p);
@@ -834,20 +900,27 @@ function setMenu(title, opts) {
   cmdEl.innerHTML = '';
   if (title) { const s = document.createElement('span'); s.className = 'who'; s.textContent = title; cmdEl.appendChild(s); }
   opts.forEach(([label, fn], i) => {
-    const b = document.createElement('button'); b.textContent = `${i + 1} ${label}`; b.onclick = () => { if (mode === 'battle') fn(); };
+    const b = document.createElement('button'); b.textContent = `${i + 1} ${label}`; b.onclick = () => { if (mode === 'battle' || mode === 'choice') fn(); };
     cmdEl.appendChild(b);
   });
   updatePad();
+}
+// 会話のあとに選択肢を出す。数字キー・画面のボタン・スマホのボタンで選ぶ。Esc・M は最後の選択肢（いいえ）
+function showChoice(title, opts) {
+  mode = 'choice';
+  setMenu(title, opts.map(([label, fn]) => [label, () => { clearMenu(); mode = 'explore'; fn(); render(); }]));
+  render();
 }
 function clearMenu() { menuOpts = []; cmdEl.innerHTML = ''; updatePad(); }
 // スマホの操作ボタン：戦闘で行動を選ぶ間は、上2段が行動 1〜6、M が「戻る」になる
 const padBtns = [...document.querySelectorAll('#pad button')], PAD_DEFAULT = padBtns.map(b => b.innerHTML);
 function updatePad() {
   const battleMenu = menuOpts.length > 0;
+  document.getElementById('pad').classList.toggle('battle', battleMenu); // 横画面で並びを切り替える
   padBtns.forEach((b, i) => {
     if (!battleMenu) { b.innerHTML = PAD_DEFAULT[i]; b.disabled = false; return; }
     const o = i < 6 && menuOpts[i];
-    b.innerHTML = o ? `${i + 1}<span>${o[0]}</span>` : i === 6 ? 'M<span>戻る</span>' : '';
+    b.innerHTML = o ? `${i + 1}<span>${o[0]}</span>` : i === 6 ? (mode === 'choice' ? 'M<span>やめる</span>' : 'M<span>戻る</span>') : '';
     b.disabled = !o && i !== 6;
   });
 }
@@ -947,7 +1020,14 @@ function healAll() { state.party.forEach(c => { c.hp = c.maxhp; c.mp = c.maxmp; 
 
 function fieldHeal() {
   const caster = state.party.find(c => c.hp > 0 && c.spells.includes('heal') && c.mp >= SPELLS.heal.mp);
-  if (!caster) { log('手当てを使える仲間がいない（またはMP不足）', 'sys'); return; }
+  const choir = !caster && state.party.find(c => c.hp > 0 && c.spells.includes('chorus') && c.mp >= SPELLS.chorus.mp);
+  if (choir) {
+    if (!state.party.some(c => c.hp > 0 && c.hp < c.maxhp)) { log('誰も怪我をしていない。', 'sys'); return; }
+    choir.mp -= SPELLS.chorus.mp;
+    for (const t of aliveParty()) t.hp = Math.min(t.maxhp, t.hp + rnd(4, 7) + Math.floor(choir.lv / 2));
+    log(`${choir.name}の合唱。仲間全員の HP が回復した`, 'good'); render(); return;
+  }
+  if (!caster) { log('回復の呪文を使える仲間がいない（またはMP不足）', 'sys'); return; }
   const tgt = state.party.filter(c => c.hp > 0 && c.hp < c.maxhp).sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp)[0];
   if (!tgt) { log('誰も怪我をしていない。', 'sys'); return; }
   caster.mp -= SPELLS.heal.mp;
@@ -963,6 +1043,13 @@ function fieldHeal() {
 const hitChance = (lv, ac) => clamp(0.38 + 0.04 * ac + 0.03 * lv, 0.1, 0.95);
 const enemiesAlive = () => battle.enemies.filter(e => e.hp > 0);
 
+// 壁を向いたまま襲われたら、敵が来られる空いた方へ向き直る（左右を優先、なければ後ろ）
+function faceOpenSide() {
+  const freeIn = d => { let k = 0; for (let x = state.x, y = state.y; k < 3 && edgeAt(state.fl, x, y, d) === OPEN; k++) { x += DIRS[d][0]; y += DIRS[d][1]; } return k; };
+  if (freeIn(state.dir) > 0) return;
+  const cand = [1, 3, 2].map(t => (state.dir + t) % 4).sort((a, b) => freeIn(b) - freeIn(a));
+  if (freeIn(cand[0]) > 0) state.dir = cand[0];
+}
 async function startBattle(kind, n, onWin) {
   const m = MONS[kind];
   mode = 'busy';
@@ -971,6 +1058,8 @@ async function startBattle(kind, n, onWin) {
     enemies: Array.from({ length: n }, () => { const hp = rnd(m.hp[0], m.hp[1]); return { name: m.name, hp, maxhp: hp, atk: m.atk, ac: m.ac, agi: m.agi, lv: state.fl, boss: !!m.boss, sleep: 0, flash: false }; }),
   };
   state.cool = 6;
+  state.party.forEach(c => { c.heavy = false; }); // 大きな傷の印は戦闘ごと
+  faceOpenSide();
   shake(); render();
   log(m.boss ? `${m.name}が 襲いかかってきた！` : `${m.name}が ${n > 1 ? n + '体 ' : ''}あらわれた！`, 'warn');
   await sleep(500);
@@ -1065,6 +1154,20 @@ async function partyAct(c, cmd) {
     await hurtEnemy(pick(enemiesAlive()), rnd(6, 11) + c.lv);
   } else if (cmd.id === 'thunder') {
     for (const e of enemiesAlive()) await hurtEnemy(e, rnd(4, 8) + c.lv);
+  } else if (cmd.id === 'lecture') {
+    const e = pick(enemiesAlive());
+    if (Math.random() < (e.boss ? 0.3 : 0.9)) { e.sleep = rnd(2, 3); log(`${e.name}は 話の長さに 眠ってしまった`); } else log(`${e.name}には 効かなかった`);
+    render(); await sleep(SPD);
+  } else if (cmd.id === 'chalk') {
+    await hurtEnemy(pick(enemiesAlive()), rnd(5, 9) + c.lv);
+  } else if (cmd.id === 'quiz') {
+    for (const e of enemiesAlive()) await hurtEnemy(e, rnd(2, 5) + Math.floor(c.lv / 2));
+  } else if (cmd.id === 'chorus') {
+    for (const t of aliveParty()) { const amt = Math.min(t.maxhp - t.hp, rnd(4, 7) + Math.floor(c.lv / 2)); t.hp += amt; }
+    log('仲間全員の HP が 回復した', 'good'); renderHUD(); await sleep(SPD);
+  } else if (cmd.id === 'drill') {
+    aliveParty().forEach(t => { t.defend = true; });
+    log('全員が 身を低くして 守りを固めた', 'good'); renderHUD(); await sleep(SPD);
   }
 }
 function pickTarget() {
@@ -1074,11 +1177,15 @@ function pickTarget() {
   for (let i = 0; i < alive.length; i++) { r -= w[i]; if (r <= 0) return alive[i]; }
   return alive[0];
 }
+const HEAVY_RATE = 0.4; // 倒れたときの一撃がこの割合（最大HP比）以上なら大きな傷
 async function damageChar(c, dmg) {
   if (c.defend) dmg = Math.ceil(dmg / 2);
   c.hp = Math.max(0, c.hp - dmg); shake(); renderHUD();
   log(`${c.name}は ${dmg} のダメージを受けた`, 'bad');
-  if (c.hp <= 0) log(`${c.name}は 倒れた……`, 'bad');
+  if (c.hp <= 0) {
+    c.heavy = dmg >= c.maxhp * HEAVY_RATE;
+    log(c.heavy ? `${c.name}は 大きな傷を負って 倒れた……` : `${c.name}は 倒れた……`, 'bad');
+  }
   await sleep(SPD);
 }
 async function enemyAct(e) {
@@ -1110,9 +1217,10 @@ function levelUps() {
   for (const c of state.party) {
     while (c.hp > 0 && c.exp >= needExp(c.lv)) {
       c.lv++;
-      const hp = rnd(c.grow.hp[0], c.grow.hp[1]);
+      const hp = rnd(c.grow.hp[0], c.grow.hp[1]), ac = c.lv % 2 === 0 ? 1 : 0;
       c.maxhp += hp; c.hp += hp; c.maxmp += c.grow.mp; c.mp += c.grow.mp;
-      c.atk = [c.atk[0] + 1, c.atk[1] + 1]; if (c.lv % 2 === 0) c.ac--;
+      c.atk = [c.atk[0] + 1, c.atk[1] + 1]; c.ac -= ac;
+      (c.gains = c.gains || []).push({ hp, mp: c.grow.mp, ac });
       log(`${c.name}は レベル${c.lv}に上がった！`, 'good');
     }
   }
@@ -1146,30 +1254,143 @@ async function victory() {
     ]);
   }
 }
+function levelDown(c) {
+  if (c.lv <= 1) { c.exp = 0; return false; }
+  // 記録が無い（古い保存データ）ときは、平均的な伸びの分を戻す
+  const g = (c.gains && c.gains.pop()) || { hp: Math.round((c.grow.hp[0] + c.grow.hp[1]) / 2), mp: c.grow.mp, ac: c.lv % 2 === 0 ? 1 : 0 };
+  c.lv--;
+  c.maxhp = Math.max(1, c.maxhp - g.hp); c.maxmp = Math.max(0, c.maxmp - g.mp);
+  c.atk = [Math.max(1, c.atk[0] - 1), Math.max(1, c.atk[1] - 1)]; c.ac += g.ac;
+  c.exp = c.lv >= 2 ? needExp(c.lv - 1) : 0;
+  c.hp = Math.min(c.hp, c.maxhp); c.mp = Math.min(c.mp, c.maxmp);
+  return true;
+}
+// 全滅：そのとき連れていた全員のレベルが 1 下がる。大きな傷（最大HPの4割以上の一撃）で倒れた人は 2 下がる
+//   職員室に残っていた先生はそのまま。持ち物や進み具合は失わない
 async function defeat() {
   log('パーティは全滅した……', 'bad');
   await sleep(800);
   battle = null; mode = 'explore';
-  showDialog(['パーティは全滅した……', '……気がつくと、保健室のベッドの上だった。'], () => {
+  const down = [];
+  for (const c of state.party) {
+    const n = (levelDown(c) ? 1 : 0) + (c.heavy && levelDown(c) ? 1 : 0);
+    if (n) down.push(n === 2 ? `${c.name}は 大きな傷のせいで レベル${c.lv}まで下がった……` : `${c.name}は レベル${c.lv}に下がった……`);
+    c.heavy = false;
+  }
+  showDialog(['パーティは全滅した……', '……気がつくと、保健室のベッドの上だった。', ...(down.length ? down : ['（これ以上レベルは下がらなかった）'])], () => {
     Object.assign(state, { fl: 1, x: START[0], y: START[1], dir: 2, room: null, cool: 6 });
-    healAll(); markSeen(); render();
+    healAll(); markSeen(); render(); saveGame();
   });
 }
 
 // ---------------------------------------------------------------------
 //  Input
 // ---------------------------------------------------------------------
-const menuEl = document.getElementById('menu');
+const menuEl = document.getElementById('menu'), menuBody = document.getElementById('menuBody');
+const MENU_TABS = ['help', 'prog', 'log'];
+let menuTab = 'prog';
 function toggleMenu(open) {
   if (open === undefined) open = mode !== 'menu';
   if (open && mode !== 'explore') return;
   mode = open ? 'menu' : 'explore';
-  menuEl.style.display = open ? 'block' : 'none';
-  if (open) document.getElementById('items').textContent = state.items.length ? state.items.map(i => ITEM_NAME[i]).join('、') : 'なし';
+  menuEl.style.display = open ? 'flex' : 'none';
+  if (open) showMenuTab(menuTab);
 }
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+// サブシナリオ：名前・始まったフラグ・終わったフラグ
+const QUESTS = [
+  ['片方の上履き', 'q1', 'q1done'], ['逃げた人体模型', 'q2', 'q2done'], ['最後の放送', 'q3', 'q3done'],
+  ['卒業アルバム', 'q4', 'q4done'], ['迷子の新入生', 'q5', 'q5done'], ['見つめる肖像画', 'q6', 'q6done'], ['用務員の鍵束', 'q7', 'q7done'],
+];
+function progressHTML() {
+  const f = state.flags, mark = b => (b ? '■' : '□');
+  const t = Math.floor(state.time / 60), time = `${Math.floor(t / 60)}時間${String(t % 60).padStart(2, '0')}分`;
+  const main = [
+    [f.metNurse, '保健の先生と話した'], [f.hadTeacher || f.saeki, '職員室の先生が仲間になった'], [f.reveal, '窓の外の夕焼けを見た'],
+    [f.mizuno, '水野が仲間になった'], [state.seen[4] && state.seen[4].size > 0, '鐘楼にたどり着いた'], [f.bossDown, '鐘の番人を倒した'],
+  ];
+  const quests = QUESTS.map(([n, a, b]) => f[b] ? `■ ${n}　達成` : f[a] ? `□ ${n}　進行中` : '□ ？？？');
+  const floors = Object.keys(MAPS).map(k => {
+    const F = MAPS[k]; let all = 0; for (const row of F.grid) for (const c of row) if (c) all++;
+    const n = state.seen[k] ? state.seen[k].size : 0;
+    return `${F.name} ${n ? Math.min(100, Math.round(n / all * 100)) + '%' : '未踏'}`;
+  });
+  const done = QUESTS.filter(q => f[q[2]]).length;
+  return `<div>現在地：${esc(placeName(state.fl, state.x, state.y))}</div>
+    <div>プレイ時間：${time}</div>
+    <h4>本筋</h4>${main.map(([b, t]) => `<div>${mark(b)} ${t}</div>`).join('')}
+    <h4>サブシナリオ（${done}/7）</h4>${quests.map(q => `<div>${q}</div>`).join('')}
+    <h4>探索</h4><div>${floors.join('　')}</div>
+    <h4>持ち物</h4><div>${state.items.length ? state.items.map(i => esc(ITEM_NAME[i])).join('、') : 'なし'}</div>
+    <div class="restart"><button id="restartBtn">はじめからやり直す</button></div>`;
+}
+function showMenuTab(tab) {
+  menuTab = tab;
+  menuEl.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  if (tab === 'help') menuBody.innerHTML = document.getElementById('helpText').innerHTML;
+  else if (tab === 'prog') menuBody.innerHTML = progressHTML();
+  else menuBody.innerHTML = state.history.length ? state.history.map(t => `<div>${esc(t)}</div>`).join('') : '<div>まだ何もない</div>';
+  menuBody.scrollTop = tab === 'log' ? menuBody.scrollHeight : 0;
+  const rb = document.getElementById('restartBtn');
+  if (rb) rb.onclick = () => { if (confirm('保存されている続きを消して、はじめからやり直しますか？')) { localStorage.removeItem(SAVE_KEY); location.reload(); } };
+}
+// メニュー内の操作：← → でタブ、↑ ↓ でスクロール、M・Esc で閉じる
+function menuKey(k) {
+  const i = MENU_TABS.indexOf(menuTab);
+  if (['m', 'M', 'Escape'].includes(k)) toggleMenu(false);
+  else if (['ArrowLeft', 'Numpad4', 'Numpad1', '4', '1', 'a'].includes(k)) showMenuTab(MENU_TABS[(i + 2) % 3]);
+  else if (['ArrowRight', 'Numpad6', 'Numpad3', '6', '3', 'd'].includes(k)) showMenuTab(MENU_TABS[(i + 1) % 3]);
+  else if (['ArrowUp', 'Numpad5', 'Numpad8', '8', '5', 'w'].includes(k)) menuBody.scrollTop -= 80;
+  else if (['ArrowDown', 'Numpad2', '2', 's'].includes(k)) menuBody.scrollTop += 80;
+}
+menuEl.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); showMenuTab(b.dataset.tab); }));
+menuEl.querySelector('.close').addEventListener('click', () => toggleMenu(false));
+
+// ---------------------------------------------------------------------
+//  保存と再開：ブラウザの保存領域（localStorage）に自動で保存する。
+//  PC・スマホのブラウザ・iPhone のホーム画面から開いた場合のどれでも、次に開くと続きから始まる
+//  （ブラウザごと・ホーム画面のアプリごとに別々に保存される）
+// ---------------------------------------------------------------------
+const SAVE_KEY = 'chime.save.v1';
+const setsToArrays = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v]]));
+function saveGame() {
+  if (!state || battle) return; // 戦闘中は保存しない（戦闘前の状態から再開）
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, at: Date.now(), state: { ...state, seen: setsToArrays(state.seen), seenE: setsToArrays(state.seenE) } })); } catch (e) { /* 保存できない環境では何もしない */ }
+}
+function loadGame() {
+  try {
+    const raw = localStorage.getItem(SAVE_KEY); if (!raw) return false;
+    const s = JSON.parse(raw).state;
+    const toSets = o => Object.fromEntries(Object.keys(MAPS).map(k => [k, new Set((o && o[k]) || [])]));
+    s.seen = toSets(s.seen); s.seenE = toSets(s.seenE);
+    s.items = s.items || []; s.history = s.history || []; s.time = s.time || 0; s.flags = s.flags || {};
+    if (s.flags.saeki && !s.flags.teacher) { // 旧版：佐伯先生がいたら、そのまま先生枠に
+      const c = (s.party || []).find(c => c.id === 'saeki');
+      s.teachers = { saeki: c || null }; if (c) { c.id = 't_saeki'; c.cls = '体育'; s.flags.teacher = 'saeki'; s.flags.hadTeacher = true; } else delete s.teachers.saeki;
+    }
+    if (!MAPS[s.fl] || !inMap(s.fl, s.x, s.y)) return false; // 校舎の形が変わって位置が無効なら、はじめから
+    state = s;
+    if (s.teachers) s.party = s.party.map(c => (c.id && c.id.startsWith('t_') && s.teachers[c.id.slice(2)] ? s.teachers[c.id.slice(2)] : c));
+    return true;
+  } catch (e) { return false; }
+}
+// 動いたら少し待って保存。タブを閉じる・アプリを切り替えるときにも保存
+var saveTimer = 0;
+function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(saveGame, 400); }
+document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
+window.addEventListener('pagehide', saveGame);
+// プレイ時間（画面が見えている間だけ数える）
+setInterval(() => { if (state && !document.hidden) state.time++; }, 1000);
+setInterval(saveGame, 15000);
 function handleKey(k) {
-  if (mode === 'menu') { if (k === 'm' || k === 'M' || k === 'Escape') toggleMenu(false); return; }
+  if (mode === 'menu') { menuKey(k); return; }
   if (mode === 'dialog') { if (k === ' ' || k === 'Enter' || k === 'z') advanceDialog(); return; }
+  if (mode === 'choice') {
+    const i = parseInt(k, 10);
+    if (i >= 1 && i <= menuOpts.length) menuOpts[i - 1][1]();
+    else if (['Escape', 'm', 'M', 'Backspace'].includes(k)) menuOpts[menuOpts.length - 1][1]();
+    return;
+  }
   if (mode === 'battle') {
     const i = parseInt(k, 10);
     if (i >= 1 && i <= menuOpts.length) menuOpts[i - 1][1]();
@@ -1197,17 +1418,24 @@ document.querySelectorAll('#pad button').forEach(b => {
     b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 120);
     const k = b.dataset.k;
     if (mode === 'dialog') { advanceDialog(); return; }
-    if (mode === 'menu') { toggleMenu(false); return; }
-    if (mode === 'battle') { const i = padBtns.indexOf(b); if (i < 6 && menuOpts[i]) menuOpts[i][1](); else if (i === 6) backInput(); return; }
+    if (mode === 'menu') { menuKey(k); return; }
+    if (mode === 'battle' || mode === 'choice') {
+      const i = padBtns.indexOf(b);
+      if (i < 6 && menuOpts[i]) menuOpts[i][1]();
+      else if (i === 6) mode === 'battle' ? backInput() : menuOpts[menuOpts.length - 1][1]();
+      return;
+    }
     handleKey(k);
   });
 });
-menuEl.addEventListener('click', () => toggleMenu(false));
+// 長押しで出るメニュー（コピー・画像の保存など）を出さない
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('selectstart', e => e.preventDefault());
 window.addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
   // テンキー：探索中は e.code（NumLock の有無に関係なく）で移動。戦闘・会話中は数字として扱う
-  if (mode === 'explore' && /^Numpad[1-6]$|^NumpadEnter$/.test(e.code)) { e.preventDefault(); handleKey(e.code); return; }
-  if (mode === 'battle' && /^Numpad\d$/.test(e.code)) { handleKey(e.code.slice(-1)); return; }
+  if ((mode === 'explore' || mode === 'menu') && /^Numpad[1-8]$|^NumpadEnter$/.test(e.code)) { e.preventDefault(); handleKey(e.code); return; }
+  if ((mode === 'battle' || mode === 'choice') && /^Numpad\d$/.test(e.code)) { handleKey(e.code.slice(-1)); return; }
   handleKey(e.key);
 });
 
@@ -1217,6 +1445,11 @@ window.addEventListener('keydown', e => {
 NPCS.forEach(n => n.img && getImage(n.img));
 Object.values(MONS).forEach(m => m.img && getImage(m.img));
 Object.values(ITEM_IMG).forEach(i => getImage(i.src)); DECOR.forEach(d => getImage(d.img));
+if (loadGame()) {
+  state.room = placeName(state.fl, state.x, state.y);
+  render();
+  log('― 続きから再開した ―', 'sys');
+} else {
 newGame();
 markSeen();
 state.room = placeName(1, START[0], START[1]);
@@ -1228,5 +1461,6 @@ showDialog([
   '（保健の先生は部屋の西側にいる。隣の職員室には誰か残っているだろうか）',
   '（M でメニュー）',
 ]);
+}
 // fonts may load late; redraw once they do
 if (document.fonts) document.fonts.ready.then(() => render());

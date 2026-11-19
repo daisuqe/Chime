@@ -83,7 +83,7 @@ const MAPS = {
     const aCor = m.hall('廊下', A, [[2, 4], [24, 4]]); m.rect(aCor, 21, 1, 24, 3);
     m.room('保健室', A, 2, 1, 5, 3, { safe: true }); m.door(4, 3, 2); m.door(5, 2, 1); // 職員室への内扉
     m.prop('bed', 3, 1, 4, 1, 5, 1); m.prop('desk', 2, 1);
-    m.room('職員室', A, 6, 1, 11, 3, { safe: true }); m.door(8, 3, 2); m.prop('desk', 7, 1, 9, 1, 7, 2, 9, 2, 10, 2);
+    m.room('職員室', A, 6, 1, 11, 3, { safe: true }); m.door(8, 3, 2); m.prop('desk', 6, 3, 11, 3); // 先生 8 人は北の壁ぞいと南の 2 か所に立つ
     m.room('校長室', A, 12, 1, 14, 3); m.door(13, 3, 2); m.prop('desk', 13, 1);
     m.room('放送室', A, 15, 1, 17, 3); m.door(16, 3, 2); m.prop('desk', 15, 1);
     m.room('用務員室', A, 18, 1, 20, 3, { safe: true }); m.door(19, 3, 2);

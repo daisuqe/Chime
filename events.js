@@ -44,7 +44,67 @@ const ITEMS = [
   { id: 'badge', fl: 1, x: 31, y: 12, text: ['楽譜の山の下に、古い校章バッジが埋もれていた。', '（Player の攻撃力が上がった）'], get() { const p = state.party[0]; p.atk = [p.atk[0] + 2, p.atk[1] + 2]; } },
 ];
 
+// ===================== 職員室の先生（1人だけ連れて行ける。職員室で交代できる） =====================
+//   key：名前の元 / x,y：職員室で立っている場所 / cls：教科 / spells：使える呪文 / line：最初のひとこと
+//   画像は image/chara_<key>.png。無ければ棒人間で表示。ht は身長（cm）
+const TEACHERS = [
+  { key: 'saeki', name: '佐伯', cls: '体育', x: 6, y: 1, ht: 178,
+    st: { maxhp: 16, maxmp: 8, atk: [3, 7], ac: 8, agi: 7, grow: { hp: [3, 6], mp: 3 } }, spells: ['heal', 'scold'],
+    line: '「なんだ、まだ残っていたのか。生徒を一人で歩かせるわけにはいかん」', note: '力が強い。手当てと一喝' },
+  { key: 'furukawa', name: '古川', cls: '国語', x: 7, y: 1, ht: 162,
+    st: { maxhp: 11, maxmp: 10, atk: [1, 4], ac: 9, agi: 8, grow: { hp: [2, 4], mp: 4 } }, spells: ['lecture', 'scold'],
+    line: '「……こういう夜の話を、昔読んだことがあるわ。眠らせてしまえばいいのよ」', note: '敵を眠らせるのが得意' },
+  { key: 'sanada', name: '真田', cls: '数学', x: 8, y: 1, ht: 178,
+    st: { maxhp: 12, maxmp: 9, atk: [2, 5], ac: 8, agi: 10, grow: { hp: [2, 5], mp: 3 } }, spells: ['chalk', 'quiz'],
+    line: '「確率的に考えて、二人の方が生き残る。行こう」', note: 'チョーク投げと抜き打ちテストで攻める' },
+  { key: 'shiraishi', name: '白石', cls: '音楽', x: 9, y: 1, ht: 163,
+    st: { maxhp: 10, maxmp: 11, atk: [1, 4], ac: 9, agi: 9, grow: { hp: [2, 4], mp: 4 } }, spells: ['chorus', 'scold'],
+    line: '「あの鐘の音……音程が少しずつ狂ってるの。気になって」', note: '合唱で全員を回復' },
+  { key: 'kuroda', name: '黒田', cls: '社会', x: 10, y: 1, ht: 176,
+    st: { maxhp: 14, maxmp: 7, atk: [2, 6], ac: 7, agi: 8, grow: { hp: [3, 5], mp: 2 } }, spells: ['drill', 'chalk'],
+    line: '「この学校の古い記録は、俺が一番知っている。避難訓練の要領で行くぞ」', note: '打たれ強い。避難訓練で全員を守る' },
+  { key: 'aoyama', name: '青山', cls: '英語', x: 11, y: 1, ht: 165,
+    st: { maxhp: 11, maxmp: 9, atk: [1, 5], ac: 9, agi: 11, grow: { hp: [2, 4], mp: 3 } }, spells: ['heal', 'chalk'],
+    line: '「Don\'t worry. 先生がついてるから」', note: '素早い。手当てとチョーク投げ' },
+  { key: 'midorikawa', name: '緑川', cls: '美術', x: 7, y: 3, ht: 172,
+    st: { maxhp: 10, maxmp: 11, atk: [1, 4], ac: 9, agi: 10, grow: { hp: [2, 4], mp: 4 } }, spells: ['lecture', 'chorus'],
+    line: '「校舎の形、描くたびに変わるんだ。一緒に確かめに行こう」', note: '眠らせる呪文と全員の回復' },
+  { key: 'akai', name: '赤井', cls: '家庭科', x: 10, y: 3, ht: 155,
+    st: { maxhp: 12, maxmp: 9, atk: [1, 5], ac: 8, agi: 9, grow: { hp: [3, 5], mp: 3 } }, spells: ['heal', 'drill'],
+    line: '「お腹すいてない？ ……冗談よ。危ないから、ついていくわ」', note: '手当てと避難訓練で支える' },
+];
+const teacherOf = key => TEACHERS.find(t => t.key === key);
+// 仲間としての先生（一度連れて行った先生は、交代しても経験やレベルを覚えている）
+function teacherChar(key) {
+  state.teachers = state.teachers || {};
+  if (!state.teachers[key]) { const t = teacherOf(key); state.teachers[key] = mkChar({ id: 't_' + key, name: t.name, cls: t.cls, spells: t.spells.slice(), ...JSON.parse(JSON.stringify(t.st)) }); }
+  return state.teachers[key];
+}
+function joinTeacher(key) {
+  const s = state, old = s.flags.teacher;
+  if (old) s.party = s.party.filter(c => c.id !== 't_' + old);
+  s.party.splice(1, 0, teacherChar(key)); // Player のすぐ後ろ
+  s.flags.teacher = key; s.flags.hadTeacher = true;
+  log(old ? `${teacherOf(old).name}先生と交代して、${teacherOf(key).name}先生が仲間に加わった` : `${teacherOf(key).name}先生が 仲間に加わった！`, 'good');
+}
+function teacherNPC(t) {
+  return {
+    id: 't_' + t.key, fl: 1, x: t.x, y: t.y, name: t.name + '先生', img: `image/chara_${t.key}.png`, ht: t.ht,
+    hide: s => s.flags.teacher === t.key,
+    talk(s) {
+      const sp = t.spells.map(i => SPELLS[i].name).join('・');
+      return [`${t.name}先生（${t.cls}）${t.line}`, `（${t.note}。呪文：${sp}）`];
+    },
+    after(s) {
+      const cur = s.flags.teacher;
+      const q = cur ? `${teacherOf(cur).name}先生と交代して、${t.name}先生に来てもらう？` : `${t.name}先生に一緒に来てもらう？`;
+      showChoice(q, [['はい', () => joinTeacher(t.key)], ['いいえ', () => {}]]);
+    },
+  };
+}
+
 const NPCS = [
+  ...TEACHERS.map(teacherNPC),
   // ===================== 本筋 =====================
   { id: 'nurse', fl: 1, x: 2, y: 2, name: '保健の先生', img: 'image/chara_teacher_hospital.png', ht: 158,
     talk(s) {
@@ -54,18 +114,10 @@ const NPCS = [
         '保健の先生「気がついた？ 廊下で倒れていたのよ」',
         '「……変ね。さっきから時計の針が五時から動かないの」',
         '「窓から見える校舎の形も、なんだかおかしい気がする」',
-        '「隣の職員室に、まだ先生が残っているはずよ」',
+        '「隣の職員室に、まだ先生が何人か残っているはずよ。誰か一人についてきてもらいなさい」',
         '（体力と気力が全回復した）',
       ] : ['保健の先生「無理はしないでね。ほら、少し休んでいきなさい」', '（体力と気力が全回復した）'];
     } },
-  { id: 'saeki', fl: 1, x: 8, y: 1, name: '佐伯先生', img: 'image/chara_saeki.png', ht: 178, hide: s => s.flags.saeki,
-    talk() { return [
-      '佐伯先生「なんだ、まだ残っていたのか」',
-      '「……上の階に行ってみたか？ 階段を上ると、まるで知らない校舎に出る」',
-      '「生徒を一人で歩かせるわけにはいかん。私も行こう」',
-      '★ 佐伯先生が 仲間に加わった！',
-    ]; },
-    after(s) { s.flags.saeki = true; s.party.push(RECRUITS.saeki()); } },
   { id: 'mizuno', fl: 1, x: 25, y: 25, name: '図書委員', img: 'image/chara_mizuno.png', ht: 152, hide: s => s.flags.mizuno,
     talk() { return [
       '図書委員の水野「……静かに。本が、勝手にページをめくってるの」',
