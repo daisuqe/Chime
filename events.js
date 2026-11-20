@@ -51,25 +51,25 @@ const TEACHERS = [
   { key: 'saeki', name: '佐伯', cls: '体育', x: 6, y: 1, ht: 178,
     st: { maxhp: 16, maxmp: 8, atk: [3, 7], ac: 8, agi: 7, grow: { hp: [3, 6], mp: 3 } }, spells: ['heal', 'scold'],
     line: '「なんだ、まだ残っていたのか。生徒を一人で歩かせるわけにはいかん」', note: '力が強い' },
-  { key: 'furukawa', name: '古川', cls: '国語', x: 7, y: 1, ht: 162,
+  { key: 'furukawa', name: '古川', cls: '国語', x: 9, y: 1, ht: 162,
     st: { maxhp: 11, maxmp: 10, atk: [1, 4], ac: 9, agi: 8, grow: { hp: [2, 4], mp: 4 } }, spells: ['lecture', 'scold'],
     line: '「長い放課後ね。ああいうのは、眠らせてしまえばいいのよ」', note: '敵を眠らせるのが得意' },
-  { key: 'sanada', name: '真田', cls: '数学', x: 8, y: 1, ht: 178,
+  { key: 'sanada', name: '真田', cls: '数学', x: 12, y: 1, ht: 178,
     st: { maxhp: 12, maxmp: 9, atk: [2, 5], ac: 8, agi: 10, grow: { hp: [2, 5], mp: 3 } }, spells: ['spark', 'quiz'],
     line: '「確率的に考えて、二人の方が生き残る。行こう」', note: '攻めが得意' },
-  { key: 'shiraishi', name: '白石', cls: '音楽', x: 9, y: 1, ht: 163,
+  { key: 'shiraishi', name: '白石', cls: '音楽', x: 15, y: 0, ht: 163,
     st: { maxhp: 10, maxmp: 11, atk: [1, 4], ac: 9, agi: 9, grow: { hp: [2, 4], mp: 4 } }, spells: ['chorus', 'scold'],
     line: '「あの鐘の音、いい音よね。最後まで聴いてみたくて」', note: '全員を回復できる' },
-  { key: 'kuroda', name: '黒田', cls: '社会', x: 10, y: 1, ht: 176,
+  { key: 'kuroda', name: '黒田', cls: '社会', x: 15, y: 2, ht: 176,
     st: { maxhp: 14, maxmp: 7, atk: [2, 6], ac: 7, agi: 8, grow: { hp: [3, 5], mp: 2 } }, spells: ['drill', 'spark'],
     line: '「この学校の古い記録は、俺が一番知っている。離れずについてこい」', note: '打たれ強い。全員を守れる' },
-  { key: 'aoyama', name: '青山', cls: '英語', x: 11, y: 1, ht: 165,
+  { key: 'aoyama', name: '青山', cls: '英語', x: 6, y: 3, ht: 165,
     st: { maxhp: 11, maxmp: 9, atk: [1, 5], ac: 9, agi: 11, grow: { hp: [2, 4], mp: 3 } }, spells: ['heal', 'spark'],
     line: '「Don\'t worry. 先生がついてるから」', note: '素早い' },
-  { key: 'midorikawa', name: '緑川', cls: '美術', x: 7, y: 3, ht: 172,
+  { key: 'midorikawa', name: '緑川', cls: '美術', x: 10, y: 2, ht: 172,
     st: { maxhp: 10, maxmp: 11, atk: [1, 4], ac: 9, agi: 10, grow: { hp: [2, 4], mp: 4 } }, spells: ['lecture', 'chorus'],
     line: '「夕焼けの色、まだ描ききれてないんだ。歩きながら見ていこう」', note: '眠らせる呪文と全員の回復' },
-  { key: 'akai', name: '赤井', cls: '家庭科', x: 10, y: 3, ht: 155,
+  { key: 'akai', name: '赤井', cls: '家庭科', x: 13, y: 2, ht: 155,
     st: { maxhp: 12, maxmp: 9, atk: [1, 5], ac: 8, agi: 9, grow: { hp: [3, 5], mp: 3 } }, spells: ['heal', 'drill'],
     line: '「お腹すいてない？ ……冗談よ。危ないから、ついていくわ」', note: '回復と守りで支える' },
 ];
@@ -246,7 +246,7 @@ const NPCS = [
     after() { startBattle('model', 2, () => { state.flags.q2fight = true; }); } },
 
   // ===================== 3 最後の放送 =====================
-  { id: 'housou', quest: 'q3', fl: 1, x: 16, y: 1, name: '放送部員', img: 'image/chara_housou.png', ht: 160,
+  { id: 'housou', quest: 'q3', fl: 1, x: 18, y: 1, name: '放送部員', img: 'image/chara_housou.png', ht: 160,
     talk(s) {
       if (s.flags.q3done) return ['放送部員「あの放送のあと、鐘の音が少し遠くなった気がする」'];
       if (hasItem('tape')) return [
@@ -334,7 +334,7 @@ const NPCS = [
     after() { startBattle('portrait', 1, () => { state.flags.q6fight = true; }); } },
 
   // ===================== 7 用務員の鍵束 =====================
-  { id: 'youmu', quest: 'q7', fl: 1, x: 19, y: 2, name: '用務員', img: 'image/chara_caretaker.png', ht: 165,
+  { id: 'youmu', quest: 'q7', fl: 1, x: 20, y: 6, name: '用務員', img: 'image/chara_caretaker.png', ht: 165,
     talk(s) {
       if (s.flags.q7done) return ['用務員「音楽準備室なら開けといたよ。古い物が埋もれてるかもしれん」'];
       if (hasItem('keys')) return [

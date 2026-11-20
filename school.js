@@ -96,12 +96,16 @@ const MAPS = {
   1: makeFloor('1F', 40, 28, m => {
     const A = 'A棟', B = 'B棟', C = 'C棟', D = 'D棟';
     const aCor = m.hall('廊下', A, [[2, 4], [24, 4]]); m.rect(aCor, 21, 1, 24, 3);
-    m.room('保健室', A, 2, 1, 5, 3, { safe: true }); m.door(4, 3, 2); m.door(5, 2, 1); // 職員室への内扉
+    m.room('保健室', A, 2, 1, 5, 3, { safe: true }); m.door(4, 3, 2); m.door(5, 2, 1); // 職員室への内扉（職員室の通路に出る）
     m.prop('bed', 3, 1, 4, 1, 5, 1); m.prop('desk', 2, 1);
-    m.room('職員室', A, 6, 1, 11, 3, { safe: true }); m.door(8, 3, 2); m.prop('desk', 6, 3, 11, 3); // 先生 8 人は北の壁ぞいと南の 2 か所に立つ
-    m.room('校長室', A, 12, 1, 14, 3); m.door(13, 3, 2); m.prop('desk', 13, 1);
-    m.room('放送室', A, 15, 1, 17, 3); m.door(16, 3, 2, 'open_q3'); m.prop('desk', 15, 1);
-    m.room('用務員室', A, 18, 1, 20, 3, { safe: true }); m.door(19, 3, 2);
+    // 職員室：横 10 マス・奥行き 4 マス（北へ 1 マス張り出す）
+    //   真ん中に机を寄せた大きな島（横 6×縦 2）。島のまわりはぐるりと通路で、どこからでも回り込める
+    //   先生は島の自分の席のところと、窓ぎわ・壁ぎわに立つ（events.js の TEACHERS の x, y）
+    m.room('職員室', A, 6, 0, 15, 3, { safe: true }); m.door(8, 3, 2);
+    m.prop('desk', 8, 1, 10, 1, 11, 1, 13, 1, 8, 2, 9, 2, 11, 2, 12, 2);
+    m.room('校長室', A, 16, 1, 17, 3); m.door(16, 3, 2); m.prop('desk', 17, 1);
+    m.room('放送室', A, 18, 1, 20, 3); m.door(19, 3, 2, 'open_q3'); m.prop('desk', 20, 1);
+    m.room('用務員室', A, 19, 5, 20, 7, { safe: true }); m.door(19, 5, 0);
     m.stairs('A12', 23, 2, 0, true);
     // トイレ：A棟の廊下の南側
     m.room('男子トイレ', A, 15, 5, 16, 7); m.door(15, 5, 0); m.prop('stall', 16, 6, 16, 7); m.prop('sink', 15, 7); m.deco(15, 6, 2, 'mirror');
