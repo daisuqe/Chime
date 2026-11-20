@@ -96,7 +96,7 @@ const MONS = {
   fungal:   { name: 'キノコ憑き', img: 'image/zombie_05_fungal_host-realistic.png', ih: 245, lift: 0, hp: [12, 16], atk: [2, 6],  ac: 6, agi: 5,  exp: 17,  shape: 'model',    grp: [1, 2] },
   boneshell:{ name: '半骨の亡者', img: 'image/zombie_08_bone_shell-realistic.png', ih: 245, lift: 0, hp: [14, 19], atk: [3, 8],  ac: 5, agi: 8,  exp: 24,  shape: 'skeleton', grp: [1, 2] },
   kimono:   { name: '着物の亡者', img: 'image/zombie_09_grave_risen_japanese.png', ih: 235, lift: 0, hp: [15, 20], atk: [3, 9],  ac: 5, agi: 9,  exp: 27,  shape: 'model',    grp: [1, 2] },
-  // ラスボス：鐘の番人（鐘のそばに立ち、下校の鐘を鳴らさせない）
+  // ラスボス：鐘の番人（鐘のそばに立ち、鐘を鳴らし続けている）
   bell:     { name: '鐘の番人', img: 'image/monster_time_warden_boss.png', ih: 260, lift: 0,     hp: [80, 80], atk: [5, 11], ac: 3, agi: 9,  exp: 240, shape: 'bell',     grp: [1, 1], boss: true },
 };
 // 敵の実際の大きさ：cm＝画像の縦の高さ、up＝床から浮いている高さ（cm）。人物の立ち絵と同じ縮尺で描く
@@ -1200,8 +1200,8 @@ async function damageChar(c, dmg) {
 async function enemyAct(e) {
   if (e.sleep > 0) { e.sleep--; log(`${e.name}は 眠っている`, 'sys'); await sleep(SPD / 2); return; }
   if (e.boss && Math.random() < 0.35) {
-    log('番人が 大槌で鐘を押さえつけた。重い沈黙が のしかかる……', 'warn'); shake(); await sleep(SPD * 1.5);
-    // 「最後の放送」を聞いていれば、沈黙が弱い
+    log('番人が 大槌で鐘を打った。ゴォォン……と、長い響きが 広がる', 'warn'); shake(); await sleep(SPD * 1.5);
+    // 「最後の放送」を聞いていれば、鐘の響きが弱い
     for (const c of aliveParty()) await damageChar(c, state.flags.q3done ? rnd(1, 3) : rnd(3, 7));
     return;
   }
@@ -1256,8 +1256,7 @@ async function victory() {
   if (wasBoss) {
     state.flags.bossDown = true;
     showDialog([
-      '番人が崩れ落ちると、鐘がひとりでに揺れはじめた。',
-      '――キーンコーンカーンコーン。下校のチャイムが 鳴った。',
+      '番人が崩れ落ちると、鐘の音が ゆっくりと消えていった。',
       '窓の外で、夕焼けがゆっくりと夜の藍色に溶けていく……',
       '― プロトタイプはここまで ―',
       '（このまま探索を続けられます）',
@@ -1471,7 +1470,7 @@ render();
 showDialog([
   '……目を覚ますと、保健室のベッドの上だった。',
   '窓の外は、紫からオレンジへと滲む夕焼け。下校時刻はとうに過ぎている。',
-  '下校のチャイムは、まだ鳴っていない。',
+  'どこか遠くで、チャイムが鳴っている。',
   '（保健の先生は部屋の西側にいる。隣の職員室には誰か残っているだろうか）',
   '（M でメニュー）',
 ]);
