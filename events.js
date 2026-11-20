@@ -106,6 +106,11 @@ function addMate(key, outKey) {
   state.party.push(mateChar(key));
   if (key === 'mizuno') state.flags.mizuno = true; else state.flags.hadTeacher = true;
   log(outKey ? `${mateName(outKey)}と交代して、${mateName(key)}が仲間に加わった` : `${mateName(key)}が 仲間に加わった！`, 'good');
+  // 外れた仲間は、元いた部屋に戻って待っている。どこへ行ったかを伝える
+  if (outKey) {
+    const n = NPCS.find(n => n.id === mateId(outKey)), room = n && areaAt(n.fl, n.x, n.y);
+    showDialog([`${mateName(outKey)}は ${room ? room.name : '元の場所'}へ戻っていった。`, `${mateName(key)}が 仲間に加わった。`]);
+  }
 }
 // 誘う：空きがあれば「はい／いいえ」、いっぱいなら誰と交代するかを選ぶ
 function offerJoin(key) {

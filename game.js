@@ -42,8 +42,9 @@ const isBlocking = e => e === WALL || e === WIN || e === FENCE; // 通れない
 // 壁の飾り：マス(x,y)から d を向いたときに見える壁の面に何を貼るか（すべて直線の長方形）
 //   教室の黒板／廊下の掲示板・ポスター・消火栓／部屋のポスター。指定があればそれを優先
 function decoAt(fl, x, y, d) {
-  if (edgeAt(fl, x, y, d) !== WALL) return null;
-  const F = MAPS[fl], a = areaAt(fl, x, y);
+  const e = edgeAt(fl, x, y, d), F = MAPS[fl], a = areaAt(fl, x, y);
+  if (e === DOOR) return F.deco[x + ',' + y + ',' + d] === 'glassdoor' ? 'glassdoor' : null; // 扉に付けるのはガラス扉だけ
+  if (e !== WALL) return null;
   if (!a || a.outdoor) return null;
   const man = F.deco[x + ',' + y + ',' + d]; if (man) return man;
   if (/組$/.test(a.name) && d === (a.board ?? 1)) return 'board';
@@ -81,45 +82,47 @@ const SPELLS = {
 };
 // 敵：学校の備品が勝手に動く（ポルターガイスト）。目や口は描かない
 //   img：画像（image/enemy/）。imgs があれば 1 体ずつ違う画像／cm・up：大きさと、床から浮いている高さ（cm）
+//   どの敵も床から少し浮いている。軽いもの（ボール・紙・小物）ははっきり浮かせる
+//   zoom：戦闘で描くときの倍率（無ければ 30cm 未満 3 倍・60cm 未満 2 倍）
 //   fl：出る階／rooms：名前がこれに合う部屋・場所では、その敵が出やすい
 //   重いもの・人の形のもの・刃物や火など攻撃的なものは強い
 const E = n => 'image/enemy/enemy_' + n + '.png';
 const MONS = {
   // ---- 教室・廊下 ----
-  paper:    { name: 'プリント',         imgs: Array.from({ length: 13 }, (_, i) => E('paper_' + String(i + 1).padStart(2, '0'))), cm: 32, up: [50, 150], fl: [1, 2, 3], rooms: /組|廊下|職員室|図書|放送|進路/, hp: [2, 3], atk: [1, 2], ac: 9, agi: 13, exp: 2, grp: [3, 4] },
-  eraser:   { name: '黒板消し',         img: E('eraser'),       cm: 18,  up: 110, fl: [1],       rooms: /組/,                hp: [2, 4],   atk: [1, 2],  ac: 9, agi: 12, exp: 3,  grp: [2, 4] },
-  chair:    { name: '椅子',             img: E('chair'),        cm: 80,  up: 0,   fl: [1, 2],    rooms: /組|自習室/,         hp: [5, 8],   atk: [1, 4],  ac: 8, agi: 8,  exp: 6,  grp: [1, 3] },
-  mop:      { name: 'モップ',           img: E('mop'),          cm: 130, up: 0,   fl: [1, 2],    rooms: /廊下|トイレ|用務員/, hp: [5, 8],  atk: [1, 4],  ac: 8, agi: 8,  exp: 6,  grp: [1, 3] },
-  desk:     { name: '机',               img: E('desk'),         cm: 75,  up: 0,   fl: [1, 2],    rooms: /組|職員室|自習室/,  hp: [11, 15], atk: [2, 5],  ac: 6, agi: 4,  exp: 13, grp: [1, 2] },
-  globe:    { name: '地球儀',           img: E('globe'),        cm: 50,  up: 60,  fl: [2],       rooms: /組|図書|社会/,      hp: [7, 10],  atk: [1, 4],  ac: 7, agi: 8,  exp: 9,  grp: [1, 3] },
-  extinguisher: { name: '消火器',       img: E('extinguisher'), cm: 60,  up: 40,  fl: [2, 3, 4], rooms: /廊下|階段/,         hp: [14, 18], atk: [3, 8],  ac: 5, agi: 6,  exp: 20, grp: [1, 2] },
+  paper:    { name: 'プリント',         zoom: 2, imgs: Array.from({ length: 13 }, (_, i) => E('paper_' + String(i + 1).padStart(2, '0'))), cm: 32, up: [90, 170], fl: [1, 2, 3], rooms: /組|廊下|職員室|図書|放送|進路/, hp: [2, 3], atk: [1, 2], ac: 9, agi: 13, exp: 2, grp: [3, 4] },
+  eraser:   { name: '黒板消し',         img: E('eraser'),       cm: 18,  up: 130, fl: [1],       rooms: /組/,                hp: [2, 4],   atk: [1, 2],  ac: 9, agi: 12, exp: 3,  grp: [2, 4] },
+  chair:    { name: '椅子',             img: E('chair'),        cm: 80,  up: 25,   fl: [1, 2],    rooms: /組|自習室/,         hp: [5, 8],   atk: [1, 4],  ac: 8, agi: 8,  exp: 6,  grp: [1, 3] },
+  mop:      { name: 'モップ',           img: E('mop'),          cm: 130, up: 20,   fl: [1, 2],    rooms: /廊下|トイレ|用務員/, hp: [5, 8],  atk: [1, 4],  ac: 8, agi: 8,  exp: 6,  grp: [1, 3] },
+  desk:     { name: '机',               img: E('desk'),         cm: 75,  up: 20,   fl: [1, 2],    rooms: /組|職員室|自習室/,  hp: [11, 15], atk: [2, 5],  ac: 6, agi: 4,  exp: 13, grp: [1, 2] },
+  globe:    { name: '地球儀',           img: E('globe'),        cm: 50,  up: 100,  fl: [2],       rooms: /組|図書|社会/,      hp: [7, 10],  atk: [1, 4],  ac: 7, agi: 8,  exp: 9,  grp: [1, 3] },
+  extinguisher: { name: '消火器',       img: E('extinguisher'), cm: 60,  up: 60,  fl: [2, 3, 4], rooms: /廊下|階段/,         hp: [14, 18], atk: [3, 8],  ac: 5, agi: 6,  exp: 20, grp: [1, 2] },
   // ---- 体育館 ----
-  bball:    { name: 'バスケットボール', img: E('basketball'),   cm: 25,  up: 40,  fl: [1, 5],    rooms: /体育館/,            hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 11, exp: 4,  grp: [2, 4] },
-  vball:    { name: 'バレーボール',     img: E('volleyball'),   cm: 21,  up: 60,  fl: [1, 5],    rooms: /体育館|屋上/,       hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 12, exp: 4,  grp: [2, 4] },
-  beam:     { name: '平均台',           img: E('balance_beam'), cm: 60,  up: 0,   fl: [1],       rooms: /体育館/,            hp: [12, 16], atk: [2, 6],  ac: 6, agi: 4,  exp: 14, grp: [1, 2] },
-  vault:    { name: '跳び箱',           img: E('vaulting_box'), cm: 100, up: 0,   fl: [1, 2],    rooms: /体育館/,            hp: [16, 20], atk: [3, 6],  ac: 5, agi: 3,  exp: 18, grp: [1, 1] },
-  bat:      { name: 'バット',           img: E('bat'),          cm: 85,  up: 50,  fl: [4, 5],    rooms: /体育館|屋上/,       hp: [13, 17], atk: [4, 9],  ac: 6, agi: 11, exp: 25, grp: [1, 3] },
-  kendo:    { name: '竹刀と剣道着',     img: E('kendo'),        cm: 172, up: 0,   fl: [3, 4, 5], rooms: /体育館|鐘楼/,       hp: [22, 28], atk: [4, 11], ac: 3, agi: 11, exp: 38, grp: [1, 2] },
+  bball:    { name: 'バスケットボール', img: E('basketball'),   cm: 25,  up: 110,  fl: [1, 5],    rooms: /体育館/,            hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 11, exp: 4,  grp: [2, 4] },
+  vball:    { name: 'バレーボール',     img: E('volleyball'),   cm: 21,  up: 120,  fl: [1, 5],    rooms: /体育館|屋上/,       hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 12, exp: 4,  grp: [2, 4] },
+  beam:     { name: '平均台',           img: E('balance_beam'), cm: 60,  up: 20,   fl: [1],       rooms: /体育館/,            hp: [12, 16], atk: [2, 6],  ac: 6, agi: 4,  exp: 14, grp: [1, 2] },
+  vault:    { name: '跳び箱',           img: E('vaulting_box'), cm: 100, up: 15,   fl: [1, 2],    rooms: /体育館/,            hp: [16, 20], atk: [3, 6],  ac: 5, agi: 3,  exp: 18, grp: [1, 1] },
+  bat:      { name: 'バット',           img: E('bat'),          cm: 85,  up: 80,  fl: [4, 5],    rooms: /体育館|屋上/,       hp: [13, 17], atk: [4, 9],  ac: 6, agi: 11, exp: 25, grp: [1, 3] },
+  kendo:    { name: '竹刀と剣道着',     img: E('kendo'),        cm: 172, up: 15,   fl: [3, 4, 5], rooms: /体育館|鐘楼/,       hp: [22, 28], atk: [4, 11], ac: 3, agi: 11, exp: 38, grp: [1, 2] },
   // ---- 理科室・化学室 ----
-  flask:    { name: 'フラスコ',         img: E('flask'),        cm: 30,  up: 80,  fl: [3],       rooms: /理科|化学/,         hp: [7, 10],  atk: [2, 5],  ac: 7, agi: 10, exp: 11, grp: [2, 3] },
-  burner:   { name: 'アルコールランプ', img: E('alcohol_lamp'), cm: 20,  up: 90,  fl: [3],       rooms: /理科|化学/,         hp: [9, 13],  atk: [4, 8],  ac: 6, agi: 9,  exp: 17, grp: [1, 3] },
-  model:    { name: '人体模型',         img: E('anatomical_model'), cm: 165, up: 0, fl: [1, 2],  rooms: /理科/,               hp: [13, 17], atk: [2, 6],  ac: 6, agi: 6,  exp: 16, grp: [1, 2] },
-  skel:     { name: '骨格標本',         img: E('skeleton'),     cm: 170, up: 0,   fl: [2, 3, 4], rooms: /理科|化学/,         hp: [15, 20], atk: [3, 8],  ac: 5, agi: 9,  exp: 22, grp: [1, 3] },
+  flask:    { name: 'フラスコ',         img: E('flask'),        cm: 30,  up: 110,  fl: [3],       rooms: /理科|化学/,         hp: [7, 10],  atk: [2, 5],  ac: 7, agi: 10, exp: 11, grp: [2, 3] },
+  burner:   { name: 'アルコールランプ', img: E('alcohol_lamp'), cm: 20,  up: 110,  fl: [3],       rooms: /理科|化学/,         hp: [9, 13],  atk: [4, 8],  ac: 6, agi: 9,  exp: 17, grp: [1, 3] },
+  model:    { name: '人体模型',         img: E('anatomical_model'), cm: 165, up: 15, fl: [1, 2],  rooms: /理科/,               hp: [13, 17], atk: [2, 6],  ac: 6, agi: 6,  exp: 16, grp: [1, 2] },
+  skel:     { name: '骨格標本',         img: E('skeleton'),     cm: 170, up: 15,   fl: [2, 3, 4], rooms: /理科|化学/,         hp: [15, 20], atk: [3, 8],  ac: 5, agi: 9,  exp: 22, grp: [1, 3] },
   // ---- 美術室 ----
   portrait: { name: '音楽家の肖像画',   img: E('portrait'),     cm: 110, up: 70,  fl: [2, 3],    rooms: /音楽|美術/,         hp: [12, 16], atk: [2, 9],  ac: 4, agi: 8,  exp: 22, grp: [1, 2] },
-  david:    { name: 'ダビデ像',         img: E('david'),        cm: 175, up: 0,   fl: [2, 3],    rooms: /美術/,              hp: [24, 30], atk: [3, 9],  ac: 3, agi: 4,  exp: 34, grp: [1, 1] },
-  thinker:  { name: '考える人',         img: E('thinker'),      cm: 130, up: 0,   fl: [3, 4],    rooms: /美術/,              hp: [28, 34], atk: [4, 10], ac: 2, agi: 3,  exp: 40, grp: [1, 1] },
+  david:    { name: 'ダビデ像',         img: E('david'),        cm: 175, up: 10,   fl: [2, 3],    rooms: /美術/,              hp: [24, 30], atk: [3, 9],  ac: 3, agi: 4,  exp: 34, grp: [1, 1] },
+  thinker:  { name: '考える人',         img: E('thinker'),      cm: 130, up: 10,   fl: [3, 4],    rooms: /美術/,              hp: [28, 34], atk: [4, 10], ac: 2, agi: 3,  exp: 40, grp: [1, 1] },
   // ---- 音楽室 ----
-  recorder: { name: 'リコーダー',       img: E('recorder'),     cm: 35,  up: 90,  fl: [1, 2],    rooms: /音楽|組/,           hp: [4, 7],   atk: [1, 3],  ac: 7, agi: 12, exp: 6,  grp: [2, 4] },
-  cymbal:   { name: 'シンバル',         img: E('cymbals'),      cm: 40,  up: 100, fl: [2, 3],    rooms: /音楽/,              hp: [10, 14], atk: [2, 7],  ac: 5, agi: 9,  exp: 15, grp: [1, 2] },
-  tuba:     { name: 'チューバ',         img: E('tuba'),         cm: 100, up: 30,  fl: [2, 3],    rooms: /音楽/,              hp: [18, 24], atk: [3, 8],  ac: 4, agi: 4,  exp: 26, grp: [1, 2] },
-  drums:    { name: 'ドラムセット',     img: E('drums'),        cm: 110, up: 0,   fl: [3, 4],    rooms: /音楽/,              hp: [26, 32], atk: [3, 10], ac: 3, agi: 5,  exp: 38, grp: [1, 1] },
-  piano:    { name: 'ピアノ',           img: E('piano'),        cm: 130, up: 0,   fl: [4],       rooms: /音楽/,              hp: [36, 44], atk: [5, 12], ac: 2, agi: 2,  exp: 55, grp: [1, 1] },
+  recorder: { name: 'リコーダー',       zoom: 3, img: E('recorder'),     cm: 35,  up: 110,  fl: [1, 2],    rooms: /音楽|組/,           hp: [4, 7],   atk: [1, 3],  ac: 7, agi: 12, exp: 6,  grp: [2, 4] },
+  cymbal:   { name: 'シンバル',         img: E('cymbals'),      cm: 40,  up: 120, fl: [2, 3],    rooms: /音楽/,              hp: [10, 14], atk: [2, 7],  ac: 5, agi: 9,  exp: 15, grp: [1, 2] },
+  tuba:     { name: 'チューバ',         img: E('tuba'),         cm: 100, up: 50,  fl: [2, 3],    rooms: /音楽/,              hp: [18, 24], atk: [3, 8],  ac: 4, agi: 4,  exp: 26, grp: [1, 2] },
+  drums:    { name: 'ドラムセット',     img: E('drums'),        cm: 110, up: 15,   fl: [3, 4],    rooms: /音楽/,              hp: [26, 32], atk: [3, 10], ac: 3, agi: 5,  exp: 38, grp: [1, 1] },
+  piano:    { name: 'ピアノ',           img: E('piano'),        cm: 130, up: 10,   fl: [4],       rooms: /音楽/,              hp: [36, 44], atk: [5, 12], ac: 2, agi: 2,  exp: 55, grp: [1, 1] },
   // ---- 技術室の工具 ----
-  hammer:   { name: 'かなづち',         img: E('hammer'),       cm: 35,  up: 90,  fl: [3],       rooms: /技術/,              hp: [11, 15], atk: [4, 8],  ac: 5, agi: 8,  exp: 20, grp: [1, 3] },
-  saw:      { name: 'のこぎり',         img: E('saw'),          cm: 60,  up: 70,  fl: [3, 4],    rooms: /技術|家庭科/,       hp: [12, 16], atk: [4, 10], ac: 5, agi: 10, exp: 26, grp: [1, 2] },
+  hammer:   { name: 'かなづち',         zoom: 3, img: E('hammer'),       cm: 35,  up: 110,  fl: [3],       rooms: /技術/,              hp: [11, 15], atk: [4, 8],  ac: 5, agi: 8,  exp: 20, grp: [1, 3] },
+  saw:      { name: 'のこぎり',         img: E('saw'),          cm: 60,  up: 90,  fl: [3, 4],    rooms: /技術|家庭科/,       hp: [12, 16], atk: [4, 10], ac: 5, agi: 10, exp: 26, grp: [1, 2] },
   // ---- ラスボス：鐘の番人（鐘のそばに立ち、鐘を鳴らし続けている） ----
-  bell:     { name: '鐘の番人',         img: E('time_warden_boss'), cm: 215, up: 0, fl: [], hp: [80, 80], atk: [5, 11], ac: 3, agi: 9, exp: 240, grp: [1, 1], boss: true },
+  bell:     { name: '鐘の番人',         img: E('time_warden_boss'), cm: 215, up: 10, fl: [], hp: [80, 80], atk: [5, 11], ac: 3, agi: 9, exp: 240, grp: [1, 1], boss: true },
 };
 // 敵の実際の大きさ：cm＝画像の縦の高さ、up＝床から浮いている高さ（cm）。人物の立ち絵と同じ縮尺で描く
 const MON_SIZE = Object.fromEntries(Object.entries(MONS).map(([k, m]) => [k, { cm: m.cm, up: Array.isArray(m.up) ? (m.up[0] + m.up[1]) / 2 : m.up }]));
@@ -291,6 +294,23 @@ function drawDoor(e1, e2, d) {
   path(quad(e1, e2, 0.36, 0.64, 0.34, 0.42)); g.stroke();        // name plate
   const k = quad(e1, e2, 0.68, 0.7, -0.08, -0.04); path(k); g.stroke(); // handle
 }
+// 昇降口のガラス扉：床から天井近くまでのガラス。隣のマスの扉とつながって 1 枚の大きな扉の並びに見える
+//   1 マスに両開きの扉 1 組（真ん中に縦の框）。腰の高さに押し手の横棒、上に欄間の横桟。ガラス越しに外が見える
+const GD = { u0: 0, u1: 1, h0: -0.47, h1: 0.44 }; // 横は面いっぱい（隣のマスの扉と枠を共有してつながる）
+function drawGlassDoor(e1, e2, d) {
+  const q = quad(e1, e2, GD.u0, GD.u1, GD.h0, GD.h1);
+  g.save(); path(q); g.clip(); g.globalCompositeOperation = 'destination-over';
+  g.drawImage(townCanvases[state.dir], 0, 0); g.drawImage(skyCanvases[state.dir], 0, 0);
+  g.restore();
+  g.strokeStyle = lineCol(d); g.lineWidth = 1.5;
+  const ln = (u0, h0, u1, h1) => { const a = quad(e1, e2, u0, u1, h0, h1); g.beginPath(); g.moveTo(...a[3]); g.lineTo(...a[1]); g.stroke(); };
+  path(q); g.stroke();                       // 枠
+  ln(0.5, GD.h0, 0.5, 0.3);                  // 両開きの合わせ目
+  ln(GD.u0, 0.3, GD.u1, 0.3);                // 欄間との境
+  g.lineWidth = 1;
+  ln(0.12, -0.08, 0.42, -0.08); ln(0.58, -0.08, 0.88, -0.08); // 押し手の横棒
+  ln(GD.u0, -0.38, GD.u1, -0.38);            // 下の蹴板
+}
 // edgeL / edgeR：画面上で左右の縦線を描くか（同一平面で壁が続く場合は描かない）
 function drawFence(e1, e2, d, edgeL, edgeR) {
   // 高さ 1.2m 相当（h -0.5 〜 0.02）。上下の横木と細い縦桟、端には太めの支柱
@@ -345,6 +365,7 @@ function drawFace(e1, e2, kind, d, edgeL = true, edgeR = true, curtain = null, d
   // 黒で塗り＋左右の縦の辺も黒でなぞる（隣の面との継ぎ目から奥の線が透けないように）
   // カーテンの無い窓は、ガラスの所をくり抜いて塗る（奥が見えるように）
   g.beginPath(); g.moveTo(...q[0]); for (const p of q.slice(1)) g.lineTo(...p); g.closePath();
+  if (kind === DOOR && deco === 'glassdoor') { const w = quad(e1, e2, GD.u0, GD.u1, GD.h0, GD.h1); g.moveTo(...w[0]); for (const p of w.slice(1)) g.lineTo(...p); g.closePath(); }
   if (kind === WIN && curtain == null) { const w = quad(e1, e2, 0.1, 0.9, -0.12, 0.4); g.moveTo(...w[0]); for (const p of w.slice(1)) g.lineTo(...p); g.closePath(); }
   g.fillStyle = '#000'; g.fill('evenodd'); g.strokeStyle = '#000'; g.lineWidth = 1.5;
   g.beginPath(); g.moveTo(...q[0]); g.lineTo(...q[3]); g.moveTo(...q[1]); g.lineTo(...q[2]); g.stroke(); // 縦の継ぎ目だけ
@@ -355,7 +376,7 @@ function drawFace(e1, e2, kind, d, edgeL = true, edgeR = true, curtain = null, d
   if (edgeL) seg(q[0], q[3]);
   if (edgeR) seg(q[1], q[2]);
   if (kind === WIN) drawWindow(e1, e2, d, curtain);
-  else if (kind === DOOR) drawDoor(e1, e2, d);
+  else if (kind === DOOR) deco === 'glassdoor' ? drawGlassDoor(e1, e2, d) : drawDoor(e1, e2, d);
   else if (deco) drawDeco(e1, e2, d, deco, edgeL, edgeR, top);
 }
 // 階段（ソリッド）。局所座標 u：進む方向 0..2（2マス）、v：横 -A..A、h：高さ
@@ -723,22 +744,25 @@ function tinted(im, col) {
 //   左右：通路の幅（±0.35 マス）に収まるよう並べ、数が多いときは前後に少しずらす
 function enemySpots(n, kind) {
   const sz = MON_SIZE[kind] || { cm: 160 };
-  let free = 0; // 正面に何マス空いているか
-  for (let x = state.x, y = state.y; free < 3 && edgeAt(state.fl, x, y, state.dir) === OPEN; free++) { x += DIRS[state.dir][0]; y += DIRS[state.dir][1]; }
-  const base = Math.min(sz.cm < 60 ? 0.85 : 1.0, free + 0.45); // 目の前の1マス先。足もとが画面の下で切れてもよい
+  const base = 0.5; // Player と同じマスの中、すぐ目の前。大きく見える（頭や足もとが画面の外で切れてもよい）
   // 3体までは横一列、それより多いときは後ろにもう1列（前列3体・後列は残り）。後列は前列のすき間に入る
   const front = Math.min(3, n), back = n - front, out = [];
   const row = (k, f, shift) => { const gap = Math.min(0.36, 0.72 / Math.max(1, k - 1)); for (let i = 0; i < k; i++) out.push({ l: (i - (k - 1) / 2) * gap + shift, f }); };
-  row(front, base, 0); if (back) row(back, base + 0.55, back % 2 ? 0.18 : 0); // 後列は前列のすき間に見えるようずらす
+  row(front, base, 0); if (back) row(back, base + 0.35, back % 2 ? 0.18 : 0); // 後列は前列のすき間に見えるようずらす
   return out;
 }
 function drawEnemyAt(kind, l, f, flash, e) {
   const m = MONS[kind], sz = MON_SIZE[kind] || { cm: 160 }, src = (e && e.img) || m.img || (m.imgs && m.imgs[0]), im = src && getImage(src);
-  const up = ((e && e.up != null ? e.up : sz.up) || 0) * CM, ht = sz.cm * CM;
+  // 小さな敵（黒板消し・リコーダーなど）は、目の前に寄ってきている体で大きく描く（30cm 未満は 3 倍、60cm 未満は 2 倍）
+  const vis = m.zoom || (sz.cm < 30 ? 3 : sz.cm < 60 ? 2 : 1); // zoom があればその倍率（細長くて小さく見えるものなど）
+  // すぐ目の前（同じマス）では、床に近い所は画面の下（メッセージの裏）に隠れる。
+  //   低いものは床から 70cm ほどまで浮かせて見えるようにする（天井 215cm を超えない範囲で）
+  const htCm = sz.cm * vis, upCm = Math.max((e && e.up != null ? e.up : sz.up) || 0, Math.min(70, 215 - htCm));
+  const up = upCm * CM, ht = htCm * CM;
   const top = P(l, f, -0.5 + up + ht), bot = P(l, f, -0.5 + up);
   const h = bot[1] - top[1];
   if (!im) { // 画像がまだ無い：大きさどおりの直線の箱で仮に表示
-    const hw = Math.max(0.08, sz.cm * CM * 0.35), y0 = -0.5 + up, y1 = y0 + ht;
+    const hw = Math.max(0.08, sz.cm * vis * CM * 0.35), y0 = -0.5 + up, y1 = y0 + ht;
     const q = [P(l - hw, f, y1), P(l + hw, f, y1), P(l + hw, f, y0), P(l - hw, f, y0)];
     path(q); g.fillStyle = '#000'; g.fill(); g.strokeStyle = flash ? '#fff' : 'rgba(255,255,255,0.8)'; g.lineWidth = flash ? 3 : 1.5; g.stroke();
     if (flash) { g.fillStyle = '#fff'; path(q); g.fill(); }

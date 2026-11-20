@@ -88,12 +88,14 @@
   #pad button[data-k="Numpad2"] { grid-row:2; grid-column:3; }
   #pad button[data-k="Numpad3"] { grid-row:2; grid-column:4; }
   #pad.battle button.extra { visibility:hidden; }
-  /* スマホの縦画面：上からステータス、マップ、プレイ画面（どれも全幅）、いちばん下に大きな操作ボタン */
+  /* スマホの縦画面：上からマップ、プレイ画面、ステータス（どれも全幅）、いちばん下に大きな操作ボタン */
   @media (max-width:700px) and (orientation:portrait), (pointer:coarse) and (orientation:portrait) {
     #app { padding:6px; }
     #top { flex-direction:column; gap:6px; }
     #viewWrap { flex:none; width:100%; max-width:none; }
-    #side { flex:none; width:100%; flex-direction:column; gap:6px; order:-1; } /* ステータス、その下にマップ（プレイ画面と同じ幅）。どちらもプレイ画面の上 */
+    #side { display:contents; } /* 中身（マップ・ステータス）を、プレイ画面と同じ並びに出す */
+    #map { order:-1; } /* マップはプレイ画面の上 */
+    #party { order:1; } /* ステータスはプレイ画面の下 */
     #party { width:100%; font-size:17px; }
     #party th, #party td { padding:2px 4px; }
     #map { width:100%; height:auto; aspect-ratio:2 / 1; }
