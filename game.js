@@ -255,10 +255,12 @@ function drawWindow(e1, e2, d, curtain) {
     }
     return;
   }
-  g.save(); path(q); g.clip();
+  // 窓の奥（外の校舎の影など）は、遠い順に描く仕組みですでに描かれている。
+  // まだ何も無い（透明な）所にだけ、空と街並みを後ろから敷く（destination-over）
+  g.save(); path(q); g.clip(); g.globalCompositeOperation = 'destination-over';
   // 空は無限遠：窓の向きではなく、プレイヤーの視線方向のパノラマを使う
-  g.drawImage(skyCanvases[state.dir], 0, 0);
   g.drawImage(townCanvases[state.dir], 0, 0);
+  g.drawImage(skyCanvases[state.dir], 0, 0);
   g.restore();
   g.strokeStyle = lineCol(d); g.lineWidth = 1.5;
   path(q); g.stroke();
@@ -318,11 +320,16 @@ function drawDeco(e1, e2, d, type, edgeL, edgeR, top = 0.5) {
     box(0.18, 0.82, -0.05, 0.32); ln(0.3, 0.05, 0.42, 0.22); ln(0.36, 0.02, 0.5, 0.22);
   }
 }
-function drawFace(e1, e2, kind, d, edgeL = true, edgeR = true, curtain = null, deco = null, top = 0.5) {
+// ext：外（校舎の外の何もない所）から見た面。窓の外に見える別の棟の外壁で、黒い影として塗るだけ（線も窓も描かない）
+function drawFace(e1, e2, kind, d, edgeL = true, edgeR = true, curtain = null, deco = null, top = 0.5, ext = false) {
+  if (ext) { if (kind !== FENCE) { path(quad(e1, e2, 0, 1, -0.5, top)); g.fillStyle = '#000'; g.fill(); g.strokeStyle = '#000'; g.lineWidth = 3; g.lineJoin = 'round'; g.stroke(); g.lineJoin = 'miter'; } return; } // 縁を太めに黒でなぞり、奥の線がちょうど境目に重なっても透けないように
   if (kind === FENCE) { drawFence(e1, e2, d, edgeL, edgeR); return; }
   const q = quad(e1, e2, 0, 1, -0.5, top);
   // 黒で塗り＋左右の縦の辺も黒でなぞる（隣の面との継ぎ目から奥の線が透けないように）
-  path(q); g.fillStyle = '#000'; g.fill(); g.strokeStyle = '#000'; g.lineWidth = 1.5;
+  // カーテンの無い窓は、ガラスの所をくり抜いて塗る（奥が見えるように）
+  g.beginPath(); g.moveTo(...q[0]); for (const p of q.slice(1)) g.lineTo(...p); g.closePath();
+  if (kind === WIN && curtain == null) { const w = quad(e1, e2, 0.1, 0.9, -0.12, 0.4); g.moveTo(...w[0]); for (const p of w.slice(1)) g.lineTo(...p); g.closePath(); }
+  g.fillStyle = '#000'; g.fill('evenodd'); g.strokeStyle = '#000'; g.lineWidth = 1.5;
   g.beginPath(); g.moveTo(...q[0]); g.lineTo(...q[3]); g.moveTo(...q[1]); g.lineTo(...q[2]); g.stroke(); // 縦の継ぎ目だけ
   g.strokeStyle = lineCol(d); g.lineWidth = 1.5;
   // 端を少し延ばして（square）、隣の面の黒い縦なぞりで天井際・床際の線が途切れないように
@@ -544,14 +551,56 @@ function drawNpc(n, l, f) {
   const im = n.img && getImage(n.img);
   if (im) drawSprite(l, f, im, n.ht); else if (n.boss) drawBellIcon(l, f); else drawPerson(l, f, '#fff');
 }
+// 校舎の影：上下 2 階までの棟と、同じ階でも視界の範囲（DEPTH・LAT）の外にある棟を、
+// マスごとの箱（床から天井まで）として黒く塗る。窓の外に、実際の位置どおりの影が見える。
+// 線も窓も描かない（距離が近くても影だけ）。上下の階は 1 階ぶんの高さ（1）ずつずらす
+const SIL_RANGE = 26, SIL_FLOORS = 2;
+function convexHull(pts) {
+  pts = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  const cross = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]);
+  const lo = [], up = [];
+  for (const p of pts) { while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+  for (const p of pts.slice().reverse()) { while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+  return lo.slice(0, -1).concat(up.slice(0, -1));
+}
+function drawSilhouettes(fx, fy, rx, ry) {
+  g.fillStyle = '#000'; g.strokeStyle = '#000'; g.lineWidth = 1.2; g.lineJoin = 'round';
+  for (const key of Object.keys(MAPS)) {
+    const fl = +key, dz = fl - state.fl;
+    if (Math.abs(dz) > SIL_FLOORS) continue;
+    const F = MAPS[fl];
+    for (let y = 0; y < F.H; y++) for (let x = 0; x < F.W; x++) {
+      const a = F.grid[y][x]; if (!a) continue;
+      const dx = x - state.x, dy = y - state.y;
+      if (Math.abs(dx) + Math.abs(dy) > SIL_RANGE) continue;
+      const dep = dx * fx + dy * fy, lat = dx * rx + dy * ry;
+      if (dep + 0.5 < 0.1) continue; // 後ろ
+      if (dz === 0 && dep >= 0 && dep <= DEPTH && Math.abs(lat) <= LAT) continue; // 同じ階の視界の範囲内は、ふつうの描画にまかせる
+      const d0 = Math.max(0.1, dep - 0.5), d1 = dep + 0.5, h0 = -0.5 + dz, h1 = (dz === 0 && a.ceil ? a.ceil : 0.5) + dz; // 上下の階は天井の高さ 1 で切る（体育館が上の階に突き抜けないように）
+      const pts = [];
+      for (const L of [lat - 0.5, lat + 0.5]) for (const D of [d0, d1]) for (const H of [h0, h1]) pts.push(P(L, D, H));
+      path(convexHull(pts)); g.fill(); g.stroke(); // 縁も黒でなぞって、隣の影とのすき間から空が透けないように
+    }
+  }
+}
 function renderView() {
   // 描画は 640x470 の論理座標。キャンバス実寸（1.3倍）に合わせて拡大し、線をくっきり保つ
   g.setTransform(cv.width / VW, 0, 0, cv.height / VH, 0, 0);
-  g.fillStyle = "#000"; g.fillRect(0, 0, VW, VH);
+  // 透明から描き始め、最後に何も描かれなかった所を黒で埋める（窓の奥に空を敷けるように）
+  g.clearRect(0, 0, VW, VH);
   const dir = state.dir, [fx, fy] = DIRS[dir], [rx, ry] = DIRS[(dir + 1) % 4];
-  // 屋外（屋上・プール）では空と街並みが背景になる
   const here = areaAt(state.fl, state.x, state.y);
-  if (here && here.outdoor) { g.drawImage(skyCanvases[dir], 0, 0); g.drawImage(townCanvases[dir], 0, 0); }
+  // 1) 校舎の影：上下の階の棟と、視界の範囲より外にある同じ階の棟を、黒い箱の影として先に描く
+  drawSilhouettes(fx, fy, rx, ry);
+  // 2) 自分のいる階の床と天井を黒で塗る（外の影が床・天井ごしに透けないように）。屋外は床だけ
+  for (let f = 0; f <= DEPTH; f++) for (let l = -LAT; l <= LAT; l++) {
+    const x = state.x + fx * f + rx * l, y = state.y + fy * f + ry * l, a = areaAt(state.fl, x, y);
+    if (!a) continue;
+    const d0 = Math.max(0.1, f - 0.5), d1 = f + 0.5, top = here && here.ceil && a === here ? here.ceil : 0.5;
+    g.fillStyle = '#000'; g.strokeStyle = '#000'; g.lineWidth = 1.2;
+    path([P(l - 0.5, d0, -0.5), P(l + 0.5, d0, -0.5), P(l + 0.5, d1, -0.5), P(l - 0.5, d1, -0.5)]); g.fill(); g.stroke();
+    if (!a.outdoor) { path([P(l - 0.5, d0, top), P(l + 0.5, d0, top), P(l + 0.5, d1, top), P(l - 0.5, d1, top)]); g.fill(); g.stroke(); }
+  }
   // 世界座標（マスの中心が整数）→ 画面。自分より後ろは null
   const WP = (X, Y, h) => { const dx = X - state.x, dy = Y - state.y, dd = dx * fx + dy * fy; return dd < 0.12 ? null : P(dx * rx + dy * ry, dd, h); };
   const wline = (X0, Y0, X1, Y1, h, col) => {
@@ -585,16 +634,16 @@ function renderView() {
   const sideFace = (lat, f, e, nFar, nNear, cu) => {
     if (!isFace(e)) return;
     const vl = lat > 0 ? Math.round(lat - 0.5) : Math.round(lat + 0.5); // 見ている側のマス
-    const dc = DC(f, vl, lat > 0 ? 1 : 3), tp = TOP(f, vl);
-    if (lat > 0) drawFace([lat, f + 0.5], [lat, f - 0.5], e, f, !isFace(nFar), !isFace(nNear), cu, dc, tp);
-    else drawFace([lat, f - 0.5], [lat, f + 0.5], e, f, !isFace(nNear), !isFace(nFar), cu, dc, tp);
+    const dc = DC(f, vl, lat > 0 ? 1 : 3), tp = TOP(f, vl), ext = !inMap(state.fl, wx(f, vl), wy(f, vl));
+    if (lat > 0) drawFace([lat, f + 0.5], [lat, f - 0.5], e, f, !isFace(nFar), !isFace(nNear), cu, dc, tp, ext);
+    else drawFace([lat, f - 0.5], [lat, f + 0.5], e, f, !isFace(nNear), !isFace(nFar), cu, dc, tp, ext);
   };
   // 面の端の縦線は、同じ直線上に面が続く場合は描かない（角・端だけ線を引く）
   for (let f = DEPTH; f >= 0; f--) {
     for (const l of order) {
       // 奥の辺（正面向きの面）
       const far = E(f, l, 0);
-      if (isFace(far)) drawFace([l - 0.5, f + 0.5], [l + 0.5, f + 0.5], far, f + 0.5, !isFace(E(f, l - 1, 0)), !isFace(E(f, l + 1, 0)), far === WIN ? CU(f, l, 0) : null, DC(f, l, 0), TOP(f, l));
+      if (isFace(far)) drawFace([l - 0.5, f + 0.5], [l + 0.5, f + 0.5], far, f + 0.5, !isFace(E(f, l - 1, 0)), !isFace(E(f, l + 1, 0)), far === WIN ? CU(f, l, 0) : null, DC(f, l, 0), TOP(f, l), !inMap(state.fl, wx(f, l), wy(f, l)));
       // マスの中身（階段・人）
       if (f >= 1 && inMap(state.fl, wx(f, l), wy(f, l))) {
         const sa = stairAt(state.fl, wx(f, l), wy(f, l));
@@ -620,6 +669,11 @@ function renderView() {
       if (l <= -1) sideFace(l + 0.5, f, E(f, l, 1), E(f + 1, l, 1), E(f - 1, l, 1), E(f, l, 1) === WIN ? CU(f, l, 1) : null);
     }
   }
+  // 3) 仕上げ：屋外では空と街並みを後ろに敷く。それでも何も無い所（遠い廊下の先など）は黒
+  g.save(); g.globalCompositeOperation = 'destination-over';
+  if (here && here.outdoor) { g.drawImage(townCanvases[dir], 0, 0); g.drawImage(skyCanvases[dir], 0, 0); }
+  g.fillStyle = '#000'; g.fillRect(0, 0, VW, VH);
+  g.restore();
   // 会話中：相手を目の前に寄せて大きく表示
   if (talking && !battle) drawNpc(dialogQ.npc, 0, TALK_DIST);
   const held = dialogQ && dialogQ.item && ITEM_IMG[dialogQ.item] && getImage(ITEM_IMG[dialogQ.item].src);
