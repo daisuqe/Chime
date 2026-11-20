@@ -150,12 +150,17 @@ const QUEST_HINT = {
   q5: '「3年の教室のあたりで、新入生の子を見かけたって」',
   q3: '「放送室の鍵が開いてたわ。放送部の子が来てるのかしら」',
 };
-// まだ伝えていないヒントを返す（一度伝えたら繰り返さない）
+// まだ伝えていないヒントを 1 つだけ返す（一度伝えたら繰り返さない）
+//   保健室に来るたびに 1 つまで。保健室を出て、また戻ってくると次の 1 つ（nurseHinted は保健室の外に出ると消える）
 function questHints(s) {
-  const out = [];
-  for (const q of openQuests()) if (!s.flags[q] && !s.flags['hint_' + q]) { s.flags['hint_' + q] = true; out.push(QUEST_HINT[q]); }
-  if (s.flags.q7done && !s.flags.got_badge && !s.flags.hint_badge) { s.flags.hint_badge = true; out.push('「音楽準備室に、古い校章バッジがしまってあるそうよ。役に立つかもね」'); }
-  return out;
+  if (s.flags.nurseHinted) return [];
+  const q = openQuests().find(q => !s.flags[q] && !s.flags['hint_' + q]);
+  let line = null;
+  if (q) { s.flags['hint_' + q] = true; line = QUEST_HINT[q]; }
+  else if (s.flags.q7done && !s.flags.got_badge && !s.flags.hint_badge) { s.flags.hint_badge = true; line = '「音楽準備室に、古い校章バッジがしまってあるそうよ。役に立つかもね」'; }
+  if (!line) return [];
+  s.flags.nurseHinted = true;
+  return [line];
 }
 
 const NPCS = [
@@ -165,7 +170,8 @@ const NPCS = [
     talk(s) {
       const first = !s.flags.metNurse; s.flags.metNurse = true;
       healAll();
-      const hints = questHints(s);
+      const hints = first ? [] : questHints(s);
+      if (first) s.flags.nurseHinted = true;
       return first ? [
         '保健の先生「気がついた？ 廊下で倒れていたのよ」',
         '「五時のチャイム、まだ鳴ってるわね」',

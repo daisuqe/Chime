@@ -881,7 +881,9 @@ function renderHUD() {
   document.getElementById('party').innerHTML =
     '<tr><th>Name</th><th>Lv</th><th>HP</th><th>MP</th><th>Status</th></tr>' + rows;
 }
-function render() { updateQuestLocks(); renderView(); renderMap(); renderHUD(); checkCap(); saveSoon(); }
+function render() {
+  if (state.flags.nurseHinted && (state.fl !== 1 || (areaAt(1, state.x, state.y) || {}).name !== '保健室')) state.flags.nurseHinted = false; // 保健室を出た
+  updateQuestLocks(); renderView(); renderMap(); renderHUD(); checkCap(); saveSoon(); }
 
 // ---------------------------------------------------------------------
 //  Log / dialog / command menu
