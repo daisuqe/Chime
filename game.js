@@ -951,7 +951,7 @@ function showChoice(title, opts) {
 }
 function clearMenu() { menuOpts = []; cmdEl.innerHTML = ''; updatePad(); }
 // スマホの操作ボタン：戦闘で行動を選ぶ間は、上2段が行動 1〜6、M が「戻る」になる
-const padBtns = [...document.querySelectorAll('#pad button')], PAD_DEFAULT = padBtns.map(b => b.innerHTML);
+const padBtns = [...document.querySelectorAll('#pad button:not(.extra)')], PAD_DEFAULT = padBtns.map(b => b.innerHTML); // 戦闘・選択肢で 1〜5 になる 5 つ（移動のボタンは除く）
 function updatePad() {
   const battleMenu = menuOpts.length > 0;
   document.getElementById('pad').classList.toggle('battle', battleMenu || !!battle); // 横画面で並びを切り替える
@@ -1547,7 +1547,7 @@ document.querySelectorAll('#pad button').forEach(b => {
     if (mode === 'menu') { menuKey(k); return; }
     if (mode === 'bigmap') { closeBigMap(); return; }
     if (battle && battle.auto) { stopAuto(); return; }
-    if (mode === 'battle' || mode === 'choice') { const o = menuOpts[padBtns.indexOf(b)]; if (o) o[1](); return; }
+    if (mode === 'battle' || mode === 'choice') { const o = menuOpts[padBtns.indexOf(b)]; if (o) o[1](); return; } // 移動のボタンは何もしない（隠れている）
     handleKey(k);
   });
 });

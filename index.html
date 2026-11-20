@@ -83,6 +83,10 @@
   #pad button:hover { background:#000; color:var(--fg); }
   #pad button.on { background:#fff; color:#000; }
   #pad button:disabled { border-color:#333; }
+  #pad button[data-k="Numpad1"] { grid-row:2; grid-column:2; }
+  #pad button[data-k="Numpad2"] { grid-row:2; grid-column:3; }
+  #pad button[data-k="Numpad3"] { grid-row:2; grid-column:4; }
+  #pad.battle button.extra { visibility:hidden; }
   /* スマホの縦画面：上からステータス、マップ、プレイ画面（どれも全幅）、いちばん下に大きな操作ボタン */
   @media (max-width:700px) and (orientation:portrait), (pointer:coarse) and (orientation:portrait) {
     #app { padding:6px; }
@@ -118,7 +122,11 @@
     #side { grid-area:side; flex:none; width:260px; gap:6px; }
     #map { width:260px; height:auto; }
     #menuHint { display:none; }
-    #pad { grid-area:pad; display:grid; gap:6px; margin:0; }
+    #pad { grid-area:pad; display:grid; gap:6px; margin:0; grid-template-columns:repeat(7, 1fr); }
+    #pad button[data-k] { grid-row:auto; grid-column:auto; }
+    #pad button[data-k="Numpad2"] { display:none; }
+    #pad.battle { grid-template-columns:repeat(5, 1fr); }
+    #pad.battle button.extra { display:none; }
     #pad button { width:auto; height:52px; font-size:24px; }
     #pad.battle button:disabled { display:none; }
     #loc { font-size:18px; top:4px; right:4px; }
@@ -172,13 +180,19 @@
       <canvas id="map" width="240" height="150"></canvas>
     </div>
   </div>
-  <!-- スマホ用：下に横1列で 5 つ。戦闘や選択肢の間は、左から 1〜5 の選択肢になる -->
+  <!-- スマホ用の操作ボタン
+     縦画面：1 行目 メニュー・左を向く・直進・右を向く・話す／2 行目 左移動・後退・右移動（向く・直進の真下）
+     横画面：1 行に メニュー・左移動・左を向く・直進・右を向く・右移動・話す（後退は出さない）
+     戦闘や選択肢の間は、1 行目の 5 つが左から 1〜5 の選択肢になり、移動のボタンは隠れる -->
   <div id="pad">
     <button data-k="m">M<span>メニュー</span></button>
+    <button data-k="Numpad1" class="extra">←<span>左移動</span></button>
     <button data-k="Numpad4"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"><path d="M16 21V9H5"/><path d="M9 5L5 9l4 4"/></svg><span>左を向く</span></button>
     <button data-k="Numpad5">↑<span>直進</span></button>
     <button data-k="Numpad6"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"><path d="M8 21V9h11"/><path d="M15 5l4 4-4 4"/></svg><span>右を向く</span></button>
+    <button data-k="Numpad3" class="extra">→<span>右移動</span></button>
     <button data-k=" ">●<span>話す</span></button>
+    <button data-k="Numpad2" class="extra">↓<span>後退</span></button>
   </div>
 </div>
 <!-- 全画面の地図（小さな地図を押すと開く） -->
