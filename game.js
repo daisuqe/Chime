@@ -934,7 +934,7 @@ function shake() { const w = document.getElementById('viewWrap'); w.classList.re
 // ---------------------------------------------------------------------
 const CURTAIN_LINES = ['カーテンが閉まっている。', 'カーテンの隙間からも、外の様子はうかがえない。'];
 const windowLine = (x, y, d) => edgeAt(state.fl, x, y, d) === FENCE ? '柵の向こうに、夕焼けの空が広がっている。' : pick(curtainAt(state.fl, x, y, d) != null ? CURTAIN_LINES : WINDOW_LINES);
-const WINDOW_LINES = ['窓の外は燃えるような夕焼けだ。', '遠くの街並みが茜色に沈んでいく。', '窓は固く閉ざされ、びくともしない。', '紫からオレンジへ――空はずっと同じ色のままだ。'];
+const WINDOW_LINES = ['窓の外は燃えるような夕焼けだ。', '遠くの街並みが茜色に沈んでいく。', '窓は固く閉ざされ、びくともしない。', '紫からオレンジへ――空がゆっくり滲んでいる。'];
 
 // offset: 0 前進 / 2 後退 / 3 左平行 / 1 右平行（向きは変えない）
 function move(offset) {
