@@ -74,32 +74,55 @@ const TEACHERS = [
     line: '「お腹すいてない？ ……冗談よ。危ないから、ついていくわ」', note: '手当てと避難訓練で支える' },
 ];
 const teacherOf = key => TEACHERS.find(t => t.key === key);
-// 仲間としての先生（一度連れて行った先生は、交代しても経験やレベルを覚えている）
-function teacherChar(key) {
+// ===================== 仲間（先生と水野） =====================
+//   パーティは Player を入れて最大 4 人。はじめは 2 人まで（Player＋仲間 1 人）で、
+//   サブシナリオを 2 本解決すると 3 人、4 本で 4 人まで連れて行けるようになる
+//   一度仲間にした人は、外しても経験やレベルを覚えていて、元の場所（職員室・図書室）に戻る
+const PARTY_MAX = 4;
+function partyCap() {
+  const done = ['q1done', 'q2done', 'q3done', 'q4done', 'q5done', 'q6done', 'q7done'].filter(f => state.flags[f]).length;
+  return Math.min(PARTY_MAX, 2 + (done >= 2 ? 1 : 0) + (done >= 4 ? 1 : 0));
+}
+// 連れて行ける人数が増えたら知らせる（render のたびに確かめる）
+function checkCap() {
+  const cap = partyCap();
+  if (!state.flags.cap) state.flags.cap = cap;
+  if (cap > state.flags.cap) { state.flags.cap = cap; log(`★ 頼れる仲間が増え、${cap}人で行動できるようになった`, 'good'); }
+}
+const mateId = key => (key === 'mizuno' ? 'mizuno' : 't_' + key);
+const mateKey = id => (id === 'mizuno' ? 'mizuno' : id.slice(2));
+const mateName = key => (key === 'mizuno' ? '水野' : teacherOf(key).name + '先生');
+const inParty = key => state.party.some(c => c.id === mateId(key));
+function mateChar(key) {
   state.teachers = state.teachers || {};
-  if (!state.teachers[key]) { const t = teacherOf(key); state.teachers[key] = mkChar({ id: 't_' + key, name: t.name, cls: t.cls, spells: t.spells.slice(), ...JSON.parse(JSON.stringify(t.st)) }); }
+  if (!state.teachers[key]) {
+    if (key === 'mizuno') state.teachers[key] = RECRUITS.mizuno();
+    else { const t = teacherOf(key); state.teachers[key] = mkChar({ id: 't_' + key, name: t.name, cls: t.cls, spells: t.spells.slice(), ...JSON.parse(JSON.stringify(t.st)) }); }
+  }
   return state.teachers[key];
 }
-function joinTeacher(key) {
-  const s = state, old = s.flags.teacher;
-  if (old) s.party = s.party.filter(c => c.id !== 't_' + old);
-  s.party.splice(1, 0, teacherChar(key)); // Player のすぐ後ろ
-  s.flags.teacher = key; s.flags.hadTeacher = true;
-  log(old ? `${teacherOf(old).name}先生と交代して、${teacherOf(key).name}先生が仲間に加わった` : `${teacherOf(key).name}先生が 仲間に加わった！`, 'good');
+function addMate(key, outKey) {
+  if (outKey) state.party = state.party.filter(c => c.id !== mateId(outKey));
+  state.party.push(mateChar(key));
+  if (key === 'mizuno') state.flags.mizuno = true; else state.flags.hadTeacher = true;
+  log(outKey ? `${mateName(outKey)}と交代して、${mateName(key)}が仲間に加わった` : `${mateName(key)}が 仲間に加わった！`, 'good');
+}
+// 誘う：空きがあれば「はい／いいえ」、いっぱいなら誰と交代するかを選ぶ
+function offerJoin(key) {
+  const cap = partyCap();
+  if (state.party.length < cap) { showChoice(`${mateName(key)}に一緒に来てもらう？`, [['はい', () => addMate(key)], ['いいえ', () => {}]]); return; }
+  const mates = state.party.slice(1).map(c => mateKey(c.id));
+  showChoice(`連れて行けるのは${cap}人まで。誰と交代する？`, [...mates.map(k => [`${mateName(k)}と交代`, () => addMate(key, k)]), ['やめる', () => {}]]);
 }
 function teacherNPC(t) {
   return {
     id: 't_' + t.key, fl: 1, x: t.x, y: t.y, name: t.name + '先生', img: `image/chara_${t.key}.png`, ht: t.ht,
-    hide: s => s.flags.teacher === t.key,
+    hide: s => inParty(t.key),
     talk(s) {
       const sp = t.spells.map(i => SPELLS[i].name).join('・');
       return [`${t.name}先生（${t.cls}）${t.line}`, `（${t.note}。呪文：${sp}）`];
     },
-    after(s) {
-      const cur = s.flags.teacher;
-      const q = cur ? `${teacherOf(cur).name}先生と交代して、${t.name}先生に来てもらう？` : `${t.name}先生に一緒に来てもらう？`;
-      showChoice(q, [['はい', () => joinTeacher(t.key)], ['いいえ', () => {}]]);
-    },
+    after() { offerJoin(t.key); },
   };
 }
 
@@ -118,15 +141,18 @@ const NPCS = [
         '（体力と気力が全回復した）',
       ] : ['保健の先生「無理はしないでね。ほら、少し休んでいきなさい」', '（体力と気力が全回復した）'];
     } },
-  { id: 'mizuno', fl: 1, x: 25, y: 25, name: '図書委員', img: 'image/chara_mizuno.png', ht: 152, hide: s => s.flags.mizuno,
-    talk() { return [
-      '図書委員の水野「……静かに。本が、勝手にページをめくってるの」',
-      '「この学校の古い記録に、“鳴りやまないチャイム”の話があった」',
-      '「鐘楼……この学校に、そんなもの無かったはずなのに」',
-      '「調べたいことがあるの。私もついていく」',
-      '★ 水野が 仲間に加わった！',
-    ]; },
-    after(s) { s.flags.mizuno = true; s.party.push(RECRUITS.mizuno()); } },
+  { id: 'mizuno', fl: 1, x: 25, y: 25, name: '図書委員', img: 'image/chara_mizuno.png', ht: 152, hide: () => inParty('mizuno'),
+    talk(s) {
+      if (s.flags.metMizuno) return ['水野「……調べものの続き、いつでも手伝う」'];
+      s.flags.metMizuno = true;
+      return [
+        '図書委員の水野「……静かに。本が、勝手にページをめくってるの」',
+        '「この学校の古い記録に、“鳴りやまないチャイム”の話があった」',
+        '「鐘楼……この学校に、そんなもの無かったはずなのに」',
+        '「調べたいことがあるの。私もついていきたい」',
+      ];
+    },
+    after() { offerJoin('mizuno'); } },
   { id: 's2a', fl: 2, x: 4, y: 10, name: '2年の生徒', img: 'image/chara_student_year2.png', ht: 170,
     talk() { return [
       '生徒「2階に上がったら、1階と全然つくりが違うんだ」',

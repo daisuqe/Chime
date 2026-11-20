@@ -733,8 +733,11 @@ function enemySpots(n, kind) {
   let free = 0; // 正面に何マス空いているか
   for (let x = state.x, y = state.y; free < 3 && edgeAt(state.fl, x, y, state.dir) === OPEN; free++) { x += DIRS[state.dir][0]; y += DIRS[state.dir][1]; }
   const base = Math.min(MONS[kind].boss ? 1.1 : sz.cm < 60 ? 1.0 : 1.5, free + 0.45);
-  const gap = Math.min(0.42, 0.7 / Math.max(1, n - 1));
-  return Array.from({ length: n }, (_, i) => ({ l: (i - (n - 1) / 2) * gap, f: base + (n >= 3 && i % 2 ? 0.45 : 0) }));
+  // 3体までは横一列、それより多いときは後ろにもう1列（前列3体・後列は残り）。後列は前列のすき間に入る
+  const front = Math.min(3, n), back = n - front, out = [];
+  const row = (k, f, shift) => { const gap = Math.min(0.36, 0.72 / Math.max(1, k - 1)); for (let i = 0; i < k; i++) out.push({ l: (i - (k - 1) / 2) * gap + shift, f }); };
+  row(front, base, 0); if (back) row(back, base + 0.7, back % 2 ? 0.18 : 0); // 後列は前列のすき間に見えるようずらす
+  return out;
 }
 function drawEnemyAt(kind, l, f, flash) {
   const m = MONS[kind], sz = MON_SIZE[kind] || { cm: 160 }, im = m.img && getImage(m.img);
@@ -845,7 +848,7 @@ function renderHUD() {
   document.getElementById('party').innerHTML =
     '<tr><th>Name</th><th>Lv</th><th>HP</th><th>MP</th><th>Status</th></tr>' + rows;
 }
-function render() { renderView(); renderMap(); renderHUD(); saveSoon(); }
+function render() { renderView(); renderMap(); renderHUD(); checkCap(); saveSoon(); }
 
 // ---------------------------------------------------------------------
 //  Log / dialog / command menu
@@ -996,7 +999,7 @@ function afterStep() {
   const safe = r && r.safe;
   if (!safe && state.cool <= 0 && Math.random() < 0.09) {
     const list = FLOOR_MONS[state.fl], k = pick(list), m = MONS[k];
-    startBattle(k, rnd(m.grp[0], m.grp[1]));
+    startBattle(k, groupSize(m));
   }
 }
 
@@ -1050,18 +1053,28 @@ function faceOpenSide() {
   const cand = [1, 3, 2].map(t => (state.dir + t) % 4).sort((a, b) => freeIn(b) - freeIn(a));
   if (freeIn(cand[0]) > 0) state.dir = cand[0];
 }
+// パーティの人数による敵の強さの補正（2人を基準）
+//   ・出てくる数：最大4体（人数では増やさない）
+//   ・1人増えるごとに：HP 3割増し、攻撃力 15%増し、経験値 3割増し（3人 1.3倍／4人 1.6倍）
+//   ・ボス（鐘の番人）の HP：50 + 20×人数（2人 90 / 3人 110 / 4人 130）、攻撃力も同じ割合で増える
+const ENEMY_MAX = 4;
+const partyExtra = () => Math.max(0, state.party.length - 2);
+const groupSize = m => Math.min(ENEMY_MAX, rnd(m.grp[0], m.grp[1]));
+const hpMul = () => 1 + 0.3 * partyExtra(), atkMul = () => 1 + 0.15 * partyExtra(), expMul = () => 1 + 0.3 * partyExtra();
+const enemyHP = m => (m.boss ? 50 + 20 * state.party.length : Math.round(rnd(m.hp[0], m.hp[1]) * hpMul()));
+const enemyAtk = m => m.atk.map(v => Math.max(1, Math.round(v * atkMul())));
 async function startBattle(kind, n, onWin) {
   const m = MONS[kind];
   mode = 'busy';
   battle = {
-    kind, boss: !!m.boss, cmds: [], ci: 0, onWin,
-    enemies: Array.from({ length: n }, () => { const hp = rnd(m.hp[0], m.hp[1]); return { name: m.name, hp, maxhp: hp, atk: m.atk, ac: m.ac, agi: m.agi, lv: state.fl, boss: !!m.boss, sleep: 0, flash: false }; }),
+    kind, boss: !!m.boss, cmds: [], ci: 0, onWin, expMul: expMul(),
+    enemies: Array.from({ length: Math.min(n, ENEMY_MAX) }, () => { const hp = enemyHP(m); return { name: m.name, hp, maxhp: hp, atk: enemyAtk(m), ac: m.ac, agi: m.agi, lv: state.fl, boss: !!m.boss, sleep: 0, flash: false }; }),
   };
   state.cool = 6;
-  state.party.forEach(c => { c.heavy = false; }); // 大きな傷の印は戦闘ごと
   faceOpenSide();
   shake(); render();
-  log(m.boss ? `${m.name}が 襲いかかってきた！` : `${m.name}が ${n > 1 ? n + '体 ' : ''}あらわれた！`, 'warn');
+  const cnt = battle.enemies.length;
+  log(m.boss ? `${m.name}が 襲いかかってきた！` : `${m.name}が ${cnt > 1 ? cnt + '体 ' : ''}あらわれた！`, 'warn');
   await sleep(500);
   beginInput();
 }
@@ -1177,15 +1190,11 @@ function pickTarget() {
   for (let i = 0; i < alive.length; i++) { r -= w[i]; if (r <= 0) return alive[i]; }
   return alive[0];
 }
-const HEAVY_RATE = 0.4; // 倒れたときの一撃がこの割合（最大HP比）以上なら大きな傷
 async function damageChar(c, dmg) {
   if (c.defend) dmg = Math.ceil(dmg / 2);
   c.hp = Math.max(0, c.hp - dmg); shake(); renderHUD();
   log(`${c.name}は ${dmg} のダメージを受けた`, 'bad');
-  if (c.hp <= 0) {
-    c.heavy = dmg >= c.maxhp * HEAVY_RATE;
-    log(c.heavy ? `${c.name}は 大きな傷を負って 倒れた……` : `${c.name}は 倒れた……`, 'bad');
-  }
+  if (c.hp <= 0) log(`${c.name}は 倒れた……`, 'bad');
   await sleep(SPD);
 }
 async function enemyAct(e) {
@@ -1233,7 +1242,7 @@ function revealAllMaps() {
 }
 async function victory() {
   const m = MONS[battle.kind];
-  const total = m.exp * battle.enemies.length;
+  const total = Math.round(m.exp * battle.enemies.length * battle.expMul);
   const alive = aliveParty();
   const share = Math.max(1, Math.floor(total / alive.length));
   const wasBoss = battle.boss, onWin = battle.onWin;
@@ -1265,18 +1274,13 @@ function levelDown(c) {
   c.hp = Math.min(c.hp, c.maxhp); c.mp = Math.min(c.mp, c.maxmp);
   return true;
 }
-// 全滅：そのとき連れていた全員のレベルが 1 下がる。大きな傷（最大HPの4割以上の一撃）で倒れた人は 2 下がる
-//   職員室に残っていた先生はそのまま。持ち物や進み具合は失わない
+// 全滅：そのとき連れていた全員のレベルが 1 下がる
+//   連れていなかった仲間はそのまま。持ち物や進み具合は失わない
 async function defeat() {
   log('パーティは全滅した……', 'bad');
   await sleep(800);
   battle = null; mode = 'explore';
-  const down = [];
-  for (const c of state.party) {
-    const n = (levelDown(c) ? 1 : 0) + (c.heavy && levelDown(c) ? 1 : 0);
-    if (n) down.push(n === 2 ? `${c.name}は 大きな傷のせいで レベル${c.lv}まで下がった……` : `${c.name}は レベル${c.lv}に下がった……`);
-    c.heavy = false;
-  }
+  const down = state.party.filter(levelDown).map(c => `${c.name}は レベル${c.lv}に下がった……`);
   showDialog(['パーティは全滅した……', '……気がつくと、保健室のベッドの上だった。', ...(down.length ? down : ['（これ以上レベルは下がらなかった）'])], () => {
     Object.assign(state, { fl: 1, x: START[0], y: START[1], dir: 2, room: null, cool: 6 });
     healAll(); markSeen(); render(); saveGame();
@@ -1317,6 +1321,7 @@ function progressHTML() {
   });
   const done = QUESTS.filter(q => f[q[2]]).length;
   return `<div>現在地：${esc(placeName(state.fl, state.x, state.y))}</div>
+    <div>連れて行ける人数：${partyCap()}人（最大${PARTY_MAX}人）</div>
     <div>プレイ時間：${time}</div>
     <h4>本筋</h4>${main.map(([b, t]) => `<div>${mark(b)} ${t}</div>`).join('')}
     <h4>サブシナリオ（${done}/7）</h4>${quests.map(q => `<div>${q}</div>`).join('')}
@@ -1370,7 +1375,15 @@ function loadGame() {
     }
     if (!MAPS[s.fl] || !inMap(s.fl, s.x, s.y)) return false; // 校舎の形が変わって位置が無効なら、はじめから
     state = s;
-    if (s.teachers) s.party = s.party.map(c => (c.id && c.id.startsWith('t_') && s.teachers[c.id.slice(2)] ? s.teachers[c.id.slice(2)] : c));
+    s.teachers = s.teachers || {};
+    s.party = s.party.map(c => {
+      if (!c.id || c.id === 'hero') return c;
+      const k = c.id === 'mizuno' ? 'mizuno' : c.id.startsWith('t_') ? c.id.slice(2) : null;
+      if (!k) return c;
+      if (!s.teachers[k]) s.teachers[k] = c;
+      return s.teachers[k];
+    });
+    if (s.flags.mizuno) s.flags.metMizuno = true;
     return true;
   } catch (e) { return false; }
 }
