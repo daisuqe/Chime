@@ -74,11 +74,10 @@ const SPELLS = {
   scold: { name: '一喝', mp: 3 },
   spark: { name: '火花', mp: 2 },
   thunder: { name: '雷鳴', mp: 4 },
-  lecture: { name: '長い話', mp: 2 },     // 敵1体を確実に近く眠らせる
-  chalk: { name: 'チョーク投げ', mp: 2 }, // 敵1体にダメージ
-  quiz: { name: '抜き打ちテスト', mp: 4 }, // 敵全体に小ダメージ
-  chorus: { name: '合唱', mp: 4 },       // 仲間全員を少し回復
-  drill: { name: '避難訓練', mp: 3 },    // この回、仲間全員が身を守る
+  lecture: { name: 'まどろみ', mp: 2 },  // 敵1体を確実に近く眠らせる
+  quiz: { name: '残響', mp: 4 },         // 敵全体に小ダメージ
+  chorus: { name: '歌声', mp: 4 },       // 仲間全員を少し回復
+  drill: { name: '身構え', mp: 3 },      // この回、仲間全員が身を守る
 };
 const MONS = {
   shoe:     { name: '呪いの上履き', img: 'image/monster_cursed_shoe.png', ih: 95, lift: 0, hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 8,  exp: 4,   shape: 'shoe',     grp: [2, 4] },
@@ -1028,7 +1027,7 @@ function fieldHeal() {
     if (!state.party.some(c => c.hp > 0 && c.hp < c.maxhp)) { log('誰も怪我をしていない。', 'sys'); return; }
     choir.mp -= SPELLS.chorus.mp;
     for (const t of aliveParty()) t.hp = Math.min(t.maxhp, t.hp + rnd(4, 7) + Math.floor(choir.lv / 2));
-    log(`${choir.name}の合唱。仲間全員の HP が回復した`, 'good'); render(); return;
+    log(`${choir.name}の歌声。仲間全員の HP が回復した`, 'good'); render(); return;
   }
   if (!caster) { log('回復の呪文を使える仲間がいない（またはMP不足）', 'sys'); return; }
   const tgt = state.party.filter(c => c.hp > 0 && c.hp < c.maxhp).sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp)[0];
@@ -1169,10 +1168,8 @@ async function partyAct(c, cmd) {
     for (const e of enemiesAlive()) await hurtEnemy(e, rnd(4, 8) + c.lv);
   } else if (cmd.id === 'lecture') {
     const e = pick(enemiesAlive());
-    if (Math.random() < (e.boss ? 0.3 : 0.9)) { e.sleep = rnd(2, 3); log(`${e.name}は 話の長さに 眠ってしまった`); } else log(`${e.name}には 効かなかった`);
+    if (Math.random() < (e.boss ? 0.3 : 0.9)) { e.sleep = rnd(2, 3); log(`${e.name}は まどろみに 落ちた`); } else log(`${e.name}には 効かなかった`);
     render(); await sleep(SPD);
-  } else if (cmd.id === 'chalk') {
-    await hurtEnemy(pick(enemiesAlive()), rnd(5, 9) + c.lv);
   } else if (cmd.id === 'quiz') {
     for (const e of enemiesAlive()) await hurtEnemy(e, rnd(2, 5) + Math.floor(c.lv / 2));
   } else if (cmd.id === 'chorus') {
@@ -1180,7 +1177,7 @@ async function partyAct(c, cmd) {
     log('仲間全員の HP が 回復した', 'good'); renderHUD(); await sleep(SPD);
   } else if (cmd.id === 'drill') {
     aliveParty().forEach(t => { t.defend = true; });
-    log('全員が 身を低くして 守りを固めた', 'good'); renderHUD(); await sleep(SPD);
+    log('全員が 身構えた', 'good'); renderHUD(); await sleep(SPD);
   }
 }
 function pickTarget() {
@@ -1291,7 +1288,7 @@ async function defeat() {
 //  Input
 // ---------------------------------------------------------------------
 const menuEl = document.getElementById('menu'), menuBody = document.getElementById('menuBody');
-const MENU_TABS = ['help', 'prog', 'log'];
+const MENU_TABS = ['help', 'prog', 'log', 'restart'];
 let menuTab = 'prog';
 function toggleMenu(open) {
   if (open === undefined) open = mode !== 'menu';
@@ -1326,25 +1323,38 @@ function progressHTML() {
     <h4>本筋</h4>${main.map(([b, t]) => `<div>${mark(b)} ${t}</div>`).join('')}
     <h4>サブシナリオ（${done}/7）</h4>${quests.map(q => `<div>${q}</div>`).join('')}
     <h4>探索</h4><div>${floors.join('　')}</div>
-    <h4>持ち物</h4><div>${state.items.length ? state.items.map(i => esc(ITEM_NAME[i])).join('、') : 'なし'}</div>
-    <div class="restart"><button id="restartBtn">はじめからやり直す</button></div>`;
+    <h4>持ち物</h4><div>${state.items.length ? state.items.map(i => esc(ITEM_NAME[i])).join('、') : 'なし'}</div>`;
 }
 function showMenuTab(tab) {
   menuTab = tab;
   menuEl.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
   if (tab === 'help') menuBody.innerHTML = document.getElementById('helpText').innerHTML;
   else if (tab === 'prog') menuBody.innerHTML = progressHTML();
-  else menuBody.innerHTML = state.history.length ? state.history.map(t => `<div>${esc(t)}</div>`).join('') : '<div>まだ何もない</div>';
+  else if (tab === 'log') menuBody.innerHTML = state.history.length ? state.history.map(t => `<div>${esc(t)}</div>`).join('') : '<div>まだ何もない</div>';
+  else menuBody.innerHTML = '<div>保存されているデータを消して、最初からやり直します。</div><div class="restart"><button id="restartBtn">はじめからやり直す</button></div><div style="margin-top:6px">（Space・Enter でも選べる）</div>';
   menuBody.scrollTop = tab === 'log' ? menuBody.scrollHeight : 0;
   const rb = document.getElementById('restartBtn');
-  if (rb) rb.onclick = () => { if (confirm('保存されている続きを消して、はじめからやり直しますか？')) { localStorage.removeItem(SAVE_KEY); location.reload(); } };
+  if (rb) rb.onclick = askRestart;
+}
+// はじめから：確認を 2 回出す（念押し）。消したら保存を止めて読み込み直す
+let restarting = false;
+function askRestart() {
+  toggleMenu(false);
+  showChoice('保存されているデータが消えます。はじめからやり直しますか？', [
+    ['はい', () => showChoice('本当によろしいですか？ 消したデータは元に戻せません。', [
+      ['消してはじめから', () => { restarting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }],
+      ['やめる', () => {}],
+    ])],
+    ['いいえ', () => {}],
+  ]);
 }
 // メニュー内の操作：← → でタブ、↑ ↓ でスクロール、M・Esc で閉じる
 function menuKey(k) {
   const i = MENU_TABS.indexOf(menuTab);
   if (['m', 'M', 'Escape'].includes(k)) toggleMenu(false);
-  else if (['ArrowLeft', 'Numpad4', 'Numpad1', '4', '1', 'a'].includes(k)) showMenuTab(MENU_TABS[(i + 2) % 3]);
-  else if (['ArrowRight', 'Numpad6', 'Numpad3', '6', '3', 'd'].includes(k)) showMenuTab(MENU_TABS[(i + 1) % 3]);
+  else if (['ArrowLeft', 'Numpad4', 'Numpad1', '4', '1', 'a'].includes(k)) showMenuTab(MENU_TABS[(i + MENU_TABS.length - 1) % MENU_TABS.length]);
+  else if (['ArrowRight', 'Numpad6', 'Numpad3', '6', '3', 'd'].includes(k)) showMenuTab(MENU_TABS[(i + 1) % MENU_TABS.length]);
+  else if ([' ', 'Enter', 'NumpadEnter'].includes(k) && menuTab === 'restart') askRestart();
   else if (['ArrowUp', 'Numpad5', 'Numpad8', '8', '5', 'w'].includes(k)) menuBody.scrollTop -= 80;
   else if (['ArrowDown', 'Numpad2', '2', 's'].includes(k)) menuBody.scrollTop += 80;
 }
@@ -1359,7 +1369,7 @@ menuEl.querySelector('.close').addEventListener('click', () => toggleMenu(false)
 const SAVE_KEY = 'chime.save.v1';
 const setsToArrays = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v]]));
 function saveGame() {
-  if (!state || battle) return; // 戦闘中は保存しない（戦闘前の状態から再開）
+  if (!state || battle || restarting) return; // 戦闘中は保存しない（戦闘前の状態から再開）
   try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, at: Date.now(), state: { ...state, seen: setsToArrays(state.seen), seenE: setsToArrays(state.seenE) } })); } catch (e) { /* 保存できない環境では何もしない */ }
 }
 function loadGame() {
@@ -1384,6 +1394,7 @@ function loadGame() {
       return s.teachers[k];
     });
     if (s.flags.mizuno) s.flags.metMizuno = true;
+    for (const c of [...s.party, ...Object.values(s.teachers)]) if (c && c.spells) c.spells = [...new Set(c.spells.map(id => (id === 'chalk' ? 'spark' : id)))];
     return true;
   } catch (e) { return false; }
 }
