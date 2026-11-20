@@ -805,42 +805,69 @@ function markSeen() {
   }
 }
 function renderMap() {
-  const F = MAPS[state.fl], cs = 10, ox = Math.round(mc.width / 2 - (state.x + 0.5) * cs), oy = Math.round(mc.height / 2 - (state.y + 0.5) * cs), S = state.seen[state.fl];
-  mg.fillStyle = '#000'; mg.fillRect(0, 0, mc.width, mc.height);
+  const cs = 10;
+  drawMap(mg, mc.width, mc.height, cs, Math.round(mc.width / 2 - (state.x + 0.5) * cs), Math.round(mc.height / 2 - (state.y + 0.5) * cs));
+  if (mode === 'bigmap') renderBigMap();
+}
+// 地図を描く：cs＝1マスの大きさ、(ox, oy)＝マス (0,0) の左上の位置
+function drawMap(mg, W, H, cs, ox, oy) {
+  const F = MAPS[state.fl], S = state.seen[state.fl], k1 = cs / 10;
+  mg.fillStyle = '#000'; mg.fillRect(0, 0, W, H);
   const seen = (x, y) => S.has(x + ',' + y);
   for (let y = 0; y < F.H; y++) for (let x = 0; x < F.W; x++) {
     if (!seen(x, y)) continue;
     const px = ox + x * cs, py = oy + y * cs;
     const n = npcAt(state.fl, x, y);
     const pr = propAt(state.fl, x, y);
-    if (pr) { mg.fillStyle = '#fff'; pr === 'bed' ? mg.fillRect(px + 3, py + 1, cs - 6, cs - 2) : mg.fillRect(px + 3, py + 3, cs - 6, cs - 6); }
-    if (n) { mg.fillStyle = '#fff'; mg.beginPath(); mg.arc(px + cs / 2, py + cs / 2, 3, 0, 7); mg.fill(); }
+    if (pr) { mg.fillStyle = '#fff'; pr === 'bed' ? mg.fillRect(px + 3 * k1, py + k1, cs - 6 * k1, cs - 2 * k1) : mg.fillRect(px + 3 * k1, py + 3 * k1, cs - 6 * k1, cs - 6 * k1); }
+    if (n) { mg.fillStyle = '#fff'; mg.beginPath(); mg.arc(px + cs / 2, py + cs / 2, 3 * k1, 0, 7); mg.fill(); }
   }
   for (const st of F.stairs) {
     const [ex, ey] = stairEntry(st); if (!seen(ex, ey) && !state.flags.mapAll) continue;
-    mg.fillStyle = '#fff'; mg.font = '10px monospace'; mg.textAlign = 'center';
-    for (const [x, y] of stairCells(st)) mg.fillText(st.up ? '▲' : '▼', ox + x * cs + cs / 2, oy + y * cs + cs - 2);
+    mg.fillStyle = '#fff'; mg.font = `${cs}px monospace`; mg.textAlign = 'center';
+    for (const [x, y] of stairCells(st)) mg.fillText(st.up ? '▲' : '▼', ox + x * cs + cs / 2, oy + y * cs + cs - 2 * k1);
   }
   // 辺：どちらかの側のマスに立ったことがあれば描く
   // 白一色：壁＝実線、窓＝点線、扉＝壁の切れ目（両端だけ短い壁）
-  mg.lineWidth = 2; mg.strokeStyle = '#fff';
+  mg.lineWidth = Math.max(2, 2 * k1 * 0.8); mg.strokeStyle = '#fff';
   const seg = (k, x0, y0, x1, y1) => {
     if (k === OPEN || k === DOOR) return;
-    mg.setLineDash(k === WIN ? [2, 2] : k === FENCE ? [1, 3] : []); mg.beginPath(); mg.moveTo(x0, y0); mg.lineTo(x1, y1); mg.stroke(); mg.setLineDash([]);
+    mg.setLineDash(k === WIN ? [2 * k1, 2 * k1] : k === FENCE ? [k1, 3 * k1] : []); mg.beginPath(); mg.moveTo(x0, y0); mg.lineTo(x1, y1); mg.stroke(); mg.setLineDash([]);
   };
   const SE = state.seenE[state.fl], all = state.flags.mapAll;
   for (let y = 0; y <= F.H; y++) for (let x = 0; x < F.W; x++) if (all ? seen(x, y) || seen(x, y - 1) : SE.has('h' + x + ',' + y)) {
     const k = F.h[y][x], px = ox + x * cs, py = oy + y * cs;
-    if (k === DOOR) { seg(WALL, px, py, px + 3, py); seg(WALL, px + cs - 3, py, px + cs, py); seg(DOOR, px + 3, py, px + cs - 3, py); } else seg(k, px, py, px + cs, py);
+    if (k === DOOR) { seg(WALL, px, py, px + 3 * k1, py); seg(WALL, px + cs - 3 * k1, py, px + cs, py); } else seg(k, px, py, px + cs, py);
   }
   for (let y = 0; y < F.H; y++) for (let x = 0; x <= F.W; x++) if (all ? seen(x, y) || seen(x - 1, y) : SE.has('v' + x + ',' + y)) {
     const k = F.v[y][x], px = ox + x * cs, py = oy + y * cs;
-    if (k === DOOR) { seg(WALL, px, py, px, py + 3); seg(WALL, px, py + cs - 3, px, py + cs); seg(DOOR, px, py + 3, px, py + cs - 3); } else seg(k, px, py, px, py + cs);
+    if (k === DOOR) { seg(WALL, px, py, px, py + 3 * k1); seg(WALL, px, py + cs - 3 * k1, px, py + cs); } else seg(k, px, py, px, py + cs);
   }
   const px = ox + state.x * cs + cs / 2, py = oy + state.y * cs + cs / 2, [dx, dy] = DIRS[state.dir];
   mg.fillStyle = '#ffffff'; mg.beginPath();
-  mg.moveTo(px + dx * 5, py + dy * 5); mg.lineTo(px - dx * 3 - dy * 4, py - dy * 3 + dx * 4); mg.lineTo(px - dx * 3 + dy * 4, py - dy * 3 - dx * 4); mg.closePath(); mg.fill();
+  mg.moveTo(px + dx * 5 * k1, py + dy * 5 * k1); mg.lineTo(px + (-dx * 3 - dy * 4) * k1, py + (-dy * 3 + dx * 4) * k1); mg.lineTo(px + (-dx * 3 + dy * 4) * k1, py + (-dy * 3 - dx * 4) * k1); mg.closePath(); mg.fill();
 }
+// 全画面の地図：小さな地図をクリック・タップすると開き、右上の × で閉じる
+//   見えるのは、その階でわかっている所だけ（わかっている範囲に合わせて拡大する。校舎全体の広さや階の数はわからない）
+const bigEl = document.getElementById('bigmap'), bc = document.getElementById('bigmapCanvas'), bg = bc.getContext('2d');
+function renderBigMap() {
+  const dpr = window.devicePixelRatio || 1, W = bc.clientWidth, H = bc.clientHeight;
+  bc.width = Math.round(W * dpr); bc.height = Math.round(H * dpr); bg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // わかっている範囲（記録したマスと、今いるマス）
+  let x0 = state.x, x1 = state.x, y0 = state.y, y1 = state.y;
+  for (const k of state.seen[state.fl]) { const [x, y] = k.split(',').map(Number); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const pad = 1, bw = x1 - x0 + 1 + pad * 2, bh = y1 - y0 + 1 + pad * 2;
+  const cs = Math.max(6, Math.min(40, Math.floor(Math.min((W - 20) / bw, (H - 20) / bh))));
+  drawMap(bg, W, H, cs, Math.round(W / 2 - (x0 + x1 + 1) / 2 * cs), Math.round(H / 2 - (y0 + y1 + 1) / 2 * cs));
+}
+function openBigMap() {
+  if (mode !== 'explore') return;
+  mode = 'bigmap'; bigEl.style.display = 'block'; renderBigMap();
+}
+function closeBigMap() { if (mode !== 'bigmap') return; mode = 'explore'; bigEl.style.display = 'none'; render(); }
+mc.addEventListener('click', openBigMap);
+document.getElementById('bigmapClose').addEventListener('click', e => { e.stopPropagation(); closeBigMap(); });
+window.addEventListener('resize', () => { if (mode === 'bigmap') renderBigMap(); });
 function renderHUD() {
   // プレイ画面の右上（内側）に現在地：例「B棟 1F 保健室 [2, 1] 南」
   document.getElementById('loc').textContent = `${placeName(state.fl, state.x, state.y)} [${state.x}, ${state.y}] ${DIR_NAME[state.dir]}`;
@@ -1477,6 +1504,7 @@ setInterval(saveGame, 15000);
 function handleKey(k) {
   if (battle && battle.auto) { stopAuto(); return; }
   if (mode === 'menu') { menuKey(k); return; }
+  if (mode === 'bigmap') { if (['Escape', 'm', 'M', ' ', 'Enter', 'Backspace'].includes(k)) closeBigMap(); return; }
   if (mode === 'dialog') { if (k === ' ' || k === 'Enter' || k === 'z') advanceDialog(); return; }
   if (mode === 'choice') {
     const i = parseInt(k, 10);
@@ -1512,6 +1540,7 @@ document.querySelectorAll('#pad button').forEach(b => {
     const k = b.dataset.k;
     if (mode === 'dialog') { advanceDialog(); return; }
     if (mode === 'menu') { menuKey(k); return; }
+    if (mode === 'bigmap') { closeBigMap(); return; }
     if (battle && battle.auto) { stopAuto(); return; }
     if (mode === 'battle' || mode === 'choice') { const o = menuOpts[padBtns.indexOf(b)]; if (o) o[1](); return; }
     handleKey(k);
