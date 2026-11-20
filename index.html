@@ -83,15 +83,15 @@
   #pad button:hover { background:#000; color:var(--fg); }
   #pad button.on { background:#fff; color:#000; }
   #pad button:disabled { border-color:#333; }
-  /* スマホの縦画面：プレイ画面を全幅、その下にステータスとミニマップ、いちばん下に大きな操作ボタン */
+  /* スマホの縦画面：上からステータス、マップ、プレイ画面（どれも全幅）、いちばん下に大きな操作ボタン */
   @media (max-width:700px) and (orientation:portrait), (pointer:coarse) and (orientation:portrait) {
     #app { padding:6px; }
     #top { flex-direction:column; gap:6px; }
     #viewWrap { flex:none; width:100%; max-width:none; }
-    #side { flex:none; width:100%; flex-direction:row; align-items:flex-start; gap:6px; order:-1; } /* ステータスとマップをプレイ画面の上に */
-    #party { flex:1 1 auto; width:auto; font-size:17px; }
+    #side { flex:none; width:100%; flex-direction:column; gap:6px; order:-1; } /* ステータス、その下にマップ（プレイ画面と同じ幅）。どちらもプレイ画面の上 */
+    #party { width:100%; font-size:17px; }
     #party th, #party td { padding:2px 4px; }
-    #map { flex:0 0 34%; width:34%; height:auto; }
+    #map { width:100%; height:auto; aspect-ratio:2 / 1; }
     #menuHint { display:none; }
     #pad { display:grid; }
     #loc { font-size:18px; top:4px; right:4px; }

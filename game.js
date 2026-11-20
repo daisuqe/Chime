@@ -805,8 +805,11 @@ function markSeen() {
   }
 }
 function renderMap() {
-  const cs = 10;
-  drawMap(mg, mc.width, mc.height, cs, Math.round(mc.width / 2 - (state.x + 0.5) * cs), Math.round(mc.height / 2 - (state.y + 0.5) * cs));
+  // 表示されている大きさに合わせて描く（縦画面では幅いっぱいに大きく出る）。1マスは幅 24 マス分が収まる大きさ
+  const dpr = window.devicePixelRatio || 1, W = mc.clientWidth || 240, H = mc.clientHeight || 150, cs = Math.max(10, W / 24);
+  if (mc.width !== Math.round(W * dpr) || mc.height !== Math.round(H * dpr)) { mc.width = Math.round(W * dpr); mc.height = Math.round(H * dpr); }
+  mg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  drawMap(mg, W, H, cs, Math.round(W / 2 - (state.x + 0.5) * cs), Math.round(H / 2 - (state.y + 0.5) * cs));
   if (mode === 'bigmap') renderBigMap();
 }
 // 地図を描く：cs＝1マスの大きさ、(ox, oy)＝マス (0,0) の左上の位置
@@ -867,7 +870,7 @@ function openBigMap() {
 function closeBigMap() { if (mode !== 'bigmap') return; mode = 'explore'; bigEl.style.display = 'none'; render(); }
 mc.addEventListener('click', openBigMap);
 document.getElementById('bigmapClose').addEventListener('click', e => { e.stopPropagation(); closeBigMap(); });
-window.addEventListener('resize', () => { if (mode === 'bigmap') renderBigMap(); });
+window.addEventListener('resize', () => { if (mode === 'bigmap') renderBigMap(); else if (state) renderMap(); });
 function renderHUD() {
   // プレイ画面の右上（内側）に現在地：例「B棟 1F 保健室 [2, 1] 南」
   document.getElementById('loc').textContent = `${placeName(state.fl, state.x, state.y)} [${state.x}, ${state.y}] ${DIR_NAME[state.dir]}`;
