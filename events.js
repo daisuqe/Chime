@@ -169,7 +169,7 @@ const NPCS = [
   { id: 'nurse', fl: 1, x: 2, y: 2, name: '保健の先生', img: 'image/chara_teacher_hospital.png', ht: 158,
     talk(s) {
       const first = !s.flags.metNurse; s.flags.metNurse = true;
-      healAll();
+      const healed = healAll(); // 満タンになったものがあれば、先生の言葉のあとに知らせる
       const hints = first ? [] : questHints(s);
       if (first) s.flags.nurseHinted = true;
       return first ? [
@@ -177,7 +177,7 @@ const NPCS = [
         '「五時のチャイム、まだ鳴ってるわね」',
         '「隣の職員室に、まだ先生が何人か残っているはずよ。誰か一人についてきてもらいなさい」',
         ...hints,
-      ] : ['保健の先生「無理はしないでね。ほら、少し休んでいきなさい」', ...hints];
+      ].concat(healed ? [healed] : []) : ['保健の先生「無理はしないでね。ほら、少し休んでいきなさい」', ...(healed ? [healed] : []), ...hints];
     } },
   { id: 'mizuno', fl: 1, x: 25, y: 25, name: '図書委員', img: 'image/chara_mizuno.png', ht: 152, hide: () => inParty('mizuno'),
     talk(s) {

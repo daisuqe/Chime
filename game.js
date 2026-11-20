@@ -446,23 +446,23 @@ const BOX = {
   tank: { hx: 0.5, hy: 0.5, h: 0.95 },       // 屋上の給水タンク
   unit: { hx: 0.32, hy: 0.22, h: 0.32 },     // 室外機
 };
-function drawBox(kind, l, f) {
-  const p = BOX[kind]; if (!p) return;
+function drawBox(prop, l, f) {
+  const [kind, door] = prop.split(':'), p = BOX[kind]; if (!p) return;
   const sideways = DIRS[state.dir][0] !== 0, a = sideways ? p.hy : p.hx, b = sideways ? p.hx : p.hy;
   const x0 = l - a, x1 = l + a, d0 = f - b, d1 = f + b, h0 = -0.5, h1 = -0.5 + p.h;
   g.strokeStyle = lineCol(f); g.lineWidth = 1.5; g.fillStyle = '#000'; g.lineJoin = 'bevel';
-  const faces = [];
-  if (x0 > 0) faces.push([[x0, d1], [x0, d0]]);
-  if (x1 < 0) faces.push([[x1, d0], [x1, d1]]);
-  if (d0 > 0.1) faces.push([[x0, d0], [x1, d0]]);
-  for (const [e1, e2] of faces) {
+  const faces = []; // [端1, 端2, その面が向いている方角]
+  if (x0 > 0) faces.push([[x0, d1], [x0, d0], (state.dir + 3) % 4]);
+  if (x1 < 0) faces.push([[x1, d0], [x1, d1], (state.dir + 1) % 4]);
+  if (d0 > 0.1) faces.push([[x0, d0], [x1, d0], (state.dir + 2) % 4]);
+  for (const [e1, e2, fd] of faces) {
     path(quad(e1, e2, 0, 1, h0, h1)); g.fill(); g.stroke();
     const w = Math.hypot(e2[0] - e1[0], e2[1] - e1[1]);
     const ln = (u0, hh0, u1, hh1) => { const q = quad(e1, e2, u0, u1, hh0, hh1); g.beginPath(); g.moveTo(...q[3]); g.lineTo(...q[1]); g.stroke(); };
     const rect = (u0, u1, hh0, hh1) => { path(quad(e1, e2, u0, u1, hh0, hh1)); g.stroke(); };
     g.lineWidth = 1;
     if (kind.startsWith('getabako')) { const n = Math.max(2, Math.round(w / 0.15)); for (let i = 1; i < n; i++) ln(i / n, h0, i / n, h1); for (const t of [0.25, 0.5, 0.75]) ln(0, h0 + p.h * t, 1, h0 + p.h * t); }
-    else if (kind === 'stall') { rect(0.18, 0.82, h0 + 0.04, h1 - 0.04); ln(0.72, h0 + 0.4, 0.76, h0 + 0.4); }
+    else if (kind === 'stall' && (door == null || +door === fd)) { rect(0.18, 0.82, h0 + 0.04, h1 - 0.04); ln(0.72, h0 + 0.4, 0.76, h0 + 0.4); }
     else if (kind === 'stage') { ln(0, h1 - 0.05, 1, h1 - 0.05); }
     else if (kind === 'tank') { for (const t of [0.3, 0.6, 0.85]) ln(0, h0 + p.h * t, 1, h0 + p.h * t); rect(0.4, 0.6, h1 - 0.25, h1 - 0.05); }
     else if (kind === 'unit') { rect(0.1, 0.6, h0 + 0.05, h1 - 0.05); for (const t of [0.3, 0.5, 0.7]) ln(0.1, h0 + p.h * t, 0.6, h0 + p.h * t); }
@@ -812,9 +812,16 @@ function renderMap() {
   drawMap(mg, W, H, cs, Math.round(W / 2 - (state.x + 0.5) * cs), Math.round(H / 2 - (state.y + 0.5) * cs));
   if (mode === 'bigmap') renderBigMap();
 }
+// 地図に描くマス：歩いて見たマス。見取り図があればその階の全部
+function knownCells(fl) {
+  if (!state.flags.mapAll) return state.seen[fl];
+  const F = MAPS[fl], out = new Set(state.seen[fl]);
+  for (let y = 0; y < F.H; y++) for (let x = 0; x < F.W; x++) if (F.grid[y][x]) out.add(x + ',' + y);
+  return out;
+}
 // 地図を描く：cs＝1マスの大きさ、(ox, oy)＝マス (0,0) の左上の位置
 function drawMap(mg, W, H, cs, ox, oy) {
-  const F = MAPS[state.fl], S = state.seen[state.fl], k1 = cs / 10;
+  const F = MAPS[state.fl], k1 = cs / 10, S = knownCells(state.fl);
   mg.fillStyle = '#000'; mg.fillRect(0, 0, W, H);
   const seen = (x, y) => S.has(x + ',' + y);
   for (let y = 0; y < F.H; y++) for (let x = 0; x < F.W; x++) {
@@ -858,7 +865,7 @@ function renderBigMap() {
   bc.width = Math.round(W * dpr); bc.height = Math.round(H * dpr); bg.setTransform(dpr, 0, 0, dpr, 0, 0);
   // わかっている範囲（記録したマスと、今いるマス）
   let x0 = state.x, x1 = state.x, y0 = state.y, y1 = state.y;
-  for (const k of state.seen[state.fl]) { const [x, y] = k.split(',').map(Number); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  for (const k of knownCells(state.fl)) { const [x, y] = k.split(',').map(Number); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
   const pad = 1, bw = x1 - x0 + 1 + pad * 2, bh = y1 - y0 + 1 + pad * 2;
   const cs = Math.max(6, Math.min(40, Math.floor(Math.min((W - 20) / bw, (H - 20) / bh))));
   drawMap(bg, W, H, cs, Math.round(W / 2 - (x0 + x1 + 1) / 2 * cs), Math.round(H / 2 - (y0 + y1 + 1) / 2 * cs));
@@ -882,6 +889,7 @@ function renderHUD() {
     '<tr><th>Name</th><th>Lv</th><th>HP</th><th>MP</th><th>Status</th></tr>' + rows;
 }
 function render() {
+  updatePad();
   if (state.flags.nurseHinted && (state.fl !== 1 || (areaAt(1, state.x, state.y) || {}).name !== '保健室')) state.flags.nurseHinted = false; // 保健室を出た
   updateQuestLocks(); renderView(); renderMap(); renderHUD(); checkCap(); saveSoon(); }
 
@@ -956,6 +964,7 @@ function updatePad() {
   const battleMenu = menuOpts.length > 0;
   document.getElementById('pad').classList.toggle('battle', battleMenu || !!battle); // 横画面で並びを切り替える
   padBtns.forEach((b, i) => {
+    if (!battleMenu && battle && battle.auto) { b.innerHTML = i === 0 ? 'オート<span>止める</span>' : ''; b.disabled = i !== 0; return; } // オート中：左端で止める
     if (!battleMenu && battle) { b.innerHTML = ''; b.disabled = true; return; } // 戦闘中で行動を選んでいない間（敵味方が動いている間）は空
     if (!battleMenu) { b.innerHTML = PAD_DEFAULT[i]; b.disabled = false; return; }
     const o = menuOpts[i];
@@ -997,6 +1006,7 @@ function move(offset) {
   const d = (state.dir + offset) % 4;
   const nx = state.x + DIRS[d][0], ny = state.y + DIRS[d][1];
   const e = edgeAt(state.fl, state.x, state.y, d);
+  if (e === DOOR && !inMap(state.fl, nx, ny)) { log('扉は開かない。', 'sys'); return; }
   if (isBlocking(e) || !inMap(state.fl, nx, ny)) { log(e === WIN || e === FENCE ? windowLine(state.x, state.y, d) : 'ゴツン。壁だ。', 'sys'); return; }
   const lk = e === DOOR && lockAt(state.fl, state.x, state.y, d);
   if (lk && !state.flags[lk]) { log('扉には鍵がかかっている。', 'sys'); return; }
@@ -1007,7 +1017,7 @@ function move(offset) {
     log('階段の側面だ。', 'sys'); return;
   }
   const pr = propAt(state.fl, nx, ny);
-  if (pr) { log({ bed: 'ベッドがある。', desk: '机がある。', getabako: '下駄箱が並んでいる。', getabako_ns: '下駄箱が並んでいる。', stall: 'トイレの個室だ。', sink: '洗面台がある。', stage: 'ステージだ。', tank: '給水タンクだ。', unit: '室外機が並んでいる。', pool: 'プールの水が、夕焼けを映している。' }[pr] || '何かがある。', 'sys'); return; }
+  if (pr) { log({ bed: 'ベッドがある。', desk: '机がある。', getabako: '下駄箱が並んでいる。', getabako_ns: '下駄箱が並んでいる。', stall: 'トイレの個室だ。', sink: '洗面台がある。', stage: 'ステージだ。', tank: '給水タンクだ。', unit: '室外機が並んでいる。', pool: 'プールの水が、夕焼けを映している。' }[pr.split(':')[0]] || '何かがある。', 'sys'); return; }
   const n = npcAt(state.fl, nx, ny);
   if (n) { log(`${n.name}がいる。［Space］で話しかける`, 'sys'); return; }
   state.x = nx; state.y = ny;
@@ -1072,7 +1082,10 @@ function interact() {
   const st = stairAhead();
   if (st) { useStairs(st); return; }
   if (ahead === WIN || ahead === FENCE) { log(windowLine(state.x, state.y, state.dir), 'sys'); return; }
-  if (ahead === DOOR) { log('扉だ。前に進めば通り抜けられる。', 'sys'); return; }
+  if (ahead === DOOR) {
+    const lk = lockAt(state.fl, state.x, state.y, state.dir);
+    log(!inMap(state.fl, fx, fy) ? '扉は開かない。' : lk && !state.flags[lk] ? '扉には鍵がかかっている。' : '扉だ。前に進めば通り抜けられる。', 'sys'); return;
+  }
   partyTalk();
 }
 // 仲間と話す：前に誰も何もない時。話す相手を選び、回復を頼める
@@ -1096,7 +1109,12 @@ function mateTalk(c) {
   showDialog([line], () => { if (opts.length) showChoice(`${c.name}に頼む？`, [...opts, ['なんでもない', () => {}]]); render(); });
 }
 
-function healAll() { state.party.forEach(c => { c.hp = c.maxhp; c.mp = c.maxmp; }); }
+// 全員を全回復。何が満タンになったかの文（なければ null）を返す
+function healAll() {
+  const hp = state.party.some(c => c.hp < c.maxhp), mp = state.party.some(c => c.mp < c.maxmp);
+  state.party.forEach(c => { c.hp = c.maxhp; c.mp = c.maxmp; });
+  return hp && mp ? '体力とMPが回復した。' : hp ? '体力が回復した。' : mp ? 'MPが回復した。' : null;
+}
 
 function fieldHeal(by) {
   const ok = c => !by || c === by;
@@ -1177,7 +1195,7 @@ function autoChoose() {
   setTimeout(() => { if (battle) runRound(); }, 250);
 }
 function startAuto() { battle.auto = true; log('― オート戦闘 ―', 'sys'); autoChoose(); }
-function stopAuto() { if (battle && battle.auto) { battle.auto = false; log('オート戦闘を止めた。次の回から行動を選ぶ', 'sys'); } }
+function stopAuto() { if (battle && battle.auto) { battle.auto = false; log('オート戦闘を止めた。次の回から行動を選ぶ', 'sys'); updatePad(); } }
 function promptNext() {
   while (battle.ci < state.party.length && state.party[battle.ci].hp <= 0) battle.ci++;
   if (battle.ci >= state.party.length) { runRound(); return; }
@@ -1191,7 +1209,7 @@ function showBattleMenu(kind) {
       ['じゅもん', () => c.spells.length ? showBattleMenu('spell') : log(`${c.name}は じゅもんを知らない`, 'sys')],
       ['ぼうぎょ', () => choose({ t: 'defend' })],
       ['にげる', () => runAway()],
-      ['オート', () => startAuto()],
+      canBack() ? ['もどる', () => backInput()] : ['オート', () => startAuto()],
     ]);
   } else {
     setMenu(`${c.name}のじゅもん：`, [
@@ -1201,6 +1219,7 @@ function showBattleMenu(kind) {
   }
 }
 function choose(cmd) { battle.cmds[battle.ci] = cmd; battle.ci++; promptNext(); }
+const canBack = () => { for (let i = battle.ci - 1; i >= 0; i--) if (state.party[i].hp > 0) return true; return false; };
 function backInput() {
   let i = battle.ci - 1;
   while (i >= 0 && state.party[i].hp <= 0) i--;
@@ -1334,9 +1353,7 @@ function levelUps() {
 }
 // 見取り図：全階の歩けるマスを「見た」ことにする（壁が描かれる）
 function revealAllMaps() {
-  state.flags.mapAll = true;
-  for (const k of Object.keys(MAPS)) { const F = MAPS[k];
-    for (let y = 0; y < F.H; y++) for (let x = 0; x < F.W; x++) if (F.grid[y][x]) state.seen[k].add(x + ',' + y); }
+  state.flags.mapAll = true; // 地図には全部描く（drawMap）。歩いた記録 seen は増やさないので、探索率はそのまま
 }
 async function victory() {
   const m = MONS[battle.kind];
@@ -1378,10 +1395,10 @@ async function defeat() {
   await sleep(800);
   battle = null; mode = 'explore';
   const down = state.party.filter(levelDown).map(c => `${c.name}は レベル${c.lv}に下がった……`);
-  showDialog(['パーティは全滅した……', '……気がつくと、保健室のベッドの上だった。', ...down], () => {
-    Object.assign(state, { fl: 1, x: START[0], y: START[1], dir: 2, room: null, cool: 6 });
-    healAll(); markSeen(); render(); saveGame();
-  });
+  // 途中で閉じられても、保健室で回復した状態から再開できるよう、先に戻して保存しておく
+  Object.assign(state, { fl: 1, x: START[0], y: START[1], dir: 2, room: null, cool: 6 });
+  healAll(); markSeen(); saveGame();
+  showDialog(['パーティは全滅した……', '……気がつくと、保健室のベッドの上だった。', ...down], () => render());
 }
 
 // ---------------------------------------------------------------------

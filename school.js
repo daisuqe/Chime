@@ -108,15 +108,21 @@ const MAPS = {
     m.room('用務員室', A, 19, 5, 20, 7, { safe: true }); m.door(19, 5, 0);
     m.stairs('A12', 23, 2, 0, true);
     // トイレ：A棟の廊下の南側
-    m.room('男子トイレ', A, 15, 5, 16, 7); m.door(15, 5, 0); m.prop('stall', 16, 6, 16, 7); m.prop('sink', 15, 7); m.deco(15, 6, 2, 'mirror');
-    m.room('女子トイレ', A, 17, 5, 18, 7); m.door(18, 5, 0); m.prop('stall', 17, 6, 17, 7); m.prop('sink', 18, 7); m.deco(18, 6, 2, 'mirror');
+    //   個室は 'stall:向き'（扉のある面の向き 0 北 1 東 2 南 3 西）
+    m.room('男子トイレ', A, 13, 5, 15, 8); m.door(14, 5, 0);
+    m.prop('stall:3', 15, 6, 15, 7, 15, 8); m.prop('sink', 13, 7, 13, 8); m.deco(13, 7, 3, 'mirror'); m.deco(13, 8, 3, 'mirror');
+    m.room('女子トイレ', A, 16, 5, 18, 8); m.door(17, 5, 0);
+    m.prop('stall:1', 16, 6, 16, 7, 16, 8); m.prop('sink', 18, 7, 18, 8); m.deco(18, 7, 1, 'mirror'); m.deco(18, 8, 1, 'mirror');
 
     m.hall('渡り廊下', '', [[6, 5], [6, 11]]); m.link(6, 4, 2); m.link(6, 11, 2);
 
     const bCor = m.hall('廊下', B, [[2, 12], [24, 12]]); m.rect(bCor, 22, 13, 24, 16);
-    // 昇降口：校舎の西の端。ガラス戸（窓）は校舎の外に面する。B棟の廊下の西の端につながる
-    const gen = m.hall('昇降口', B, [[0, 7], [0, 12]]); m.rect(gen, 1, 7, 1, 12); m.link(1, 12, 1);
-    m.prop('getabako_ns', 1, 8, 1, 9, 1, 10);
+    // 昇降口：校舎の西の端（横 6・縦 7 マス）。西の壁に外への扉が 3 つ（開かない）。下駄箱が南北に 2 列
+    //   南側は B棟の廊下へ広く開いている
+    const gen = m.hall('昇降口', B, [[0, 5], [5, 5]]); m.rect(gen, 0, 5, 5, 11);
+    for (let x = 2; x <= 5; x++) m.link(x, 11, 2);
+    for (const y of [6, 8, 10]) m.door(0, y, 3, 'never');
+    m.prop('getabako_ns', 2, 6, 2, 7, 2, 8, 2, 9, 4, 6, 4, 7, 4, 8, 4, 9);
     [['1年A組', 2], ['1年B組', 7], ['1年C組', 12], ['1年D組', 17]].forEach(([n, x]) => {
       m.room(n, B, x, 13, x + 4, 16); m.door(x + 2, 13, 0); m.desks(x, 13, x + 4, 16);
     });
@@ -162,7 +168,7 @@ const MAPS = {
     });
     m.room('生徒会室', A, 2, 20, 5, 22); m.door(5, 21, 1); m.prop('desk', 3, 21);
     m.stairs('A12', 3, 24, 2, false);
-    m.room('トイレ', A, 7, 21, 9, 23); m.door(7, 22, 3); m.prop('stall', 9, 21, 9, 22, 9, 23); m.prop('sink', 7, 21); m.deco(7, 21, 0, 'mirror');
+    m.room('トイレ', A, 7, 21, 9, 23); m.door(7, 22, 3); m.prop('stall:3', 9, 21, 9, 22, 9, 23); m.prop('sink', 7, 21); m.deco(7, 21, 0, 'mirror');
     // 空中廊下：何度も直角に折れながら、何もない宙を渡っていく
     const sky = m.hall('空中廊下', '', [[7, 26], [14, 26], [14, 19], [20, 19], [20, 10], [16, 10], [16, 2]], { floating: true });
     m.rect(sky, 21, 10, 23, 10);
