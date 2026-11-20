@@ -79,39 +79,56 @@ const SPELLS = {
   chorus: { name: '歌声', mp: 4 },       // 仲間全員を少し回復
   drill: { name: '身構え', mp: 3 },      // この回、仲間全員が身を守る
 };
+// 敵：学校の備品が勝手に動く（ポルターガイスト）。目や口は描かない
+//   img：画像（image/enemy/）。imgs があれば 1 体ずつ違う画像／cm・up：大きさと、床から浮いている高さ（cm）
+//   fl：出る階／rooms：名前がこれに合う部屋・場所では、その敵が出やすい
+//   重いもの・人の形のもの・刃物や火など攻撃的なものは強い
+const E = n => 'image/enemy/enemy_' + n + '.png';
 const MONS = {
-  shoe:     { name: '呪いの上履き', img: 'image/monster_cursed_shoe.png', ih: 95, lift: 0, hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 8,  exp: 4,   shape: 'shoe',     grp: [2, 4] },
-  dust:     { name: 'ほこりの精', img: 'image/monster_dust_spirit.png', ih: 85, lift: 30,   hp: [2, 4],   atk: [1, 2],  ac: 9, agi: 12, exp: 3,   shape: 'dust',     grp: [2, 5] },
-  model:    { name: '人体模型', img: 'image/monster_anatomical_model.png', ih: 230, lift: 0,     hp: [7, 11],  atk: [2, 5],  ac: 7, agi: 6,  exp: 10,  shape: 'model',    grp: [1, 2] },
-  skel:     { name: '骨格標本', img: 'image/monster_skeleton_.png', ih: 245, lift: 0,     hp: [10, 15], atk: [2, 7],  ac: 6, agi: 9,  exp: 16,  shape: 'skeleton', grp: [1, 3] },
-  homework: { name: '宿題の亡霊', img: 'image/monster_homework_wraith.png', ih: 205, lift: 20,   hp: [8, 12],  atk: [2, 5],  ac: 5, agi: 11, exp: 14,  shape: 'ghost',    grp: [1, 3] },
-  book:     { name: '人喰い辞書', img: 'image/monster_man_eating_dictionary.png', ih: 115, lift: 20,   hp: [6, 10],  atk: [3, 6],  ac: 6, agi: 10, exp: 12,  shape: 'book',     grp: [1, 3] },
-  shadow:   { name: '黒板の影', img: 'image/monster_blackboard_shadow.png', ih: 255, lift: 0,     hp: [14, 20], atk: [3, 8],  ac: 5, agi: 10, exp: 26,  shape: 'shadow',   grp: [1, 3] },
-  portrait: { name: '見つめる肖像画', img: 'image/monster_watching_portrait_.png', ih: 165, lift: 50, hp: [12, 16], atk: [2, 9], ac: 4, agi: 8,  exp: 22,  shape: 'portrait', grp: [1, 2] },
-  // ゾンビ（人の大きさ）
-  wander:   { name: 'さまよう生徒', img: 'image/zombie_01_wanderer-realistic.png', ih: 240, lift: 0,  hp: [6, 9],   atk: [1, 4],  ac: 8, agi: 5,  exp: 7,   shape: 'model',    grp: [1, 3] },
-  gaper:    { name: 'うめく亡者', img: 'image/zombie_07_gaper-realistic.png', ih: 245, lift: 0,     hp: [8, 11],  atk: [2, 5],  ac: 7, agi: 6,  exp: 10,  shape: 'model',    grp: [1, 3] },
-  longarm:  { name: '手長の亡者', img: 'image/zombie_04_longarm-realistic.png', ih: 255, lift: 0,   hp: [10, 14], atk: [2, 7],  ac: 6, agi: 8,  exp: 15,  shape: 'model',    grp: [1, 2] },
-  fungal:   { name: 'キノコ憑き', img: 'image/zombie_05_fungal_host-realistic.png', ih: 245, lift: 0, hp: [12, 16], atk: [2, 6],  ac: 6, agi: 5,  exp: 17,  shape: 'model',    grp: [1, 2] },
-  boneshell:{ name: '半骨の亡者', img: 'image/zombie_08_bone_shell-realistic.png', ih: 245, lift: 0, hp: [14, 19], atk: [3, 8],  ac: 5, agi: 8,  exp: 24,  shape: 'skeleton', grp: [1, 2] },
-  kimono:   { name: '着物の亡者', img: 'image/zombie_09_grave_risen_japanese.png', ih: 235, lift: 0, hp: [15, 20], atk: [3, 9],  ac: 5, agi: 9,  exp: 27,  shape: 'model',    grp: [1, 2] },
-  // ラスボス：鐘の番人（鐘のそばに立ち、鐘を鳴らし続けている）
-  bell:     { name: '鐘の番人', img: 'image/monster_time_warden_boss.png', ih: 260, lift: 0,     hp: [80, 80], atk: [5, 11], ac: 3, agi: 9,  exp: 240, shape: 'bell',     grp: [1, 1], boss: true },
+  // ---- 教室・廊下 ----
+  paper:    { name: 'プリント',         imgs: Array.from({ length: 13 }, (_, i) => E('paper_' + String(i + 1).padStart(2, '0'))), cm: 32, up: [50, 150], fl: [1, 2, 3], rooms: /組|廊下|職員室|図書|放送|進路/, hp: [2, 3], atk: [1, 2], ac: 9, agi: 13, exp: 2, grp: [3, 4] },
+  eraser:   { name: '黒板消し',         img: E('eraser'),       cm: 18,  up: 110, fl: [1],       rooms: /組/,                hp: [2, 4],   atk: [1, 2],  ac: 9, agi: 12, exp: 3,  grp: [2, 4] },
+  chair:    { name: '椅子',             img: E('chair'),        cm: 80,  up: 0,   fl: [1, 2],    rooms: /組|自習室/,         hp: [5, 8],   atk: [1, 4],  ac: 8, agi: 8,  exp: 6,  grp: [1, 3] },
+  mop:      { name: 'モップ',           img: E('mop'),          cm: 130, up: 0,   fl: [1, 2],    rooms: /廊下|トイレ|用務員/, hp: [5, 8],  atk: [1, 4],  ac: 8, agi: 8,  exp: 6,  grp: [1, 3] },
+  desk:     { name: '机',               img: E('desk'),         cm: 75,  up: 0,   fl: [1, 2],    rooms: /組|職員室|自習室/,  hp: [11, 15], atk: [2, 5],  ac: 6, agi: 4,  exp: 13, grp: [1, 2] },
+  globe:    { name: '地球儀',           img: E('globe'),        cm: 50,  up: 60,  fl: [2],       rooms: /組|図書|社会/,      hp: [7, 10],  atk: [1, 4],  ac: 7, agi: 8,  exp: 9,  grp: [1, 3] },
+  extinguisher: { name: '消火器',       img: E('extinguisher'), cm: 60,  up: 40,  fl: [2, 3, 4], rooms: /廊下|階段/,         hp: [14, 18], atk: [3, 8],  ac: 5, agi: 6,  exp: 20, grp: [1, 2] },
+  // ---- 体育館 ----
+  bball:    { name: 'バスケットボール', img: E('basketball'),   cm: 25,  up: 40,  fl: [1, 5],    rooms: /体育館/,            hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 11, exp: 4,  grp: [2, 4] },
+  vball:    { name: 'バレーボール',     img: E('volleyball'),   cm: 21,  up: 60,  fl: [1, 5],    rooms: /体育館|屋上/,       hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 12, exp: 4,  grp: [2, 4] },
+  beam:     { name: '平均台',           img: E('balance_beam'), cm: 60,  up: 0,   fl: [1],       rooms: /体育館/,            hp: [12, 16], atk: [2, 6],  ac: 6, agi: 4,  exp: 14, grp: [1, 2] },
+  vault:    { name: '跳び箱',           img: E('vaulting_box'), cm: 100, up: 0,   fl: [1, 2],    rooms: /体育館/,            hp: [16, 20], atk: [3, 6],  ac: 5, agi: 3,  exp: 18, grp: [1, 1] },
+  bat:      { name: 'バット',           img: E('bat'),          cm: 85,  up: 50,  fl: [4, 5],    rooms: /体育館|屋上/,       hp: [13, 17], atk: [4, 9],  ac: 6, agi: 11, exp: 25, grp: [1, 3] },
+  kendo:    { name: '竹刀と剣道着',     img: E('kendo'),        cm: 172, up: 0,   fl: [3, 4, 5], rooms: /体育館|鐘楼/,       hp: [22, 28], atk: [4, 11], ac: 3, agi: 11, exp: 38, grp: [1, 2] },
+  // ---- 理科室・化学室 ----
+  flask:    { name: 'フラスコ',         img: E('flask'),        cm: 30,  up: 80,  fl: [3],       rooms: /理科|化学/,         hp: [7, 10],  atk: [2, 5],  ac: 7, agi: 10, exp: 11, grp: [2, 3] },
+  burner:   { name: 'アルコールランプ', img: E('alcohol_lamp'), cm: 20,  up: 90,  fl: [3],       rooms: /理科|化学/,         hp: [9, 13],  atk: [4, 8],  ac: 6, agi: 9,  exp: 17, grp: [1, 3] },
+  model:    { name: '人体模型',         img: E('anatomical_model'), cm: 165, up: 0, fl: [1, 2],  rooms: /理科/,               hp: [13, 17], atk: [2, 6],  ac: 6, agi: 6,  exp: 16, grp: [1, 2] },
+  skel:     { name: '骨格標本',         img: E('skeleton'),     cm: 170, up: 0,   fl: [2, 3, 4], rooms: /理科|化学/,         hp: [15, 20], atk: [3, 8],  ac: 5, agi: 9,  exp: 22, grp: [1, 3] },
+  // ---- 美術室 ----
+  portrait: { name: '音楽家の肖像画',   img: E('portrait'),     cm: 110, up: 70,  fl: [2, 3],    rooms: /音楽|美術/,         hp: [12, 16], atk: [2, 9],  ac: 4, agi: 8,  exp: 22, grp: [1, 2] },
+  david:    { name: 'ダビデ像',         img: E('david'),        cm: 175, up: 0,   fl: [2, 3],    rooms: /美術/,              hp: [24, 30], atk: [3, 9],  ac: 3, agi: 4,  exp: 34, grp: [1, 1] },
+  thinker:  { name: '考える人',         img: E('thinker'),      cm: 130, up: 0,   fl: [3, 4],    rooms: /美術/,              hp: [28, 34], atk: [4, 10], ac: 2, agi: 3,  exp: 40, grp: [1, 1] },
+  // ---- 音楽室 ----
+  recorder: { name: 'リコーダー',       img: E('recorder'),     cm: 35,  up: 90,  fl: [1, 2],    rooms: /音楽|組/,           hp: [4, 7],   atk: [1, 3],  ac: 7, agi: 12, exp: 6,  grp: [2, 4] },
+  cymbal:   { name: 'シンバル',         img: E('cymbals'),      cm: 40,  up: 100, fl: [2, 3],    rooms: /音楽/,              hp: [10, 14], atk: [2, 7],  ac: 5, agi: 9,  exp: 15, grp: [1, 2] },
+  tuba:     { name: 'チューバ',         img: E('tuba'),         cm: 100, up: 30,  fl: [2, 3],    rooms: /音楽/,              hp: [18, 24], atk: [3, 8],  ac: 4, agi: 4,  exp: 26, grp: [1, 2] },
+  drums:    { name: 'ドラムセット',     img: E('drums'),        cm: 110, up: 0,   fl: [3, 4],    rooms: /音楽/,              hp: [26, 32], atk: [3, 10], ac: 3, agi: 5,  exp: 38, grp: [1, 1] },
+  piano:    { name: 'ピアノ',           img: E('piano'),        cm: 130, up: 0,   fl: [4],       rooms: /音楽/,              hp: [36, 44], atk: [5, 12], ac: 2, agi: 2,  exp: 55, grp: [1, 1] },
+  // ---- 技術室の工具 ----
+  hammer:   { name: 'かなづち',         img: E('hammer'),       cm: 35,  up: 90,  fl: [3],       rooms: /技術/,              hp: [11, 15], atk: [4, 8],  ac: 5, agi: 8,  exp: 20, grp: [1, 3] },
+  saw:      { name: 'のこぎり',         img: E('saw'),          cm: 60,  up: 70,  fl: [3, 4],    rooms: /技術|家庭科/,       hp: [12, 16], atk: [4, 10], ac: 5, agi: 10, exp: 26, grp: [1, 2] },
+  // ---- ラスボス：鐘の番人（鐘のそばに立ち、鐘を鳴らし続けている） ----
+  bell:     { name: '鐘の番人',         img: E('time_warden_boss'), cm: 215, up: 0, fl: [], hp: [80, 80], atk: [5, 11], ac: 3, agi: 9, exp: 240, grp: [1, 1], boss: true },
 };
 // 敵の実際の大きさ：cm＝画像の縦の高さ、up＝床から浮いている高さ（cm）。人物の立ち絵と同じ縮尺で描く
-const MON_SIZE = {
-  shoe: { cm: 30 }, dust: { cm: 40, up: 45 }, model: { cm: 165 }, skel: { cm: 170 }, homework: { cm: 150, up: 20 },
-  book: { cm: 45, up: 70 }, shadow: { cm: 180 }, portrait: { cm: 110, up: 70 },
-  wander: { cm: 168 }, gaper: { cm: 172 }, longarm: { cm: 185 }, fungal: { cm: 165 }, boneshell: { cm: 170 }, kimono: { cm: 160 },
-  bell: { cm: 215 },
-};
-const FLOOR_MONS = {
-  1: ['shoe', 'dust', 'model', 'wander', 'gaper'],
-  2: ['model', 'skel', 'homework', 'book', 'gaper', 'longarm', 'fungal'],
-  3: ['skel', 'shadow', 'portrait', 'homework', 'boneshell', 'kimono'],
-  4: ['shadow', 'boneshell', 'kimono'],
-  5: ['skel', 'shadow', 'kimono'],
-};
+const MON_SIZE = Object.fromEntries(Object.entries(MONS).map(([k, m]) => [k, { cm: m.cm, up: Array.isArray(m.up) ? (m.up[0] + m.up[1]) / 2 : m.up }]));
+function encounterKind(fl, area) {
+  const all = Object.keys(MONS).filter(k => !MONS[k].boss);
+  const floor = all.filter(k => MONS[k].fl.includes(fl));
+  const room = area ? all.filter(k => MONS[k].rooms && MONS[k].rooms.test(area.name) && Math.min(...MONS[k].fl) <= fl) : [];
+  return pick(room.length && (Math.random() < 0.7 || !floor.length) ? room : floor.length ? floor : all);
+}
 
 // ---------------------------------------------------------------------
 //  Utils
@@ -137,9 +154,9 @@ function newGame() {
   };
 }
 
-const itemAt = (fl, x, y) => ITEMS.find(it => it.fl === fl && it.x === x && it.y === y && !state.flags['got_' + it.id]) || null;
+const itemAt = (fl, x, y) => ITEMS.find(it => it.fl === fl && it.x === x && it.y === y && !state.flags['got_' + it.id] && questVisible(it.quest)) || null;
 function npcAt(fl, x, y) {
-  return NPCS.find(n => n.fl === fl && n.x === x && n.y === y && !(n.hide && n.hide(state))) || null;
+  return NPCS.find(n => n.fl === fl && n.x === x && n.y === y && !(n.hide && n.hide(state)) && questVisible(n.quest)) || null; // まだ始まっていない話の人物はいない
 }
 const aliveParty = () => state.party.filter(c => c.hp > 0);
 
@@ -312,7 +329,7 @@ function drawDeco(e1, e2, d, type, edgeL, edgeR, top = 0.5) {
   } else if (type === 'hydrant') { // 消火栓の箱
     box(0.3, 0.7, -0.42, -0.02); box(0.36, 0.64, -0.36, -0.16); ln(0.36, -0.08, 0.64, -0.08);
   } else if (type === 'clock') { // 四角い時計
-    box(0.43, 0.57, 0.3, 0.44); ln(0.5, 0.37, 0.5, 0.42); ln(0.5, 0.37, 0.54, 0.37);
+    box(0.43, 0.57, 0.3, 0.44); ln(0.5, 0.37, 0.5, 0.425); ln(0.5, 0.37, 0.52, 0.335); // 5時：長い針は12、短い針は5の方向
   } else if (type === 'hoop') { // バスケットゴール：板と、その下のリング（四角）。床から約 3m
     const b = top > 0.5 ? 0.62 : 0.12;
     box(0.3, 0.7, b, b + 0.3); box(0.42, 0.58, b + 0.06, b + 0.18); box(0.44, 0.56, b - 0.04, b);
@@ -422,6 +439,7 @@ function viewHalf(kind) {
 // 直方体の備品：見えている面だけ黒で塗って白線、面ごとに直線の模様
 const BOX = {
   getabako: { hx: 0.45, hy: 0.2, h: 0.78 },  // 下駄箱：横長の棚、小さな仕切りが並ぶ
+  getabako_ns: { hx: 0.2, hy: 0.45, h: 0.78 }, // 南北に長い下駄箱
   stall: { hx: 0.45, hy: 0.45, h: 0.86 },    // トイレの個室
   sink: { hx: 0.4, hy: 0.2, h: 0.36 },       // 洗面台
   stage: { hx: 0.5, hy: 0.5, h: 0.26 },      // 体育館のステージ
@@ -443,7 +461,7 @@ function drawBox(kind, l, f) {
     const ln = (u0, hh0, u1, hh1) => { const q = quad(e1, e2, u0, u1, hh0, hh1); g.beginPath(); g.moveTo(...q[3]); g.lineTo(...q[1]); g.stroke(); };
     const rect = (u0, u1, hh0, hh1) => { path(quad(e1, e2, u0, u1, hh0, hh1)); g.stroke(); };
     g.lineWidth = 1;
-    if (kind === 'getabako') { const n = Math.max(2, Math.round(w / 0.15)); for (let i = 1; i < n; i++) ln(i / n, h0, i / n, h1); for (const t of [0.25, 0.5, 0.75]) ln(0, h0 + p.h * t, 1, h0 + p.h * t); }
+    if (kind.startsWith('getabako')) { const n = Math.max(2, Math.round(w / 0.15)); for (let i = 1; i < n; i++) ln(i / n, h0, i / n, h1); for (const t of [0.25, 0.5, 0.75]) ln(0, h0 + p.h * t, 1, h0 + p.h * t); }
     else if (kind === 'stall') { rect(0.18, 0.82, h0 + 0.04, h1 - 0.04); ln(0.72, h0 + 0.4, 0.76, h0 + 0.4); }
     else if (kind === 'stage') { ln(0, h1 - 0.05, 1, h1 - 0.05); }
     else if (kind === 'tank') { for (const t of [0.3, 0.6, 0.85]) ln(0, h0 + p.h * t, 1, h0 + p.h * t); rect(0.4, 0.6, h1 - 0.25, h1 - 0.05); }
@@ -685,77 +703,8 @@ function renderView() {
 }
 
 // ---------------------------------------------------------------------
-//  Monster wireframes
+//  戦闘の敵の描画
 // ---------------------------------------------------------------------
-function drawMonster(shape, x, y, s, col) {
-  g.save(); g.translate(x, y); g.scale(s, s);
-  g.strokeStyle = col; g.fillStyle = '#000'; g.lineWidth = 2 / s;
-  const L = (...p) => { g.beginPath(); g.moveTo(p[0], p[1]); for (let i = 2; i < p.length; i += 2) g.lineTo(p[i], p[i + 1]); g.stroke(); };
-  const C = (cx, cy, r, fill = true) => { g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); if (fill) g.fill(); g.stroke(); };
-  const eyes = (y0, dx, r = 4) => { C(-dx, y0, r); C(dx, y0, r); g.fillStyle = col; g.beginPath(); g.arc(-dx, y0, r / 2.5, 0, 7); g.arc(dx, y0, r / 2.5, 0, 7); g.fill(); g.fillStyle = '#000'; };
-  switch (shape) {
-    case 'shoe':
-      g.beginPath(); g.moveTo(-60, 0); g.lineTo(65, 0); g.quadraticCurveTo(92, -6, 78, -34); g.lineTo(18, -46); g.lineTo(-38, -58);
-      g.quadraticCurveTo(-68, -52, -60, 0); g.closePath(); g.fill(); g.stroke();
-      L(-62, -10, 82, -10); L(40, -40, 50, -2); g.beginPath(); g.ellipse(-12, -50, 26, 7, -0.15, 0, 7); g.stroke();
-      eyes(-30, 14, 5);
-      L(54, -18, 60, -12, 66, -18, 72, -12, 78, -18);
-      break;
-    case 'dust': {
-      g.beginPath();
-      for (let i = 0; i <= 40; i++) { const a = i / 40 * Math.PI * 2, r = 42 + (i % 2 ? 10 : -2) + Math.sin(i * 2.3) * 5; g.lineTo(Math.cos(a) * r, -45 + Math.sin(a) * r * 0.85); }
-      g.closePath(); g.fill(); g.stroke(); eyes(-50, 14, 6); L(-10, -28, 0, -32, 10, -28); break;
-    }
-    case 'model':
-      C(0, -175, 22); L(0, -197, 0, -153);
-      g.beginPath(); g.rect(-34, -150, 68, 90); g.fill(); g.stroke(); L(0, -150, 0, -60);
-      C(14, -128, 8, false); g.beginPath(); g.ellipse(18, -100, 10, 14, 0, 0, 7); g.stroke(); L(4, -80, 30, -76);
-      L(-34, -145, -55, -95, -48, -60); L(34, -145, 55, -95, 50, -62);
-      L(-20, -60, -24, -10); L(20, -60, 24, -10); L(-40, 0, 40, 0); L(0, -10, 0, 0); L(-24, -10, 24, -10);
-      eyes(-180, 9, 4); break;
-    case 'skeleton':
-      C(0, -178, 22); g.beginPath(); g.rect(-12, -160, 24, 12); g.stroke(); eyes(-182, 9, 6);
-      L(0, -148, 0, -60);
-      for (let i = 0; i < 5; i++) { const yy = -140 + i * 14, w = 34 - i * 3; g.beginPath(); g.ellipse(0, yy, w, 6, 0, Math.PI, 0, true); g.stroke(); }
-      L(-36, -144, -52, -100, -46, -58); L(36, -144, 52, -100, 46, -58);
-      g.beginPath(); g.ellipse(0, -58, 26, 10, 0, 0, 7); g.stroke();
-      L(-16, -52, -20, -4, -30, 0); L(16, -52, 20, -4, 30, 0); break;
-    case 'ghost':
-      g.beginPath(); g.moveTo(-50, -20); g.quadraticCurveTo(-58, -170, 0, -175); g.quadraticCurveTo(58, -170, 50, -20);
-      for (let i = 0; i < 5; i++) g.quadraticCurveTo(40 - i * 20, -5 - (i % 2) * 20, 30 - i * 20, -20);
-      g.closePath(); g.fill(); g.stroke(); eyes(-125, 16, 7);
-      g.beginPath(); g.ellipse(0, -95, 9, 12, 0, 0, 7); g.stroke();
-      g.save(); g.translate(45, -80); g.rotate(0.25); g.beginPath(); g.rect(-18, -26, 36, 50); g.fill(); g.stroke();
-      for (let i = 0; i < 5; i++) L(-12, -16 + i * 9, 12, -16 + i * 9); g.restore(); break;
-    case 'book':
-      g.beginPath(); g.moveTo(-80, -40); g.lineTo(0, -10); g.lineTo(80, -40); g.lineTo(80, -120); g.lineTo(0, -95); g.lineTo(-80, -120); g.closePath(); g.fill(); g.stroke();
-      L(0, -95, 0, -10);
-      for (let i = 0; i < 6; i++) { L(-70, -104 + i * 10 + i * 2, -12, -82 + i * 10); L(12, -82 + i * 10, 70, -104 + i * 10 + i * 2); }
-      L(-6, -90, 0, -78, 6, -90); L(-6, -60, 0, -48, 6, -60); L(-6, -30, 0, -18, 6, -30);
-      eyes(-135, 20, 7); break;
-    case 'shadow':
-      g.beginPath(); g.rect(-75, -200, 150, 110); g.fill(); g.stroke(); L(-80, -88, 80, -88);
-      g.beginPath(); g.moveTo(-30, -92); g.quadraticCurveTo(-34, -180, 0, -185); g.quadraticCurveTo(34, -180, 30, -92); g.stroke();
-      g.setLineDash([4, 4]); L(-50, -110, -20, -170); L(40, -120, 60, -180); g.setLineDash([]);
-      eyes(-150, 11, 5); L(-30, -88, -40, 0); L(30, -88, 40, 0); L(-40, 0, 40, 0); break;
-    case 'portrait':
-      g.beginPath(); g.rect(-60, -200, 120, 150); g.fill(); g.stroke(); g.beginPath(); g.rect(-50, -190, 100, 130); g.stroke();
-      g.beginPath(); g.ellipse(0, -130, 26, 34, 0, 0, 7); g.stroke();
-      L(-26, -138, -36, -170, 0, -178, 36, -170, 26, -138);
-      eyes(-135, 11, 5); L(-10, -110, 10, -110); L(-40, -60, -30, -80, 30, -80, 40, -60);
-      L(-30, -50, -30, 0); L(30, -50, 30, 0); L(-50, 0, 50, 0); break;
-    case 'bell':
-      L(-90, -240, 90, -240); L(0, -240, 0, -215);
-      g.beginPath(); g.moveTo(-30, -215); g.lineTo(30, -215); g.quadraticCurveTo(52, -200, 55, -120); g.quadraticCurveTo(60, -70, 95, -55);
-      g.lineTo(-95, -55); g.quadraticCurveTo(-60, -70, -55, -120); g.quadraticCurveTo(-52, -200, -30, -215); g.closePath(); g.fill(); g.stroke();
-      L(-80, -65, 80, -65); L(-60, -100, 60, -100);
-      L(20, -205, 30, -170, 18, -140, 28, -110);
-      C(0, -38, 14); L(0, -55, 0, -52);
-      g.fillStyle = '#fff'; g.beginPath(); g.arc(-22, -150, 6, 0, 7); g.arc(22, -150, 6, 0, 7); g.fill();
-      break;
-  }
-  g.restore();
-}
 
 // 被弾時の赤い点滅用：画像の不透明部分だけを塗った版をキャッシュ
 const TINTS = {};
@@ -769,40 +718,40 @@ function tinted(im, col) {
   }
   return TINTS[key];
 }
-// 画像があれば画像、なければワイヤーフレーム。戻り値は頭の上端の y
-function drawEnemy(m, x, y, s, flash) {
-  const im = m.img && getImage(m.img);
-  if (!im) { drawMonster(m.shape, x, y, s, '#fff'); return y - 170 * s; }
-  const h = m.ih * s, w = h * im.naturalWidth / im.naturalHeight, top = y - m.lift * s - h;
-  g.imageSmoothingEnabled = false;
-  g.drawImage(flash ? tinted(im, '#fff') : im, x - w / 2, top, w, h);
-  return top;
-}
 // 敵を、目の前の床に立つ実物大で描く（探索画面の背景と同じ遠近）
-//   奥行き：ふつう 1.5 マス先、小さい敵は 1 マス先、ボスは立っていた場所（約1マス先）。前が壁ならその手前まで
+//   奥行き：1マス先（小さい敵は少し手前）。前が壁ならその手前まで
 //   左右：通路の幅（±0.35 マス）に収まるよう並べ、数が多いときは前後に少しずらす
 function enemySpots(n, kind) {
   const sz = MON_SIZE[kind] || { cm: 160 };
   let free = 0; // 正面に何マス空いているか
   for (let x = state.x, y = state.y; free < 3 && edgeAt(state.fl, x, y, state.dir) === OPEN; free++) { x += DIRS[state.dir][0]; y += DIRS[state.dir][1]; }
-  const base = Math.min(MONS[kind].boss ? 1.1 : sz.cm < 60 ? 1.0 : 1.5, free + 0.45);
+  const base = Math.min(sz.cm < 60 ? 0.85 : 1.0, free + 0.45); // 目の前の1マス先。足もとが画面の下で切れてもよい
   // 3体までは横一列、それより多いときは後ろにもう1列（前列3体・後列は残り）。後列は前列のすき間に入る
   const front = Math.min(3, n), back = n - front, out = [];
   const row = (k, f, shift) => { const gap = Math.min(0.36, 0.72 / Math.max(1, k - 1)); for (let i = 0; i < k; i++) out.push({ l: (i - (k - 1) / 2) * gap + shift, f }); };
-  row(front, base, 0); if (back) row(back, base + 0.7, back % 2 ? 0.18 : 0); // 後列は前列のすき間に見えるようずらす
+  row(front, base, 0); if (back) row(back, base + 0.55, back % 2 ? 0.18 : 0); // 後列は前列のすき間に見えるようずらす
   return out;
 }
-function drawEnemyAt(kind, l, f, flash) {
-  const m = MONS[kind], sz = MON_SIZE[kind] || { cm: 160 }, im = m.img && getImage(m.img);
-  const up = (sz.up || 0) * CM, ht = sz.cm * CM;
+function drawEnemyAt(kind, l, f, flash, e) {
+  const m = MONS[kind], sz = MON_SIZE[kind] || { cm: 160 }, src = (e && e.img) || m.img || (m.imgs && m.imgs[0]), im = src && getImage(src);
+  const up = ((e && e.up != null ? e.up : sz.up) || 0) * CM, ht = sz.cm * CM;
   const top = P(l, f, -0.5 + up + ht), bot = P(l, f, -0.5 + up);
   const h = bot[1] - top[1];
-  if (!im) { drawMonster(m.shape, bot[0], bot[1], h / 240, '#fff'); return top; }
+  if (!im) { // 画像がまだ無い：大きさどおりの直線の箱で仮に表示
+    const hw = Math.max(0.08, sz.cm * CM * 0.35), y0 = -0.5 + up, y1 = y0 + ht;
+    const q = [P(l - hw, f, y1), P(l + hw, f, y1), P(l + hw, f, y0), P(l - hw, f, y0)];
+    path(q); g.fillStyle = '#000'; g.fill(); g.strokeStyle = flash ? '#fff' : 'rgba(255,255,255,0.8)'; g.lineWidth = flash ? 3 : 1.5; g.stroke();
+    if (flash) { g.fillStyle = '#fff'; path(q); g.fill(); }
+    return top;
+  }
   const w = h * im.naturalWidth / im.naturalHeight;
   g.imageSmoothingEnabled = false;
   g.drawImage(flash ? tinted(im, '#fff') : im, top[0] - w / 2, top[1], w, h);
   return top;
 }
+// スマホ（縦画面、またはタッチ操作）では、画面の中の文字を 1.5 倍に
+const MOBILE_Q = matchMedia('(max-width:700px) and (orientation:portrait), (pointer:coarse)');
+const textScale = () => (MOBILE_Q.matches ? 1.5 : 1);
 function renderBattle() {
   g.fillStyle = 'rgba(0,0,0,0.55)'; g.fillRect(0, 0, VW, VH);
   const m = MONS[battle.kind];
@@ -812,15 +761,16 @@ function renderBattle() {
   // 奥の敵から順に描く
   battle.enemies.map((e, i) => ({ e, p: spots[i] })).sort((a, b) => b.p.f - a.p.f).forEach(({ e, p }) => {
     if (e.hp <= 0) return;
-    const top = drawEnemyAt(battle.kind, p.l, p.f, e.flash);
-    if (e.sleep > 0) { g.fillStyle = '#fff'; g.font = '18px DotGothic16, monospace'; g.textAlign = 'center'; g.fillText('Zz', top[0] + 24, top[1] + 4); }
+    const top = drawEnemyAt(battle.kind, p.l, p.f, e.flash, e);
+    if (e.sleep > 0) { g.fillStyle = '#fff'; g.font = `${Math.round(18 * textScale())}px DotGothic16, monospace`; g.textAlign = 'center'; g.fillText('Zz', top[0] + 24, top[1] + 4); }
   });
   const alive = battle.enemies.filter(e => e.hp > 0).length;
-  g.font = '18px DotGothic16, monospace'; g.textAlign = 'center';
+  g.font = `${Math.round(18 * textScale())}px DotGothic16, monospace`; g.textAlign = 'center';
   const label = `${m.name}  ×${alive}`;
   const w = g.measureText(label).width + 28;
-  g.fillStyle = '#000'; g.fillRect(CX - w / 2, 12, w, 30); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.strokeRect(CX - w / 2, 12, w, 30);
-  g.fillStyle = '#fff'; g.fillText(label, CX, 33);
+  const bh = Math.round(30 * textScale());
+  g.fillStyle = '#000'; g.fillRect(CX - w / 2, 12, w, bh); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.strokeRect(CX - w / 2, 12, w, bh);
+  g.fillStyle = '#fff'; g.fillText(label, CX, 12 + bh * 0.7);
 }
 
 // ---------------------------------------------------------------------
@@ -901,7 +851,7 @@ function renderHUD() {
   document.getElementById('party').innerHTML =
     '<tr><th>Name</th><th>Lv</th><th>HP</th><th>MP</th><th>Status</th></tr>' + rows;
 }
-function render() { renderView(); renderMap(); renderHUD(); checkCap(); saveSoon(); }
+function render() { updateQuestLocks(); renderView(); renderMap(); renderHUD(); checkCap(); saveSoon(); }
 
 // ---------------------------------------------------------------------
 //  Log / dialog / command menu
@@ -972,12 +922,13 @@ function clearMenu() { menuOpts = []; cmdEl.innerHTML = ''; updatePad(); }
 const padBtns = [...document.querySelectorAll('#pad button')], PAD_DEFAULT = padBtns.map(b => b.innerHTML);
 function updatePad() {
   const battleMenu = menuOpts.length > 0;
-  document.getElementById('pad').classList.toggle('battle', battleMenu); // 横画面で並びを切り替える
+  document.getElementById('pad').classList.toggle('battle', battleMenu || !!battle); // 横画面で並びを切り替える
   padBtns.forEach((b, i) => {
+    if (!battleMenu && battle) { b.innerHTML = ''; b.disabled = true; return; } // 戦闘中で行動を選んでいない間（敵味方が動いている間）は空
     if (!battleMenu) { b.innerHTML = PAD_DEFAULT[i]; b.disabled = false; return; }
-    const o = i < 6 && menuOpts[i];
-    b.innerHTML = o ? `${i + 1}<span>${o[0]}</span>` : i === 6 ? (mode === 'choice' ? 'M<span>やめる</span>' : 'M<span>戻る</span>') : '';
-    b.disabled = !o && i !== 6;
+    const o = menuOpts[i];
+    b.innerHTML = o ? `${i + 1}<span>${o[0]}</span>` : '';
+    b.disabled = !o;
   });
 }
 function shake() { const w = document.getElementById('viewWrap'); w.classList.remove('shake'); void w.offsetWidth; w.classList.add('shake'); }
@@ -986,7 +937,27 @@ function shake() { const w = document.getElementById('viewWrap'); w.classList.re
 //  Exploration
 // ---------------------------------------------------------------------
 const CURTAIN_LINES = ['カーテンが閉まっている。', 'カーテンの隙間からも、外の様子はうかがえない。'];
-const windowLine = (x, y, d) => edgeAt(state.fl, x, y, d) === FENCE ? '柵の向こうに、夕焼けの空が広がっている。' : pick(curtainAt(state.fl, x, y, d) != null ? CURTAIN_LINES : WINDOW_LINES);
+// 窓の外に空が見えているか。目の前の窓なら、描いた画面のガラス部分に空の色がどれだけあるかで判定。
+// 横の窓（平行移動でぶつかった時）は、外のすぐ近くに校舎があるかで判定
+function skyVisible(x, y, d) {
+  if (x === state.x && y === state.y && d === state.dir) {
+    const sc = cv.width / VW, x0 = Math.round((CX - 180) * sc), y0 = Math.round(60 * sc), w = Math.round(360 * sc), h = Math.round(220 * sc);
+    const px = g.getImageData(x0, y0, w, h).data; let sky = 0, n = 0;
+    for (let i = 0; i < px.length; i += 4 * 7) { n++; const r = px[i], gg = px[i + 1], b = px[i + 2]; if (r + gg + b > 30 && !(r === gg && gg === b)) sky++; }
+    return sky / n > 0.15;
+  }
+  for (let k = 1; k <= 3; k++) {
+    const cx = x + DIRS[d][0] * k, cy = y + DIRS[d][1] * k;
+    if (areaAt(state.fl, cx, cy) || (k <= 2 && MAPS[state.fl + 1] && areaAt(state.fl + 1, cx, cy))) return false;
+  }
+  return true;
+}
+// 窓を調べた時の文。外が校舎でふさがっていれば、夕焼けには触れない
+const windowLine = (x, y, d) => {
+  if (edgeAt(state.fl, x, y, d) === FENCE) return '柵の向こうに、夕焼けの空が広がっている。';
+  if (curtainAt(state.fl, x, y, d) != null) return pick(CURTAIN_LINES);
+  return skyVisible(x, y, d) ? pick(WINDOW_LINES) : '窓は固く閉ざされ、びくともしない。';
+};
 const WINDOW_LINES = ['窓の外は燃えるような夕焼けだ。', '遠くの街並みが茜色に沈んでいく。', '窓は固く閉ざされ、びくともしない。', '紫からオレンジへ――空がゆっくり滲んでいる。'];
 
 // offset: 0 前進 / 2 後退 / 3 左平行 / 1 右平行（向きは変えない）
@@ -1004,7 +975,7 @@ function move(offset) {
     log('階段の側面だ。', 'sys'); return;
   }
   const pr = propAt(state.fl, nx, ny);
-  if (pr) { log({ bed: 'ベッドがある。', desk: '机がある。', getabako: '下駄箱が並んでいる。', stall: 'トイレの個室だ。', sink: '洗面台がある。', stage: 'ステージだ。', tank: '給水タンクだ。', unit: '室外機が並んでいる。', pool: 'プールの水が、夕焼けを映している。' }[pr] || '何かがある。', 'sys'); return; }
+  if (pr) { log({ bed: 'ベッドがある。', desk: '机がある。', getabako: '下駄箱が並んでいる。', getabako_ns: '下駄箱が並んでいる。', stall: 'トイレの個室だ。', sink: '洗面台がある。', stage: 'ステージだ。', tank: '給水タンクだ。', unit: '室外機が並んでいる。', pool: 'プールの水が、夕焼けを映している。' }[pr] || '何かがある。', 'sys'); return; }
   const n = npcAt(state.fl, nx, ny);
   if (n) { log(`${n.name}がいる。［Space］で話しかける`, 'sys'); return; }
   state.x = nx; state.y = ny;
@@ -1025,6 +996,7 @@ function useStairs(st) {
 function checkReveal() {
   if (state.flags.reveal || battle || mode !== 'explore') return;
   if (edgeAt(state.fl, state.x, state.y, state.dir) !== WIN || curtainAt(state.fl, state.x, state.y, state.dir) != null) return;
+  if (!skyVisible(state.x, state.y, state.dir)) return; // 外が校舎でふさがっている窓では起きない
   state.flags.reveal = true;
   showDialog([
     '窓の外は、燃えるような夕焼けだった。',
@@ -1051,7 +1023,7 @@ function afterStep() {
   state.cool--;
   const safe = r && r.safe;
   if (!safe && state.cool <= 0 && Math.random() < 0.09) {
-    const list = FLOOR_MONS[state.fl], k = pick(list), m = MONS[k];
+    const k = encounterKind(state.fl, areaAt(state.fl, state.x, state.y)), m = MONS[k];
     startBattle(k, groupSize(m));
   }
 }
@@ -1069,21 +1041,42 @@ function interact() {
   if (st) { useStairs(st); return; }
   if (ahead === WIN || ahead === FENCE) { log(windowLine(state.x, state.y, state.dir), 'sys'); return; }
   if (ahead === DOOR) { log('扉だ。前に進めば通り抜けられる。', 'sys'); return; }
-  log('特に何もない。', 'sys');
+  partyTalk();
+}
+// 仲間と話す：前に誰も何もない時。話す相手を選び、回復を頼める
+function partyTalk() {
+  const mates = state.party.slice(1);
+  if (!mates.length) { log('特に何もない。', 'sys'); return; }
+  if (mates.length === 1) { mateTalk(mates[0]); return; }
+  showChoice('誰と話す？', [...mates.map(c => [c.name, () => mateTalk(c)]), ['やめる', () => {}]]);
+}
+const canHeal = c => c.hp > 0 && ((c.spells.includes('heal') && c.mp >= SPELLS.heal.mp) || (c.spells.includes('chorus') && c.mp >= SPELLS.chorus.mp));
+function mateTalk(c) {
+  const hurt = state.party.filter(t => t.hp > 0 && t.hp < t.maxhp * 0.6).length, down = state.party.filter(t => t.hp <= 0).length;
+  let line;
+  if (c.hp <= 0) line = `${c.name}は 倒れたまま、目を閉じている。`;
+  else if (down) line = `${c.name}「倒れている人がいる。保健室まで戻ったほうがいい」`;
+  else if (hurt) line = `${c.name}「ずいぶん傷だらけね。少し休もうか」`;
+  else if (c.mp < c.maxmp * 0.3) line = `${c.name}「少し疲れてきた。呪文は、あまり使えないかも」`;
+  else line = pick([`${c.name}「まだ大丈夫。行こう」`, `${c.name}「チャイム、まだ鳴ってるね」`, `${c.name}「離れないで歩こう」`]);
+  const opts = [];
+  if (canHeal(c) && state.party.some(t => t.hp > 0 && t.hp < t.maxhp)) opts.push(['手当てを頼む', () => fieldHeal(c)]);
+  showDialog([line], () => { if (opts.length) showChoice(`${c.name}に頼む？`, [...opts, ['なんでもない', () => {}]]); render(); });
 }
 
 function healAll() { state.party.forEach(c => { c.hp = c.maxhp; c.mp = c.maxmp; }); }
 
-function fieldHeal() {
-  const caster = state.party.find(c => c.hp > 0 && c.spells.includes('heal') && c.mp >= SPELLS.heal.mp);
-  const choir = !caster && state.party.find(c => c.hp > 0 && c.spells.includes('chorus') && c.mp >= SPELLS.chorus.mp);
+function fieldHeal(by) {
+  const ok = c => !by || c === by;
+  const caster = state.party.find(c => ok(c) && c.hp > 0 && c.spells.includes('heal') && c.mp >= SPELLS.heal.mp);
+  const choir = !caster && state.party.find(c => ok(c) && c.hp > 0 && c.spells.includes('chorus') && c.mp >= SPELLS.chorus.mp);
   if (choir) {
     if (!state.party.some(c => c.hp > 0 && c.hp < c.maxhp)) { log('誰も怪我をしていない。', 'sys'); return; }
     choir.mp -= SPELLS.chorus.mp;
     for (const t of aliveParty()) t.hp = Math.min(t.maxhp, t.hp + rnd(4, 7) + Math.floor(choir.lv / 2));
     log(`${choir.name}の歌声。仲間全員の HP が回復した`, 'good'); render(); return;
   }
-  if (!caster) { log('回復の呪文を使える仲間がいない（またはMP不足）', 'sys'); return; }
+  if (!caster) { log('回復の呪文を使える仲間がいない', 'sys'); return; }
   const tgt = state.party.filter(c => c.hp > 0 && c.hp < c.maxhp).sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp)[0];
   if (!tgt) { log('誰も怪我をしていない。', 'sys'); return; }
   caster.mp -= SPELLS.heal.mp;
@@ -1121,7 +1114,8 @@ async function startBattle(kind, n, onWin) {
   mode = 'busy';
   battle = {
     kind, boss: !!m.boss, cmds: [], ci: 0, onWin, expMul: expMul(),
-    enemies: Array.from({ length: Math.min(n, ENEMY_MAX) }, () => { const hp = enemyHP(m); return { name: m.name, hp, maxhp: hp, atk: enemyAtk(m), ac: m.ac, agi: m.agi, lv: state.fl, boss: !!m.boss, sleep: 0, flash: false }; }),
+    enemies: Array.from({ length: Math.min(n, ENEMY_MAX) }, () => { const hp = enemyHP(m); return { name: m.name, hp, maxhp: hp, atk: enemyAtk(m), ac: m.ac, agi: m.agi, lv: state.fl, boss: !!m.boss, sleep: 0, flash: false,
+      img: m.imgs ? pick(m.imgs) : m.img, up: Array.isArray(m.up) ? rnd(m.up[0], m.up[1]) : m.up }; }),
   };
   state.cool = 6;
   faceOpenSide();
@@ -1131,7 +1125,27 @@ async function startBattle(kind, n, onWin) {
   await sleep(500);
   beginInput();
 }
-function beginInput() { battle.cmds = []; battle.ci = 0; mode = 'battle'; promptNext(); }
+function beginInput() {
+  battle.cmds = []; battle.ci = 0; mode = 'battle';
+  if (battle.auto) { autoChoose(); return; }
+  promptNext();
+}
+// オート戦闘：全員の行動を自動で決めて、戦闘が終わるまで続ける。途中で何か押すと止まり、次の回から手で選ぶ
+//   回復できる仲間は、HP が 4 割を切った人がいれば回復。それ以外は全員たたかう
+function autoPlan(c) {
+  const weak = aliveParty().some(t => t.hp < t.maxhp * 0.4);
+  if (weak && c.spells.includes('heal') && c.mp >= SPELLS.heal.mp) return { t: 'spell', id: 'heal' };
+  if (weak && c.spells.includes('chorus') && c.mp >= SPELLS.chorus.mp) return { t: 'spell', id: 'chorus' };
+  return { t: 'fight' };
+}
+function autoChoose() {
+  clearMenu(); mode = 'busy';
+  state.party.forEach((c, i) => { if (i >= battle.ci && c.hp > 0) battle.cmds[i] = autoPlan(c); });
+  battle.ci = state.party.length;
+  setTimeout(() => { if (battle) runRound(); }, 250);
+}
+function startAuto() { battle.auto = true; log('― オート戦闘 ―', 'sys'); autoChoose(); }
+function stopAuto() { if (battle && battle.auto) { battle.auto = false; log('オート戦闘を止めた。次の回から行動を選ぶ', 'sys'); } }
 function promptNext() {
   while (battle.ci < state.party.length && state.party[battle.ci].hp <= 0) battle.ci++;
   if (battle.ci >= state.party.length) { runRound(); return; }
@@ -1145,6 +1159,7 @@ function showBattleMenu(kind) {
       ['じゅもん', () => c.spells.length ? showBattleMenu('spell') : log(`${c.name}は じゅもんを知らない`, 'sys')],
       ['ぼうぎょ', () => choose({ t: 'defend' })],
       ['にげる', () => runAway()],
+      ['オート', () => startAuto()],
     ]);
   } else {
     setMenu(`${c.name}のじゅもん：`, [
@@ -1310,7 +1325,6 @@ async function victory() {
       '番人が崩れ落ちると、鐘の音が ゆっくりと消えていった。',
       '窓の外で、夕焼けがゆっくりと夜の藍色に溶けていく……',
       '― プロトタイプはここまで ―',
-      '（このまま探索を続けられます）',
     ]);
   }
 }
@@ -1332,7 +1346,7 @@ async function defeat() {
   await sleep(800);
   battle = null; mode = 'explore';
   const down = state.party.filter(levelDown).map(c => `${c.name}は レベル${c.lv}に下がった……`);
-  showDialog(['パーティは全滅した……', '……気がつくと、保健室のベッドの上だった。', ...(down.length ? down : ['（これ以上レベルは下がらなかった）'])], () => {
+  showDialog(['パーティは全滅した……', '……気がつくと、保健室のベッドの上だった。', ...down], () => {
     Object.assign(state, { fl: 1, x: START[0], y: START[1], dir: 2, room: null, cool: 6 });
     healAll(); markSeen(); render(); saveGame();
   });
@@ -1437,7 +1451,7 @@ function loadGame() {
       const c = (s.party || []).find(c => c.id === 'saeki');
       s.teachers = { saeki: c || null }; if (c) { c.id = 't_saeki'; c.cls = '体育'; s.flags.teacher = 'saeki'; s.flags.hadTeacher = true; } else delete s.teachers.saeki;
     }
-    if (!MAPS[s.fl] || !inMap(s.fl, s.x, s.y)) return false; // 校舎の形が変わって位置が無効なら、はじめから
+    if (!MAPS[s.fl] || !inMap(s.fl, s.x, s.y)) Object.assign(s, { fl: 1, x: START[0], y: START[1], dir: 2 }); // 校舎の形が変わって位置が無くなったら保健室から
     state = s;
     s.teachers = s.teachers || {};
     s.party = s.party.map(c => {
@@ -1461,6 +1475,7 @@ window.addEventListener('pagehide', saveGame);
 setInterval(() => { if (state && !document.hidden) state.time++; }, 1000);
 setInterval(saveGame, 15000);
 function handleKey(k) {
+  if (battle && battle.auto) { stopAuto(); return; }
   if (mode === 'menu') { menuKey(k); return; }
   if (mode === 'dialog') { if (k === ' ' || k === 'Enter' || k === 'z') advanceDialog(); return; }
   if (mode === 'choice') {
@@ -1497,18 +1512,19 @@ document.querySelectorAll('#pad button').forEach(b => {
     const k = b.dataset.k;
     if (mode === 'dialog') { advanceDialog(); return; }
     if (mode === 'menu') { menuKey(k); return; }
-    if (mode === 'battle' || mode === 'choice') {
-      const i = padBtns.indexOf(b);
-      if (i < 6 && menuOpts[i]) menuOpts[i][1]();
-      else if (i === 6) mode === 'battle' ? backInput() : menuOpts[menuOpts.length - 1][1]();
-      return;
-    }
+    if (battle && battle.auto) { stopAuto(); return; }
+    if (mode === 'battle' || mode === 'choice') { const o = menuOpts[padBtns.indexOf(b)]; if (o) o[1](); return; }
     handleKey(k);
   });
 });
 // 長押しで出るメニュー（コピー・画像の保存など）を出さない
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('selectstart', e => e.preventDefault());
+// ダブルタップでの拡大・ピンチでの拡大を止める（iPhone の Safari は viewport の指定だけでは止まらないため）
+let lastTouchEnd = 0;
+document.addEventListener('touchend', e => { const now = Date.now(); if (now - lastTouchEnd < 350) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
+document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
+document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
 window.addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
   // テンキー：探索中は e.code（NumLock の有無に関係なく）で移動。戦闘・会話中は数字として扱う
@@ -1521,7 +1537,7 @@ window.addEventListener('keydown', e => {
 //  Boot
 // ---------------------------------------------------------------------
 NPCS.forEach(n => n.img && getImage(n.img));
-Object.values(MONS).forEach(m => m.img && getImage(m.img));
+Object.values(MONS).forEach(m => [m.img, ...(m.imgs || [])].forEach(s => s && getImage(s)));
 Object.values(ITEM_IMG).forEach(i => getImage(i.src)); DECOR.forEach(d => getImage(d.img));
 if (loadGame()) {
   state.room = placeName(state.fl, state.x, state.y);
@@ -1536,8 +1552,6 @@ showDialog([
   '……目を覚ますと、保健室のベッドの上だった。',
   '窓の外は、紫からオレンジへと滲む夕焼け。下校時刻はとうに過ぎている。',
   'どこか遠くで、チャイムが鳴っている。',
-  '（保健の先生は部屋の西側にいる。隣の職員室には誰か残っているだろうか）',
-  '（M でメニュー）',
 ]);
 }
 // fonts may load late; redraw once they do

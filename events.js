@@ -37,11 +37,11 @@ function rewardExp(n) { aliveParty().forEach(c => { c.exp += n; }); levelUps(); 
 function rewardAll(fn) { state.party.forEach(fn); }
 
 const ITEMS = [
-  { id: 'shoe', fl: 2, x: 14, y: 23, text: ['床に、上履きが片方だけ落ちている。', 'かかとに「1-A」と書かれた名前の欄がある。'] },
-  { id: 'keys', fl: 2, x: 16, y: 6, text: ['廊下の真ん中に、鍵束が落ちている。', 'タグに「用務員室」とある。'] },
-  { id: 'tape', fl: 3, x: 34, y: 22, text: ['棚の奥に、ラベルの褪せたカセットテープがある。', '「最終下校　1979」と書かれている。'] },
-  { id: 'bag', fl: 3, x: 24, y: 11, text: ['机の脇に、真新しい学生カバンが掛かっている。', '名札には「1年」とだけ読める。'] },
-  { id: 'badge', fl: 1, x: 31, y: 12, text: ['楽譜の山の下に、古い校章バッジが埋もれていた。', '（Player の攻撃力が上がった）'], get() { const p = state.party[0]; p.atk = [p.atk[0] + 2, p.atk[1] + 2]; } },
+  { id: 'shoe', quest: 'q1', fl: 2, x: 14, y: 23, text: ['床に、上履きが片方だけ落ちている。', 'かかとに「1-A」と書かれた名前の欄がある。'] },
+  { id: 'keys', quest: 'q7', fl: 2, x: 16, y: 6, text: ['廊下の真ん中に、鍵束が落ちている。', 'タグに「用務員室」とある。'] },
+  { id: 'tape', quest: 'q3', fl: 3, x: 34, y: 22, text: ['棚の奥に、ラベルの褪せたカセットテープがある。', '「最終下校　1979」と書かれている。'] },
+  { id: 'bag', quest: 'q5', fl: 3, x: 24, y: 11, text: ['机の脇に、真新しい学生カバンが掛かっている。', '名札には「1年」とだけ読める。'] },
+  { id: 'badge', fl: 1, x: 31, y: 12, text: ['楽譜の山の下に、古い校章バッジが埋もれていた。'], get() { const p = state.party[0]; p.atk = [p.atk[0] + 2, p.atk[1] + 2]; } },
 ];
 
 // ===================== 職員室の先生（1人だけ連れて行ける。職員室で交代できる） =====================
@@ -120,10 +120,42 @@ function teacherNPC(t) {
     hide: s => inParty(t.key),
     talk(s) {
       const sp = t.spells.map(i => SPELLS[i].name).join('・');
-      return [`${t.name}先生（${t.cls}）${t.line}`, `（${t.note}。呪文：${sp}）`];
+      return [`${t.name}先生${t.line}`];
     },
     after() { offerJoin(t.key); },
   };
+}
+
+// ===================== サブシナリオの進み方 =====================
+//   同時に進められるのは 2 本まで。この順に、終わるたび次の 1 本が「始まる」
+//   始まっていない話の人物・落とし物・敵は、まだそこにいない（放送室・司書室は鍵がかかっている）
+//   新しく始まった話は、保健の先生がヒントをくれる
+const QUEST_ORDER = ['q7', 'q1', 'q2', 'q6', 'q4', 'q5', 'q3'];
+const QUEST_MAX_OPEN = 2;
+function openQuests() {
+  const f = state.flags, done = q => f[q + 'done'];
+  const open = QUEST_ORDER.filter(q => !done(q) && f[q]); // すでに頼まれている話
+  for (const q of QUEST_ORDER) if (open.length < QUEST_MAX_OPEN && !done(q) && !open.includes(q)) open.push(q);
+  return open;
+}
+const questVisible = q => !q || state.flags[q + 'done'] || openQuests().includes(q);
+// 鍵のかかった部屋の扉（放送室・司書室）は、その話が始まると開く
+function updateQuestLocks() { for (const q of QUEST_ORDER) state.flags['open_' + q] = questVisible(q); }
+const QUEST_HINT = {
+  q7: '「用務員さんが、さっきから何か探してたみたい」',
+  q1: '「1年A組に、1年生の子がまだ残ってるって聞いたわ」',
+  q2: '「理科室に先生が戻ってきたみたい。準備室が騒がしいって」',
+  q6: '「美術室で、美術部の子が絵を描いているのを見た人がいるの」',
+  q4: '「司書室の鍵が開いてたわ。司書さん、何か困ってるみたい」',
+  q5: '「3年の教室のあたりで、新入生の子を見かけたって」',
+  q3: '「放送室の鍵が開いてたわ。放送部の子が来てるのかしら」',
+};
+// まだ伝えていないヒントを返す（一度伝えたら繰り返さない）
+function questHints(s) {
+  const out = [];
+  for (const q of openQuests()) if (!s.flags[q] && !s.flags['hint_' + q]) { s.flags['hint_' + q] = true; out.push(QUEST_HINT[q]); }
+  if (s.flags.q7done && !s.flags.got_badge && !s.flags.hint_badge) { s.flags.hint_badge = true; out.push('「音楽準備室に、古い校章バッジがしまってあるそうよ。役に立つかもね」'); }
+  return out;
 }
 
 const NPCS = [
@@ -133,12 +165,13 @@ const NPCS = [
     talk(s) {
       const first = !s.flags.metNurse; s.flags.metNurse = true;
       healAll();
+      const hints = questHints(s);
       return first ? [
         '保健の先生「気がついた？ 廊下で倒れていたのよ」',
         '「五時のチャイム、まだ鳴ってるわね」',
         '「隣の職員室に、まだ先生が何人か残っているはずよ。誰か一人についてきてもらいなさい」',
-        '（体力と気力が全回復した）',
-      ] : ['保健の先生「無理はしないでね。ほら、少し休んでいきなさい」', '（体力と気力が全回復した）'];
+        ...hints,
+      ] : ['保健の先生「無理はしないでね。ほら、少し休んでいきなさい」', ...hints];
     } },
   { id: 'mizuno', fl: 1, x: 25, y: 25, name: '図書委員', img: 'image/chara_mizuno.png', ht: 152, hide: () => inParty('mizuno'),
     talk(s) {
@@ -157,7 +190,7 @@ const NPCS = [
       '生徒「帰ろうと思ってたんだけど、夕焼けがきれいでさ」',
       '「チャイムが鳴り終わったら帰るよ」',
     ]; } },
-  { id: 'bell', fl: 4, x: 4, y: 20, name: '鐘の番人', img: 'image/monster_time_warden_boss.png', ht: 200, boss: true, hide: s => s.flags.bossDown,
+  { id: 'bell', fl: 4, x: 4, y: 20, name: '鐘の番人', img: 'image/enemy/enemy_time_warden_boss.png', ht: 200, boss: true, hide: s => s.flags.bossDown,
     talk(s) { return [
       '鐘楼の天井から、古い校内放送の鐘が吊るされている。',
       'その傍らに、フードを目深にかぶった大きな人影が立っていた。',
@@ -168,13 +201,13 @@ const NPCS = [
     after() { startBattle('bell', 1); } },
 
   // ===================== 1 片方の上履き =====================
-  { id: 'ichinen', fl: 1, x: 4, y: 16, name: '1年生', img: 'image/chara_1nen.png', ht: 150, hide: s => s.flags.q1done,
+  { id: 'ichinen', quest: 'q1', fl: 1, x: 4, y: 16, name: '1年生', img: 'image/chara_1nen.png', ht: 150, hide: s => s.flags.q1done,
     talk(s) {
       if (hasItem('shoe')) return [
         '1年生「あっ、わたしの上履き！ どこにあったの？」',
         '「……2階の廊下？ あの子、そんなところまで行ってたんだ」',
         '「ありがとう。これ、おばあちゃんにもらったお守り。持ってって」',
-        '★ お守りを もらった（全員の守りが上がった）',
+        '★ お守りを もらった',
       ];
       s.flags.q1 = true;
       return [
@@ -186,28 +219,28 @@ const NPCS = [
     after(s) { if (!hasItem('shoe')) return; takeItem('shoe'); state.items.push('omamori'); rewardAll(c => { c.ac--; }); s.flags.q1done = true; } },
 
   // ===================== 2 逃げた人体模型 =====================
-  { id: 'rika', fl: 1, x: 32, y: 2, name: '理科の先生', img: 'image/chara_rika.png', ht: 172,
+  { id: 'rika', quest: 'q2', fl: 1, x: 32, y: 2, name: '理科の先生', img: 'image/chara_rika.png', ht: 172,
     talk(s) {
       if (s.flags.q2done) return ['理科の先生「準備室は片付いたよ。模型たちも、しばらくはおとなしくしているだろう」'];
       if (s.flags.q2fight) return [
         '理科の先生「本当に止めてくれたのか！ 助かった」',
         '「これは気付け薬だ。昔の薬品棚にあったものだが、よく効くよ」',
-        '★ 気付け薬を使った（全員の最大HPが 3 上がった）',
+        '★ 気付け薬を もらった',
       ];
       s.flags.q2 = true;
       return [
         '理科の先生「君たち、準備室には入らないほうがいい」',
         '「人体模型が、また二体とも歩き回っていてね」',
-        '「止めてくれるなら、礼はする。準備室は理科室の南だ」',
+        '「止めてくれるなら、礼はする。準備室は理科室の隣だ」',
       ];
     },
     after(s) { if (s.flags.q2fight && !s.flags.q2done) { s.flags.q2done = true; rewardAll(c => { c.maxhp += 3; c.hp += 3; }); rewardExp(20); } } },
-  { id: 'q2foe', fl: 1, x: 31, y: 5, name: '人体模型', img: 'image/monster_anatomical_model.png', ht: 165, foe: true, hide: s => s.flags.q2fight,
+  { id: 'q2foe', quest: 'q2', fl: 1, x: 31, y: 5, name: '人体模型', img: 'image/enemy/enemy_anatomical_model.png', ht: 165, foe: true, hide: s => s.flags.q2fight,
     talk() { return ['棚の陰から、人体模型が二体、ぎくしゃくと振り向いた――！']; },
     after() { startBattle('model', 2, () => { state.flags.q2fight = true; }); } },
 
   // ===================== 3 最後の放送 =====================
-  { id: 'housou', fl: 1, x: 16, y: 1, name: '放送部員', img: 'image/chara_housou.png', ht: 160,
+  { id: 'housou', quest: 'q3', fl: 1, x: 16, y: 1, name: '放送部員', img: 'image/chara_housou.png', ht: 160,
     talk(s) {
       if (s.flags.q3done) return ['放送部員「あの放送のあと、鐘の音が少し遠くなった気がする」'];
       if (hasItem('tape')) return [
@@ -227,14 +260,14 @@ const NPCS = [
     after(s) { if (hasItem('tape') && !s.flags.q3done) { takeItem('tape'); s.flags.q3done = true; rewardExp(25); } } },
 
   // ===================== 4 卒業アルバム =====================
-  { id: 'shisho', fl: 1, x: 30, y: 26, name: '司書', img: 'image/chara_sisyo.png', ht: 160,
+  { id: 'shisho', quest: 'q4', fl: 1, x: 30, y: 26, name: '司書', img: 'image/chara_sisyo.png', ht: 160,
     talk(s) {
       if (s.flags.q4done) return ['司書「アルバム、ちゃんと棚に戻しておいたわ」'];
       if (hasItem('album')) return [
         '司書「返ってきた！ 1979年度の卒業アルバム」',
         '「……あら、最後の集合写真。番人さんも一緒に写ってるのね」',
         '「お礼にこれを。栞よ。読みかけの気持ちを、なくさないように」',
-        '★ 古い栞を もらった（呪文を使える仲間の最大MPが 2 上がった）',
+        '★ 古い栞を もらった',
       ];
       s.flags.q4 = true;
       return [
@@ -258,7 +291,7 @@ const NPCS = [
     } },
 
   // ===================== 5 迷子の新入生 =====================
-  { id: 'shinnyu', fl: 3, x: 2, y: 8, name: '新入生', img: 'image/chara_sinnnyuusei.png', ht: 155, hide: s => s.flags.q5done,
+  { id: 'shinnyu', quest: 'q5', fl: 3, x: 2, y: 8, name: '新入生', img: 'image/chara_sinnnyuusei.png', ht: 155, hide: s => s.flags.q5done,
     talk(s) {
       if (hasItem('bag')) return [
         '新入生「ぼくのカバン！ どの教室にありました？」',
@@ -275,13 +308,13 @@ const NPCS = [
     after(s) { if (hasItem('bag') && !s.flags.q5done) { takeItem('bag'); s.flags.q5done = true; rewardExp(30); } } },
 
   // ===================== 6 見つめる肖像画 =====================
-  { id: 'art', fl: 2, x: 26, y: 13, name: '美術部員', img: 'image/chara_art_club.png', ht: 155,
+  { id: 'art', quest: 'q6', fl: 2, x: 26, y: 13, name: '美術部員', img: 'image/chara_art_club.png', ht: 155,
     talk(s) {
       if (s.flags.q6done) return ['美術部員「もう、誰にも見られてない感じがする。……ありがとう」'];
       if (s.flags.q6fight) return [
         '美術部員「肖像画、静かになった……？ よかった」',
         '「これ、わたしが描いた校舎の見取り図。よかったら使って」',
-        '★ 校舎の見取り図を もらった（ミニマップに全階の形が描かれた）',
+        '★ 校舎の見取り図を もらった',
       ];
       s.flags.q6 = true;
       return [
@@ -290,12 +323,12 @@ const NPCS = [
       ];
     },
     after(s) { if (s.flags.q6fight && !s.flags.q6done) { s.flags.q6done = true; state.items.push('map'); revealAllMaps(); rewardExp(20); } } },
-  { id: 'q6foe', fl: 2, x: 31, y: 13, name: '肖像画', img: 'image/monster_watching_portrait_.png', ht: 120, foe: true, hide: s => s.flags.q6fight,
+  { id: 'q6foe', quest: 'q6', fl: 2, x: 31, y: 13, name: '肖像画', img: 'image/enemy/enemy_portrait.png', ht: 120, foe: true, hide: s => s.flags.q6fight,
     talk() { return ['イーゼルに立てかけられた肖像画が、まばたきをした――！']; },
     after() { startBattle('portrait', 1, () => { state.flags.q6fight = true; }); } },
 
   // ===================== 7 用務員の鍵束 =====================
-  { id: 'youmu', fl: 1, x: 19, y: 2, name: '用務員', img: 'image/chara_caretaker.png', ht: 165,
+  { id: 'youmu', quest: 'q7', fl: 1, x: 19, y: 2, name: '用務員', img: 'image/chara_caretaker.png', ht: 165,
     talk(s) {
       if (s.flags.q7done) return ['用務員「音楽準備室なら開けといたよ。古い物が埋もれてるかもしれん」'];
       if (hasItem('keys')) return [
@@ -307,7 +340,7 @@ const NPCS = [
       return [
         '用務員「鍵束を落としちまってね。2階の、曲がりくねった廊下のどこかだ」',
         '「あそこは見晴らしがよくてな、つい景色に見とれて……。拾ってきてくれんか」',
-        '「1階の東の階段から上がって、くねくねした廊下をたどるといい」',
+        '「階段を上がって、くねくねした廊下をたどるといい」',
       ];
     },
     after(s) { if (hasItem('keys') && !s.flags.q7done) { takeItem('keys'); s.flags.q7done = true; s.flags.keys = true; rewardExp(15); } } },

@@ -63,10 +63,25 @@ function makeFloor(name, W, H, build) {
   };
   build(api);
   const at = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? F.grid[y][x] : null);
-  // 虚空との境は、屋内なら窓、屋外なら柵
-  const kind = (a, b) => (!a && !b ? OPEN : !a || !b ? ((a || b).outdoor ? FENCE : (a || b).solid ? WALL : WIN) : a === b ? OPEN : WALL);
-  F.h = Array.from({ length: H + 1 }, (_, y) => Array.from({ length: W }, (_, x) => kind(at(x, y - 1), at(x, y))));
-  F.v = Array.from({ length: H }, (_, y) => Array.from({ length: W + 1 }, (_, x) => kind(at(x - 1, y), at(x, y))));
+  // 校舎に囲まれた狭い空き地（盤面の外とつながらず、POCKET_MAX マス未満）を探す
+  const POCKET_MAX = 40, outside = new Set(), pocket = new Set();
+  const isVoid = (x, y) => x >= 0 && y >= 0 && x < W && y < H && !F.grid[y][x];
+  const flood = (sx, sy, set) => { const q = [[sx, sy]], cells = [[sx, sy]]; set.add(sx + ',' + sy);
+    while (q.length) { const [x, y] = q.pop(); for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const nx = x + dx, ny = y + dy, k = nx + ',' + ny;
+      if (isVoid(nx, ny) && !set.has(k)) { set.add(k); q.push([nx, ny]); cells.push([nx, ny]); } } }
+    return cells; };
+  for (let x = 0; x < W; x++) for (const y of [0, H - 1]) if (isVoid(x, y) && !outside.has(x + ',' + y)) flood(x, y, outside);
+  for (let y = 0; y < H; y++) for (const x of [0, W - 1]) if (isVoid(x, y) && !outside.has(x + ',' + y)) flood(x, y, outside);
+  const done = new Set(outside);
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (isVoid(x, y) && !done.has(x + ',' + y)) {
+    const cells = flood(x, y, done);
+    if (cells.length < POCKET_MAX) cells.forEach(([cx, cy]) => pocket.add(cx + ',' + cy));
+  }
+  F.pocket = pocket;
+  // 虚空との境は、屋内なら窓、屋外なら柵。ただし狭い空き地に面する所は壁
+  const kind = (a, b, vx, vy) => (!a && !b ? OPEN : !a || !b ? (pocket.has(vx + ',' + vy) ? WALL : (a || b).outdoor ? FENCE : (a || b).solid ? WALL : WIN) : a === b ? OPEN : WALL);
+  F.h = Array.from({ length: H + 1 }, (_, y) => Array.from({ length: W }, (_, x) => { const a = at(x, y - 1), b = at(x, y); return kind(a, b, x, a ? y : y - 1); }));
+  F.v = Array.from({ length: H }, (_, y) => Array.from({ length: W + 1 }, (_, x) => { const a = at(x - 1, y), b = at(x, y); return kind(a, b, a ? x : x - 1, y); }));
   for (const [x, y, d, k] of over) {
     if (d === 0) F.h[y][x] = k; else if (d === 2) F.h[y + 1][x] = k;
     else if (d === 3) F.v[y][x] = k; else F.v[y][x + 1] = k;
@@ -85,20 +100,19 @@ const MAPS = {
     m.prop('bed', 3, 1, 4, 1, 5, 1); m.prop('desk', 2, 1);
     m.room('職員室', A, 6, 1, 11, 3, { safe: true }); m.door(8, 3, 2); m.prop('desk', 6, 3, 11, 3); // 先生 8 人は北の壁ぞいと南の 2 か所に立つ
     m.room('校長室', A, 12, 1, 14, 3); m.door(13, 3, 2); m.prop('desk', 13, 1);
-    m.room('放送室', A, 15, 1, 17, 3); m.door(16, 3, 2); m.prop('desk', 15, 1);
+    m.room('放送室', A, 15, 1, 17, 3); m.door(16, 3, 2, 'open_q3'); m.prop('desk', 15, 1);
     m.room('用務員室', A, 18, 1, 20, 3, { safe: true }); m.door(19, 3, 2);
     m.stairs('A12', 23, 2, 0, true);
-    // 昇降口：下駄箱が並ぶ。A棟の廊下から南へ抜ける
-    const gen = m.hall('昇降口', A, [[8, 5], [14, 5]]); m.rect(gen, 8, 5, 14, 10);
-    for (let x = 9; x <= 12; x++) m.link(x, 4, 2);
-    m.prop('getabako', 9, 7, 10, 7, 11, 7, 12, 7, 13, 7, 9, 9, 10, 9, 11, 9, 12, 9, 13, 9);
-    // トイレ（昇降口の東）
-    m.room('男子トイレ', A, 15, 5, 17, 7); m.door(15, 6, 3); m.prop('stall', 17, 6, 17, 7); m.prop('sink', 15, 5); m.deco(15, 5, 0, 'mirror');
-    m.room('女子トイレ', A, 15, 8, 17, 10); m.door(15, 9, 3); m.prop('stall', 17, 8, 17, 9, 17, 10); m.prop('sink', 15, 10); m.deco(15, 10, 3, 'mirror');
+    // トイレ：A棟の廊下の南側
+    m.room('男子トイレ', A, 15, 5, 16, 7); m.door(15, 5, 0); m.prop('stall', 16, 6, 16, 7); m.prop('sink', 15, 7); m.deco(15, 6, 2, 'mirror');
+    m.room('女子トイレ', A, 17, 5, 18, 7); m.door(18, 5, 0); m.prop('stall', 17, 6, 17, 7); m.prop('sink', 18, 7); m.deco(18, 6, 2, 'mirror');
 
     m.hall('渡り廊下', '', [[6, 5], [6, 11]]); m.link(6, 4, 2); m.link(6, 11, 2);
 
     const bCor = m.hall('廊下', B, [[2, 12], [24, 12]]); m.rect(bCor, 22, 13, 24, 16);
+    // 昇降口：校舎の西の端。ガラス戸（窓）は校舎の外に面する。B棟の廊下の西の端につながる
+    const gen = m.hall('昇降口', B, [[0, 7], [0, 12]]); m.rect(gen, 1, 7, 1, 12); m.link(1, 12, 1);
+    m.prop('getabako_ns', 1, 8, 1, 9, 1, 10);
     [['1年A組', 2], ['1年B組', 7], ['1年C組', 12], ['1年D組', 17]].forEach(([n, x]) => {
       m.room(n, B, x, 13, x + 4, 16); m.door(x + 2, 13, 0); m.desks(x, 13, x + 4, 16);
     });
@@ -129,7 +143,7 @@ const MAPS = {
 
     const dCor = m.hall('廊下', D, [[20, 23], [38, 23]]); m.rect(dCor, 36, 20, 38, 22);
     m.room('図書室', D, 20, 24, 28, 27); m.door(24, 24, 0); m.prop('desk', 22, 25, 22, 26, 27, 25, 27, 26);
-    m.room('司書室', D, 29, 24, 31, 27); m.door(30, 24, 0);
+    m.room('司書室', D, 29, 24, 31, 27); m.door(30, 24, 0, 'open_q4');
     m.room('自習室', D, 32, 24, 38, 27); m.door(35, 24, 0); m.prop('desk', 34, 26, 36, 26);
     m.stairs('D13', 37, 21, 0, true); // D棟の階段は 2F を飛ばして 3F に出る
   }),
