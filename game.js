@@ -1027,7 +1027,7 @@ function shake() { const w = document.getElementById('viewWrap'); w.classList.re
 // ---------------------------------------------------------------------
 //  Exploration
 // ---------------------------------------------------------------------
-const CURTAIN_LINES = ['カーテンが閉まっている。', 'カーテンの隙間からも、外の様子はうかがえない。'];
+const CURTAIN_LINES = ['カーテンが閉まっている。', '外は見えない。'];
 // 窓の外に空が見えているか。目の前の窓なら、描いた画面のガラス部分に空の色がどれだけあるかで判定。
 // 横の窓（平行移動でぶつかった時）は、外のすぐ近くに校舎があるかで判定
 function skyVisible(x, y, d) {
@@ -1045,11 +1045,11 @@ function skyVisible(x, y, d) {
 }
 // 窓を調べた時の文。外が校舎でふさがっていれば、夕焼けには触れない
 const windowLine = (x, y, d) => {
-  if (edgeAt(state.fl, x, y, d) === FENCE) return '柵の向こうに、夜になりきれない空が広がっている。';
+  if (edgeAt(state.fl, x, y, d) === FENCE) return '柵の向こうに、空がある。';
   if (curtainAt(state.fl, x, y, d) != null) return pick(CURTAIN_LINES);
-  return skyVisible(x, y, d) ? pick(WINDOW_LINES) : '窓は固く閉ざされ、びくともしない。';
+  return skyVisible(x, y, d) ? pick(WINDOW_LINES) : '窓は開かない。';
 };
-const WINDOW_LINES = ['窓の外は、夜になりきれない空だ。', '遠くの街並みが、暗い赤の底に沈んでいる。', '窓は固く閉ざされ、びくともしない。', '紺から暗い紫へ――空の色が、どこか落ち着かない。'];
+const WINDOW_LINES = ['夜が近づいている。', '遠くに街が見える。', '窓は開かない。'];
 
 // offset: 0 前進 / 2 後退 / 3 左平行 / 1 右平行（向きは変えない）
 function move(offset) {
@@ -1057,24 +1057,24 @@ function move(offset) {
   const nx = state.x + DIRS[d][0], ny = state.y + DIRS[d][1];
   const e = edgeAt(state.fl, state.x, state.y, d);
   if (e === DOOR && !inMap(state.fl, nx, ny)) { log('扉は開かない。', 'sys'); return; }
-  if (isBlocking(e) || !inMap(state.fl, nx, ny)) { log(e === WIN || e === FENCE ? windowLine(state.x, state.y, d) : 'ゴツン。壁だ。', 'sys'); return; }
+  if (isBlocking(e) || !inMap(state.fl, nx, ny)) { log(e === WIN || e === FENCE ? windowLine(state.x, state.y, d) : '壁だ。', 'sys'); return; }
   const lk = e === DOOR && lockAt(state.fl, state.x, state.y, d);
   if (lk && !state.flags[lk]) { log('扉には鍵がかかっている。', 'sys'); return; }
-  if (e === DOOR) log('扉を開けて通り抜けた。', 'sys');
+  if (e === DOOR) log('扉を開けた。', 'sys');
   const sa = stairAt(state.fl, nx, ny);
   if (sa) {
     if (offset === 0 && sa.i === 0 && sa.st.dir === d) { useStairs(sa.st); return; }
     log('階段の側面だ。', 'sys'); return;
   }
   const pr = propAt(state.fl, nx, ny);
-  if (pr) { log({ bed: 'ベッドがある。', desk: '机がある。', getabako: '下駄箱が並んでいる。', getabako_ns: '下駄箱が並んでいる。', stall: 'トイレの個室だ。', sink: '洗面台がある。', stage: 'ステージだ。', tank: '給水タンクだ。', unit: '室外機が並んでいる。', pool: 'プールの水が、暗い空を映している。' }[pr.split(':')[0]] || '何かがある。', 'sys'); return; }
+  if (pr) { log({ bed: 'ベッドがある。', desk: '机がある。', getabako: '下駄箱が並んでいる。', getabako_ns: '下駄箱が並んでいる。', stall: 'トイレの個室だ。', sink: '洗面台がある。', stage: 'ステージだ。', tank: '給水タンクだ。', unit: '室外機が並んでいる。', pool: 'プールだ。' }[pr.split(':')[0]] || '何かがある。', 'sys'); return; }
   const n = npcAt(state.fl, nx, ny);
-  if (n) { log(`${n.name}がいる。［${usePad() ? '話す' : 'Space'}］で話しかける`, 'sys'); return; }
+  if (n) { log(usePad() ? `${n.name}がいる。` : `${n.name}がいる。［Space］`, 'sys'); return; }
   state.x = nx; state.y = ny;
   afterStep();
 }
 function turn(delta) { state.dir = (state.dir + delta + 4) % 4; markSeen(); render(); stairHint(); checkReveal(); }
-function stairHint() { const st = stairAhead(); if (st) { const k = usePad() ? '↑' : '5'; log(st.up ? `上り階段だ。［${k}］で上る` : `下り階段だ。［${k}］で下りる`, 'sys'); } }
+function stairHint() { const st = stairAhead(); if (st) log((st.up ? '上り階段だ。' : '下り階段だ。') + (usePad() ? '' : '［5］'), 'sys'); }
 // 昇り降り：つながる階の同じ id の階段の手前のマスへ。向きは階段に背を向ける
 function useStairs(st) {
   const fl = +Object.keys(MAPS).find(k => +k !== state.fl && MAPS[k].stairs.some(t => t.id === st.id));
@@ -1090,11 +1090,7 @@ function checkReveal() {
   if (edgeAt(state.fl, state.x, state.y, state.dir) !== WIN || curtainAt(state.fl, state.x, state.y, state.dir) != null) return;
   if (!skyVisible(state.x, state.y, state.dir)) return; // 外が校舎でふさがっている窓では起きない
   state.flags.reveal = true;
-  showDialog([
-    '窓の外は、夜の手前の空だった。',
-    '紺から暗い紫へ。地平の際にだけ、暗い赤が残っている。',
-    'きれいな時間は、もう過ぎてしまったような明るさだった。',
-  ], () => render());
+  showDialog(['夜が近づいている。'], () => render());
 }
 
 function afterStep() {
@@ -1138,7 +1134,7 @@ function interact() {
   if (ahead === WIN || ahead === FENCE) { log(windowLine(state.x, state.y, state.dir), 'sys'); return; }
   if (ahead === DOOR) {
     const lk = lockAt(state.fl, state.x, state.y, state.dir);
-    log(!inMap(state.fl, fx, fy) ? '扉は開かない。' : lk && !state.flags[lk] ? '扉には鍵がかかっている。' : '扉だ。前に進めば通り抜けられる。', 'sys'); return;
+    log(!inMap(state.fl, fx, fy) ? '扉は開かない。' : lk && !state.flags[lk] ? '扉には鍵がかかっている。' : '扉だ。', 'sys'); return;
   }
   partyTalk();
 }
@@ -1180,15 +1176,15 @@ function fieldHeal(by) {
     if (!state.party.some(c => c.hp > 0 && c.hp < c.maxhp)) { log('誰も怪我をしていない。', 'sys'); return; }
     choir.mp -= SPELLS.chorus.mp;
     for (const t of aliveParty()) t.hp = Math.min(t.maxhp, t.hp + rnd(4, 7) + Math.floor(choir.lv / 2));
-    log(`${choir.name}の歌声。仲間全員の HP が回復した`, 'good'); render(); return;
+    log('みんな 回復した', 'good'); render(); return;
   }
-  if (!caster) { log('回復の呪文を使える仲間がいない', 'sys'); return; }
+  if (!caster) { log('手当てできる人がいない。', 'sys'); return; }
   const tgt = state.party.filter(c => c.hp > 0 && c.hp < c.maxhp).sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp)[0];
   if (!tgt) { log('誰も怪我をしていない。', 'sys'); return; }
   caster.mp -= SPELLS.heal.mp;
   const amt = Math.min(tgt.maxhp - tgt.hp, rnd(8, 14) + caster.lv);
   tgt.hp += amt;
-  log(`${caster.name}の手当て。${tgt.name}のHPが ${amt} 回復した`, 'good');
+  log(`${caster.name}が ${tgt.name}を手当てした`, 'good');
   render();
 }
 
@@ -1225,7 +1221,7 @@ const APPEAR = {
   recorder: '飛んできた', cymbal: '飛んできた', tuba: '浮かび上がった', drums: '動き出した', piano: '動き出した',
   hammer: '飛んできた', saw: '飛んできた',
 };
-const appearLine = (kind, m) => `${m.name}が ${APPEAR[kind] || '動き出した'}！`; // 数は言わない
+const appearLine = (kind, m) => `${m.name}が ${APPEAR[kind] || '動き出した'}。`; // 数は言わない
 async function startBattle(kind, n, onWin) {
   const m = MONS[kind];
   mode = 'busy';
@@ -1237,8 +1233,7 @@ async function startBattle(kind, n, onWin) {
   state.cool = 6;
   faceOpenSide();
   shake(); render();
-  const cnt = battle.enemies.length;
-  log(m.boss ? `${m.name}が 襲いかかってきた！` : appearLine(battle.kind, m, cnt), 'warn');
+  log(m.boss ? `${m.name}が 襲いかかってきた！` : appearLine(battle.kind, m), 'warn');
   await sleep(500);
   beginInput();
 }
@@ -1262,7 +1257,7 @@ function autoChoose() {
   setTimeout(() => { if (battle) runRound(); }, 250);
 }
 function startAuto() { battle.auto = true; log('― オート戦闘 ―', 'sys'); autoChoose(); }
-function stopAuto() { if (battle && battle.auto) { battle.auto = false; log('オート戦闘を止めた。次の回から行動を選ぶ', 'sys'); updatePad(); } }
+function stopAuto() { if (battle && battle.auto) { battle.auto = false; log('オートを止めた。', 'sys'); updatePad(); } }
 function promptNext() {
   while (battle.ci < state.party.length && state.party[battle.ci].hp <= 0) battle.ci++;
   if (battle.ci >= state.party.length) { runRound(); return; }
@@ -1323,29 +1318,29 @@ async function hurtEnemy(e, dmg) {
   e.hp -= dmg; e.flash = true; if (e.sleep && Math.random() < 0.5) e.sleep = 0;
   render(); log(`${e.name}に ${dmg} のダメージ`);
   await sleep(SPD); e.flash = false;
-  if (e.hp <= 0) { e.hp = 0; log(`${e.name}を たおした！`, 'good'); }
+  if (e.hp <= 0) { e.hp = 0; log(`${e.name}を たおした`, 'good'); }
   render(); await sleep(SPD / 3);
 }
 async function partyAct(c, cmd) {
   if (cmd.t === 'defend') { log(`${c.name}は 身を守っている`); await sleep(SPD / 2); return; }
   if (cmd.t === 'fight') {
     const e = pick(enemiesAlive());
-    log(`${c.name}の こうげき！`); await sleep(SPD);
+    log(`${c.name}の こうげき`); await sleep(SPD);
     if (e.sleep > 0 || Math.random() < hitChance(c.lv, e.ac)) await hurtEnemy(e, rnd(c.atk[0], c.atk[1]) + Math.floor(c.lv / 2));
     else { log('  ……はずれた'); await sleep(SPD); }
     return;
   }
   const sp = SPELLS[cmd.id];
-  if (c.mp < sp.mp) { log(`${c.name}は 気力が足りない！`); await sleep(SPD); return; }
+  if (c.mp < sp.mp) { log(`${c.name}は 気力が足りない`); await sleep(SPD); return; }
   c.mp -= sp.mp; renderHUD();
-  log(`${c.name}は ${sp.name}を となえた！`, 'warn'); await sleep(SPD);
+  log(`${c.name}は ${sp.name}を となえた`, 'warn'); await sleep(SPD);
   if (cmd.id === 'heal') {
     const t = aliveParty().sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp)[0];
     const amt = Math.min(t.maxhp - t.hp, rnd(8, 14) + c.lv); t.hp += amt;
-    log(`${t.name}のHPが ${amt} 回復した`, 'good'); renderHUD(); await sleep(SPD);
+    log(`${c.name}が ${t.name}を手当てした`, 'good'); renderHUD(); await sleep(SPD);
   } else if (cmd.id === 'scold') {
     for (const e of enemiesAlive()) {
-      if (Math.random() < (e.boss ? 0.2 : 0.65)) { e.sleep = rnd(1, 3); log(`${e.name}は 縮みあがって眠ってしまった`); }
+      if (Math.random() < (e.boss ? 0.2 : 0.65)) { e.sleep = rnd(1, 3); log(`${e.name}は 眠った`); }
       else log(`${e.name}には 効かなかった`);
       render(); await sleep(SPD / 2);
     }
@@ -1355,13 +1350,13 @@ async function partyAct(c, cmd) {
     for (const e of enemiesAlive()) await hurtEnemy(e, rnd(4, 8) + c.lv);
   } else if (cmd.id === 'lecture') {
     const e = pick(enemiesAlive());
-    if (Math.random() < (e.boss ? 0.3 : 0.9)) { e.sleep = rnd(2, 3); log(`${e.name}は まどろみに 落ちた`); } else log(`${e.name}には 効かなかった`);
+    if (Math.random() < (e.boss ? 0.3 : 0.9)) { e.sleep = rnd(2, 3); log(`${e.name}は 眠った`); } else log(`${e.name}には 効かなかった`);
     render(); await sleep(SPD);
   } else if (cmd.id === 'quiz') {
     for (const e of enemiesAlive()) await hurtEnemy(e, rnd(2, 5) + Math.floor(c.lv / 2));
   } else if (cmd.id === 'chorus') {
     for (const t of aliveParty()) { const amt = Math.min(t.maxhp - t.hp, rnd(4, 7) + Math.floor(c.lv / 2)); t.hp += amt; }
-    log('仲間全員の HP が 回復した', 'good'); renderHUD(); await sleep(SPD);
+    log('みんな 回復した', 'good'); renderHUD(); await sleep(SPD);
   } else if (cmd.id === 'drill') {
     aliveParty().forEach(t => { t.defend = true; });
     log('全員が 身構えた', 'good'); renderHUD(); await sleep(SPD);
@@ -1384,24 +1379,24 @@ async function damageChar(c, dmg) {
 async function enemyAct(e) {
   if (e.sleep > 0) { e.sleep--; log(`${e.name}は 眠っている`, 'sys'); await sleep(SPD / 2); return; }
   if (e.boss && Math.random() < 0.35) {
-    log('番人が 大槌で鐘を打った。ゴォォン……と、長い響きが 広がる', 'warn'); shake(); await sleep(SPD * 1.5);
+    log('番人が 鐘を打った。ゴォォン……', 'warn'); shake(); await sleep(SPD * 1.5);
     // 「最後の放送」を聞いていれば、鐘の響きが弱い
     for (const c of aliveParty()) await damageChar(c, state.flags.q3done ? rnd(1, 3) : rnd(3, 7));
     return;
   }
   const c = pickTarget();
-  log(`${e.name}の こうげき！`); await sleep(SPD);
+  log(`${e.name}の こうげき`); await sleep(SPD);
   if (Math.random() < hitChance(e.lv, c.ac)) await damageChar(c, rnd(e.atk[0], e.atk[1]));
-  else { log(`  ${c.name}は ひらりとかわした`); await sleep(SPD); }
+  else { log(`  ${c.name}は かわした`); await sleep(SPD); }
 }
 async function runAway() {
   if (mode !== 'battle') return;
   mode = 'busy'; clearMenu();
   log('逃げ出した……'); await sleep(SPD);
   if (!battle.boss && Math.random() < 0.6) {
-    log('うまく逃げきれた。', 'sys'); battle = null; mode = 'explore'; render(); return;
+    log('逃げきれた。', 'sys'); battle = null; mode = 'explore'; render(); return;
   }
-  log('しかし 回りこまれてしまった！', 'bad'); await sleep(SPD);
+  log('回りこまれた', 'bad'); await sleep(SPD);
   for (const e of enemiesAlive()) { if (!aliveParty().length) break; await enemyAct(e); render(); }
   await endCheck();
 }
@@ -1428,7 +1423,7 @@ async function victory() {
   const share = Math.max(1, Math.floor(total / alive.length));
   const wasBoss = battle.boss, onWin = battle.onWin;
   battle = null; render();
-  log(`敵を全滅させた！ ひとりあたり 経験値 ${share}`, 'good');
+  log(`勝った。経験値 ${share}`, 'good');
   alive.forEach(c => { c.exp += share; });
   levelUps();
   mode = 'explore';
@@ -1437,8 +1432,9 @@ async function victory() {
   if (wasBoss) {
     state.flags.bossDown = true;
     showDialog([
-      '番人が崩れ落ちると、鐘の音が ゆっくりと消えていった。',
-      '窓の外で、残っていた赤が、夜の藍色に溶けていく……',
+      '番人の手から、大槌が落ちた。',
+      '次の音は、鳴らなかった。',
+      '窓の外の赤が、ゆっくり消えていく。',
       '― プロトタイプはここまで ―',
     ]);
   }

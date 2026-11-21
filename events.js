@@ -42,9 +42,9 @@ function rewardAll(fn) { state.party.forEach(fn); }
 
 const ITEMS = [
   // cond：拾えるようになる条件（話がそこまで進むと、そこに落ちている）
-  { id: 'shoe', quest: 'q1', fl: 2, x: 11, y: 10, cond: s => s.flags.q1s >= 2, text: ['床に、上履きが片方だけ落ちている。', 'かかとに「1-A」と書かれた名前の欄がある。'] },
+  { id: 'shoe', quest: 'q1', fl: 2, x: 11, y: 10, cond: s => s.flags.q1s >= 2, text: ['床に、上履きが片方だけ落ちている。', 'かかとに「1-A」とある。'] },
   { id: 'keys', quest: 'q7', fl: 2, x: 9, y: 6, cond: s => s.flags.q7s >= 4, text: ['曲がり角の陰に、鍵束が押しこまれている。', 'タグに「用務員室」とある。'] },
-  { id: 'badge', fl: 1, x: 31, y: 12, cond: s => s.flags.gakufu, text: ['楽譜の山の下に、古い校章バッジが埋もれていた。'], get() { const p = state.party[0]; p.atk = [p.atk[0] + 2, p.atk[1] + 2]; } },
+  { id: 'badge', fl: 1, x: 31, y: 12, cond: s => s.flags.gakufu, text: ['楽譜の下に、校章バッジがあった。'], get() { const p = state.party[0]; p.atk = [p.atk[0] + 2, p.atk[1] + 2]; } },
 ];
 
 // ===================== 職員室の先生（1人だけ連れて行ける。職員室で交代できる） =====================
@@ -90,7 +90,7 @@ function partyCap() {
 function checkCap() {
   const cap = partyCap();
   if (!state.flags.cap) state.flags.cap = cap;
-  if (cap > state.flags.cap) { state.flags.cap = cap; log(`★ 頼れる仲間が増え、${cap}人で行動できるようになった`, 'good'); }
+  if (cap > state.flags.cap) { state.flags.cap = cap; log(`★ ${cap}人で行動できるようになった`, 'good'); }
 }
 const mateId = key => (key === 'mizuno' ? 'mizuno' : 't_' + key);
 const mateKey = id => (id === 'mizuno' ? 'mizuno' : id.slice(2));
@@ -108,7 +108,7 @@ function addMate(key, outKey) {
   if (outKey) state.party = state.party.filter(c => c.id !== mateId(outKey));
   state.party.push(mateChar(key));
   if (key === 'mizuno') state.flags.mizuno = true; else state.flags.hadTeacher = true;
-  log(outKey ? `${mateName(outKey)}と交代して、${mateName(key)}が仲間に加わった` : `${mateName(key)}が 仲間に加わった！`, 'good');
+  log(outKey ? `${mateName(outKey)}と交代して、${mateName(key)}が仲間に加わった` : `${mateName(key)}が 仲間に加わった`, 'good');
   // 外れた仲間は、元いた部屋に戻って待っている。どこへ行ったかを伝える
   if (outKey) {
     const n = NPCS.find(n => n.id === mateId(outKey)), room = n && areaAt(n.fl, n.x, n.y);
@@ -170,7 +170,7 @@ function questHints(s) {
   if (s.flags.nurseHinted) return [];
   const q = openQuests().find(q => !s.flags[q] && !s.flags['hint_' + q]);
   let line = null;
-  if (s.flags.q1s === 1) { s.flags.q1s = 2; line = '「上履き？ さっき保健室の前を跳ねていったわ。階段を上って、宙に浮いた廊下のほうへ」'; }
+  if (s.flags.q1s === 1) { s.flags.q1s = 2; line = '「上履きなら見たわ。廊下に出たら、階段の方へ跳ねていったの。二階の渡り廊下を見てみたら？」'; }
   else if (q) { s.flags['hint_' + q] = true; line = QUEST_HINT[q]; }
   else if (s.flags.q2done && !s.flags.gakufu && !s.flags.hint_badge) { s.flags.hint_badge = true; line = '「音楽準備室には、古い校章バッジがしまってあるそうよ。扉は、音で開くんですって」'; }
   if (!line) return [];
@@ -185,14 +185,20 @@ const NPCS = [
     talk(s) {
       const first = !s.flags.metNurse; s.flags.metNurse = true;
       const healed = healAll(); // 満タンになったものがあれば、先生の言葉のあとに知らせる
-      const hints = first ? [] : questHints(s);
+      const hints = first && s.flags.q1s !== 1 ? [] : questHints(s);
       if (first) s.flags.nurseHinted = true;
-      return first ? [
-        '保健の先生「気がついた？ 廊下で倒れていたのよ」',
-        '「五時のチャイム、まだ鳴ってるわね」',
-        '「隣の職員室に、まだ先生が何人か残っているはずよ。誰か一人についてきてもらいなさい」',
-        ...hints,
-      ].concat(healed ? [healed] : []) : ['保健の先生「無理はしないでね。ほら、少し休んでいきなさい」', ...(healed ? [healed] : []), ...hints];
+      if (first && !s.flags.bossDown) return [
+        '保健の先生「起きられたのね。どこか痛む？」',
+        '「廊下で倒れていたの。覚えてる？」',
+        '「あなたを運んだときも、時計は五時だったの。まだ針が動いてない」',
+        '「ほら。また同じチャイム」',
+        '「廊下に出るなら、隣の職員室で先生を呼んでね。ひとりで行かないで」',
+        ...(healed ? [healed] : []), ...hints,
+      ];
+      const greeting = s.flags.bossDown ? '保健の先生「静かになったね。……おかえり」'
+        : healed ? '保健の先生「戻ってきてくれてよかった。まず座って。手当てするね」'
+                 : '保健の先生「おかえり。ここで少し休んでいく？」';
+      return [greeting, ...(healed ? [healed] : []), ...hints];
     } },
   { id: 'mizuno', fl: 1, x: 25, y: 25, name: '図書委員', img: 'image/chara_mizuno.png', ht: 152, hide: () => inParty('mizuno'),
     talk(s) {
@@ -220,10 +226,14 @@ const NPCS = [
     } },
   { id: 'bell', fl: 4, x: 4, y: 20, name: '鐘の番人', img: 'image/enemy/enemy_time_warden_boss.png', ht: 200, boss: true, hide: s => s.flags.bossDown,
     talk(s) { return [
-      '鐘楼の天井から、古い校内放送の鐘が吊るされている。',
-      'その傍らに、フードを目深にかぶった大きな人影が立っていた。',
-      s.flags.q3done ? '番人「……下校の放送が、聞こえた」'
-                     : '番人「……鐘を止めに来たか。この夕暮れは、終わらせぬ」',
+      '天井から、鐘が吊るされている。',
+      'そばに、大きな人影が立っている。',
+      ...(s.flags.q3done ? [
+        '番人「……聞こえた。今度は最後まで」',
+        '番人は大槌を下ろした。',
+        '鐘がひとりでに鳴った。',
+        '番人は、槌を握った手を押さえた。',
+      ] : ['番人「……鐘を止めに来たか。この夕暮れは、終わらせぬ」']),
       '番人が 大槌を振り上げた――！',
     ]; },
     after() { startBattle('bell', 1); } },
@@ -244,7 +254,7 @@ const NPCS = [
       f.q1 = true; f.q1s = 1;
       return [
         '1年生「上履きが片方、ぴょんぴょん跳ねて逃げちゃったの」',
-        '「どこへ行ったのか……保健の先生なら、見てたかも」',
+        '「保健室の方に跳ねてったの。先生、見てないかな」',
       ];
     },
     after(s) { if (hasItem('shoe')) { takeItem('shoe'); state.items.push('memo', 'omamori'); rewardAll(c => { c.ac--; }); s.flags.q1s = 4; } } },
@@ -255,9 +265,9 @@ const NPCS = [
       const f = s.flags;
       if (f.q2done) return ['理科の先生「準備室は片付いたよ。模型たちも、しばらくはおとなしいだろう」'];
       if (f.q2fight) return [
-        '理科の先生「止めてくれたのか！ 助かった」',
+        '理科の先生「止めてくれたのか。助かった」',
         '「これは気付け薬だ。昔の薬品棚にあったものだが、よく効くよ」',
-        '★ 気付け薬で、みんなの体が少し丈夫になった',
+        '★ 気付け薬を もらった',
       ];
       if (f.q2open) return ['理科の先生「錠が開いたのか。……中の模型を、頼むよ」'];
       if (f.q2) return ['理科の先生「黒板に、何か書いた気がするんだが」'];
@@ -270,7 +280,7 @@ const NPCS = [
     },
     after(s) { if (s.flags.q2fight && !s.flags.q2done) { s.flags.q2done = true; rewardAll(c => { c.maxhp += 3; c.hp += 3; }); rewardExp(20); } } },
   { id: 'q2foe', quest: 'q2', fl: 1, x: 31, y: 5, name: '人体模型', img: 'image/enemy/enemy_anatomical_model.png', ht: 165, foe: true, hide: s => s.flags.q2fight,
-    talk() { return ['棚の陰から、人体模型が二体、ぎくしゃくと振り向いた――！']; },
+    talk() { return ['人体模型が二体、こちらを向いた。']; },
     after() { startBattle('model', 2, () => { state.flags.q2fight = true; }); } },
 
   // ===================== 3 最後の放送（放送部員・3年の先輩・校長室の金庫） =====================
@@ -285,10 +295,11 @@ const NPCS = [
       ];
       if (f.q3done) return ['放送部員「放送、ちゃんと届いたかな」'];
       if (hasItem('tape') && hasItem('equipkey')) return [
-        '放送部員「テープも、鍵も……そろった。流すね」',
-        '――ザザ……「下校の時刻になりました。校内に残っている生徒は、すみやかに下校しましょう」',
-        '放送部員「……鐘の音が、ほんの少し遠くなった」',
-        '遠くで、重い扉の錠が外れる音がした。',
+        '放送部員「テープ、かけるね」',
+        '――ザザ……「下校の時刻です。気をつけて帰ってください」',
+        'テープが止まった。チャイムも、一拍だけ途切れた。',
+        '放送部員「……また鳴った。でも、さっきと音が違う」',
+        '「鐘楼の方、見てきてくれる？」',
       ];
       if (f.q3) return [`放送部員「${hasItem('tape') ? '機材の鍵は、校長室の金庫の中' : hasItem('equipkey') ? 'あとはテープ' : 'テープと、機材の鍵'}。そろったら来て」`];
       if (!openQuests().includes('q3')) return [
@@ -314,7 +325,7 @@ const NPCS = [
       const f = s.flags;
       if (f.q4done) return ['司書「アルバム、ちゃんと棚に戻しておいたわ」'];
       if (hasItem('album')) return [
-        '司書「返ってきた……！ 1979年度の卒業アルバム」',
+        '司書「返ってきた……1979年度の卒業アルバム」',
         '「最後の集合写真。……この子、今も3年の教室にいる子にそっくり」',
         '「アルバムは棚に戻すわ。写真の写しだけ、持っていって」',
         '「それと、これ。読みかけの気持ちを、なくさないように」',
@@ -334,14 +345,19 @@ const NPCS = [
       const f = s.flags;
       if (hasItem('photo')) return [
         '先輩に、集合写真の写しを見せた。',
-        '先輩「……写ってたか」',
-        '「そうだよ。俺は、あの年の3年B組だ。放送委員だった」',
-        '「あの日、テープを流さなかったのは俺だ。流したら、全部終わってしまう気がして」',
-        '「番人を、ずっと待たせてるのも知ってる」',
-        '「……テープは返す。流すかどうかは、お前たちが決めてくれ」',
+        '先輩「……まだ俺が写ってるのか。七九年の三年B組だよ」',
+        '「隣のやつと、卒業式の日にけんかした」',
+        '「明日、教室で謝ればいいと思ってた。でも、あの日が最後だったんだよな」',
+        '「放送を流したら、もう会えない気がして。テープを抜いたのは俺だ」',
+        '先輩は写真を受け取り、テープを差し出した。',
+        '「……流してくれ。今度は、最後まで聞く」',
         '★ 最終下校の放送テープを 受け取った',
       ];
-      if (f.senpaiDone) return ['先輩「……チャイム、まだ鳴ってるな」'];
+      if (f.senpaiDone) {
+        if (f.bossDown) return ['先輩「……じゃあな。俺も、そろそろ帰るよ」'];
+        if (f.q3done) return ['先輩「聞こえたよ。……ちゃんと最後まで聞いた」'];
+        return ['先輩「……チャイム、まだ鳴ってるな」'];
+      }
       if (f.q4s >= 4 && !f.q4got) return [
         '先輩「……3年B組、か」',
         '「わかったよ。アルバムは俺が持ってる」',
@@ -371,7 +387,7 @@ const NPCS = [
         '「誰に頼まれたのか、思い出せないんですけど」',
         '「ぼく、もう帰らないと。代わりに渡してもらえますか」',
         '★ 古い封筒を 預かった',
-        '新入生は、階段のほうへ駆けていった。',
+        '新入生は、走っていった。',
       ];
       if (f.q5) return ['新入生「時間割の貼ってある教室です。たぶん……」'];
       f.q5 = true; f.q5s = 1;
@@ -395,19 +411,19 @@ const NPCS = [
         '「ありがとう。これ、わたしが描いたこの階の見取り図」',
         '★ 2階の見取り図を もらった',
       ];
-      if (f.q6) return ['美術部員「……準備室には、来ないで」', '美術部員の声が、低く濁っている。'];
+      if (f.q6) return ['美術部員「……準備室には、来ないで」', '声が低い。'];
       f.q6 = true; f.q6s = 1;
       return [
         '美術部員「……ねえ、準備室には何もないよ」',
-        '美術部員の声が、ときどき別の誰かのように低くなる。',
+        '声が、ときどき低くなる。',
         '「それより、屋上の柵の外を見てきて。……とても、きれいだから」',
       ];
     },
     after(s) { if (s.flags.q6fight && !s.flags.q6done) { s.flags.q6done = true; state.items.push('map'); revealMap(2); rewardExp(20); } } },
   { id: 'q6foe', quest: 'q6', fl: 2, x: 31, y: 7, name: '肖像画', img: 'image/enemy/enemy_portrait.png', ht: 120, foe: true, hide: s => s.flags.q6fight,
     talk() {
-      if (hasItem('mirror')) return ['鏡を向けると、肖像画が額の中で身をよじった――！'];
-      return ['肖像画と、目が合った。', '……体が重い。目をそらして、後ずさった。'];
+      if (hasItem('mirror')) return ['鏡を向けると、肖像画が身をよじった。'];
+      return ['肖像画と目が合った。', '体が動かない。目をそらした。'];
     },
     after() { if (!hasItem('mirror')) return; takeItem('mirror'); startBattle('portrait', 1, () => { state.flags.q6fight = true; }); } },
 
@@ -417,11 +433,11 @@ const NPCS = [
       const f = s.flags;
       if (hasItem('memo')) return [
         '用務員「これは……わしが若い頃に書いたメモだ」',
-        '「“鐘楼の扉は、下校の放送が流れたときに開く”」',
+        '「“下校の放送が終わると、番人が鐘楼の扉を開ける”」',
         '「あの日、放送は流れなかった。それからずっと、扉は閉じたままなんだ」',
       ];
       if (hasItem('keys')) return [
-        '用務員「おお、わしの鍵束！ 助かったよ」',
+        '用務員「おお、わしの鍵束だ。助かったよ」',
         '「2年の子が見つけた？ ……そうかい」',
         '「礼に、校長室の合鍵を渡しておこう。金庫には、昔の放送の道具がしまってあるそうだ」',
         '★ 校長室の合鍵を もらった',
@@ -446,21 +462,21 @@ const NPCS = [
 const EXAMINES = [
   // --- 2 理科室の黒板と、理科準備室の錠 ---
   { fl: 1, x: 28, y: 1, d: 3, deco: 'board',
-    talk: () => ['黒板の隅に、薬品の重さが書き残されている。', '硫黄 4　酢酸 1　石灰 3　食塩 2', '「棚は、軽いものから」'] },
+    talk: () => ['黒板に、薬品の重さが書いてある。', '硫黄 4　酢酸 1　石灰 3　食塩 2', '「棚は、軽いものから」'] },
   ...[[31, 4, 2], [27, 5, 1]].map(([x, y, d]) => ({ fl: 1, x, y, d, cond: s => s.flags.q2 && !s.flags.q2open,
-    talk: () => ['扉の錠に、薬品の札が4枚はめこまれている。', '並べる順番を決めると、錠が外れるらしい。'],
+    talk: () => ['錠に、薬品の札が4枚ある。', '並べる順で開くらしい。'],
     after: () => askSeq('札を並べる', ['酢酸', '食塩', '石灰', '硫黄'], ['酢酸', '食塩', '石灰', '硫黄'],
       () => { state.flags.q2open = true; showDialog(['カチリ、と錠が外れた。']); }) })),
   // --- 音楽室の黒板と、音楽準備室の錠（校章バッジ） ---
   { fl: 1, x: 30, y: 7, d: 0, deco: 'board',
-    talk: () => ['黒板に、音符が4つだけ書き残されている。', 'レ　ド　ソ　ミ', '端に小さく「右から」とある。'] },
+    talk: () => ['黒板に、音符が4つ書いてある。', 'レ　ド　ソ　ミ', '端に「右から」とある。'] },
   { fl: 1, x: 27, y: 11, d: 1, cond: s => !s.flags.gakufu,
-    talk: () => ['扉の錠に、小さな鍵盤が4つ並んでいる。'],
+    talk: () => ['錠に、鍵盤が4つある。'],
     after: () => askSeq('鍵盤を押す', ['ド', 'レ', 'ミ', 'ソ'], ['ミ', 'ソ', 'ド', 'レ'],
       () => { state.flags.gakufu = true; showDialog(['ポロン、と音がして、錠が外れた。']); }) },
   // --- 4 図書室の貸出カード ---
   { fl: 1, x: 23, y: 25, d: 3, cond: s => s.flags.q4s >= 1 && s.flags.q4s < 4,
-    talk: () => ['机の上に、1979年度の卒業アルバムの貸出カードが散らばっている。'],
+    talk: () => ['机に、貸出カードが散らばっている。'],
     after: () => showChoice('最後に借りたのは？', [
       ['相沢　3月2日　1年', () => showDialog(['カードを束に戻した。'])],
       ['木下　2月28日　2年', () => showDialog(['カードを束に戻した。'])],
@@ -472,23 +488,23 @@ const EXAMINES = [
     const south = y0 === 13, x = x0 + 1, y = south ? 13 : 11, d = south ? 0 : 2, hit = x0 === 12 && south; // 廊下側の壁（扉の横）
     const notes = ['「今月の目標　廊下は静かに」', '「遠足のしおり」', '「保健だより」', '「清掃当番表」', '「図書室だより」', '「学級目標　ひとりひとりが主役」', '「進路説明会のお知らせ」'];
     return { fl: 3, x, y, d, deco: 'bulletin',
-      talk: s => hit ? ['掲示物：時間割。月曜の1時間目に「放送」とある。', ...(s.flags.q5 && !s.flags.q5found ? ['机の脇に、学生カバンが掛かっている。', '★ 新入生のカバンを 見つけた'] : [])]
-                     : [`掲示物：${notes[i % notes.length]}`],
+      talk: s => hit ? ['時間割が貼ってある。', ...(s.flags.q5 && !s.flags.q5found ? ['机に、カバンが掛かっている。', '★ 新入生のカバンを 見つけた'] : [])]
+                     : [`${notes[i % notes.length]}が貼ってある。`],
       after: s => { if (hit && s.flags.q5 && !s.flags.q5found) { s.flags.q5found = true; state.items.push('bag'); } } };
   }),
   // --- 6 2階のトイレの鏡 ---
   { fl: 2, x: 14, y: 7, d: 3, cond: s => s.flags.q6s >= 2 && !hasItem('mirror') && !s.flags.q6fight,
     talk: () => ['洗面台の鏡が、外れかけている。', '★ 洗面台の鏡を 外して持った'], after: () => state.items.push('mirror') },
   // --- 7 屋上の給水タンク（2年の生徒の嘘） ---
-  { fl: 5, x: 6, y: 10, d: 3, cond: s => s.flags.q7s === 2, talk: () => ['給水タンクのまわりを探したが、何も落ちていない。'] },
+  { fl: 5, x: 6, y: 10, d: 3, cond: s => s.flags.q7s === 2, talk: () => ['給水タンクのまわりには、何もない。'] },
   // --- 3 校長室の金庫と、ひとつだけ違う時計 ---
   { fl: 1, x: 17, y: 2, d: 1, deco: 'safe', cond: s => !hasItem('equipkey') && !s.flags.q3done,
-    talk: () => ['古い金庫がある。ダイヤルに、時計の文字盤が描かれている。'],
+    talk: () => ['金庫がある。ダイヤルは時計の形だ。'],
     after: () => showChoice('ダイヤルを合わせる', ['3時', '5時', '7時', '9時'].map(t => [t, () => {
-      if (t !== '7時') { showDialog(['ダイヤルは、びくともしない。']); return; }
+      if (t !== '7時') { showDialog(['開かない。']); return; }
       state.items.push('equipkey'); showDialog(['金庫が開いた。', '★ 機材の鍵を 手に入れた']);
     }])) },
-  { fl: 3, x: 30, y: 24, d: 0, deco: 'clock7', talk: () => ['壁の時計。この時計だけ、針が7時を指している。'] },
+  { fl: 3, x: 30, y: 24, d: 0, deco: 'clock7', talk: () => ['この時計だけ、7時を指している。'] },
 ];
 // 調べるものの飾りを、その壁に描く
 for (const e of EXAMINES) if (e.deco) MAPS[e.fl].deco[`${e.x},${e.y},${e.d}`] = e.deco;
