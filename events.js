@@ -167,19 +167,62 @@ const QUEST_HINT = {
 };
 // 保健の先生のヒント：話しかけるたびに 1 つ。いま役に立つものを順番に、聞き逃しても何度でも話す
 //   どれも今の進み具合から決まる（終わった話のヒントは出ない）。まだ聞いていないものが先
+//   頼まれたあとも、その話の「いまの段階」で次に行く場所を話す
+function questStageHints(q, s) {
+  const f = s.flags;
+  if (!f[q]) return [q];
+  switch (q) {
+    case 'q7': return [hasItem('keys') ? 'q7c' : f.q7s >= 4 ? 'q7b' : f.q7s === 2 ? 'q7back' : 'q7a'];
+    case 'q1': return [hasItem('shoe') ? 'q1c' : hasItem('memo') ? 'q1d' : f.q1s <= 2 && !f.got_shoe ? 'q1see' : null];
+    case 'q2': return [f.q2fight ? 'q2c' : f.q2open ? 'q2b' : 'q2a'];
+    case 'q6': return [f.q6fight ? 'q6d' : hasItem('mirror') ? 'q6c' : f.q6s >= 2 ? 'q6m' : 'q6b'];
+    case 'q4': return hasItem('album') ? ['q4c'] : f.q4s >= 4 ? (f.q4got ? [] : ['q4b']) : ['q4a', ...(f.q4kuroda ? [] : ['q4k'])];
+    case 'q5': return [hasItem('letter') ? 'q5d' : hasItem('bag') ? 'q5c' : f.q5found ? null : 'q5a'];
+    case 'q3': {
+      if (hasItem('tape') && hasItem('equipkey')) return ['q3d'];
+      const l = [];
+      if (!hasItem('tape')) l.push(hasItem('photo') ? 'q3p' : 'q3t');
+      if (!hasItem('equipkey')) l.push(f.kouchou ? 'q3s' : 'q3k');
+      return l;
+    }
+  }
+  return [];
+}
 function nurseHintList(s) {
   const f = s.flags, list = [];
-  if (f.q1s === 1 || (f.q1s === 2 && !hasItem('shoe') && !f.got_shoe)) list.push('q1see');
-  for (const q of openQuests()) if (!f[q]) list.push(q);
-  if (f.q6s === 1) list.push('q6b');
+  for (const q of openQuests()) for (const h of questStageHints(q, s)) if (h && !list.includes(h)) list.push(h);
   if (f.q3done && !f.bossDown) list.push('bell');
   if (f.q2done && !f.gakufu) list.push('badge');
   return list;
 }
 const NURSE_HINT = {
   ...QUEST_HINT,
+  q7a: '「用務員さん、二階の教室を見回ったって。A棟2階の教室に、まだ残ってる子がいたわ」',
+  q7back: '「用務員さん、二階のあとにどこかへ寄ったのかもね。もう一度聞いてみたら？」',
+  q7b: '「屋上の給水タンクのあたりね。屋上へは、B棟3階から上がれるわ」',
+  q7c: '「その鍵束、用務員さんのね。A棟1階の用務員室に届けてあげて」',
   q1see: '「上履きなら見たわ。階段の方へ跳ねていったの。A棟とB棟をつなぐ2階の渡り廊下を見てみたら？」',
+  q1c: '「その上履き、B棟1階の教室の1年生のね。届けてあげて」',
+  q1d: '「その紙切れ、用務員室の印があるのね。A棟1階の用務員室へ持っていってみたら」',
+  q2a: '「理科準備室の錠、薬品の札なんですって。理科室の黒板に何か書いてなかった？」',
+  q2b: '「理科準備室の扉が開いたって。中に何かいるみたい。気をつけてね」',
+  q2c: '「理科の先生が、C棟1階の理科室で待ってたわ」',
   q6b: '「美術準備室の肖像画のこと、緑川先生が気にしてたわ。美術の先生だもの、何か知ってるかも」',
+  q6m: '「緑川先生の言ってた鏡、A棟2階のトイレのことね」',
+  q6c: '「鏡があるなら、C棟2階の美術準備室へ」',
+  q6d: '「C棟2階の美術室の子が、あなたを待ってたわ」',
+  q4a: '「司書さん、図書室の机に貸出カードを出してあるって。D棟1階の図書室よ」',
+  q4k: '「古い記録のことなら、黒田先生が詳しいわ」',
+  q4b: '「3年B組なら、C棟3階の教室ね。3年の先輩がいたわ」',
+  q4c: '「そのアルバム、D棟1階の司書室に返してあげて」',
+  q5a: '「時間割の貼ってある教室……B棟3階の教室の、廊下の掲示を見てみたら」',
+  q5c: '「そのカバン、B棟3階の新入生の子のね」',
+  q5d: '「その封筒、放送部の子宛てでしょう。A棟1階の放送室よ」',
+  q3t: '「テープのこと、3年の先輩が何か知ってるみたい。昔の写真でもあれば、話してくれるかも」',
+  q3p: '「その写真、C棟3階の教室の先輩に見せてみたら」',
+  q3k: '「校長室の鍵なら、用務員さんが持ってるはずよ」',
+  q3s: '「校長室の金庫、時計の錠なんですって。D棟3階の視聴覚室に、ひとつだけ違う時計があるそうよ」',
+  q3d: '「テープと鍵がそろったのね。A棟1階の放送室へ」',
   bell: '「放送のあと、上の方で重い扉の開く音がしたの。4階の廊下の突き当たりよ」',
   badge: '「白石先生が、C棟1階の音楽準備室で古い校章バッジを探してたわ。鍵穴のところに小さな鍵盤があったって」',
 };
@@ -562,6 +605,11 @@ function teacherQuestTalk(key, s) {
   if (key === 'midorikawa' && f.q6s === 1) { f.q6s = 2; return [
     '緑川先生「準備室で絵を片づけてたら、肖像画の目がこっちを追ってきたの」',
     '「向かいの鏡に絵が映ったときだけ、目が止まったわ。二階のトイレの鏡なら、小さいから持っていけるかも」',
+  ]; }
+  if (key === 'shiraishi' && f.got_badge && !f.badgeShown) { f.badgeShown = true; return [
+    '白石先生「その校章、見つけてくれたのね」',
+    '「私がここの生徒だったころのものなの。あの日、鐘の音を聞きながらなくしたのよ」',
+    '「あなたが持っていて。まだ放課後は続いてるから」',
   ]; }
   if (key === 'kuroda' && f.q4s >= 1 && f.q4s < 4 && !f.q4kuroda) { f.q4kuroda = true; return [
     '黒田先生「古い放送当番表を見たことがある。1979年度の最終日は、3年B組が当番だった」',
