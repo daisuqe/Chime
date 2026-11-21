@@ -1132,7 +1132,19 @@ function updatePad() {
     b.innerHTML = o ? `${i + 1}<span>${o[0]}</span>` : '';
     b.disabled = !o;
   });
+  fitPadLabels();
 }
+// ボタンの中の行動名が入りきらないときは、改行せずに文字を小さくする
+function fitPadLabels() {
+  for (const sp of document.querySelectorAll('#pad button span')) {
+    sp.style.fontSize = '';
+    const b = sp.parentElement, room = b.clientWidth - 4;
+    if (room <= 0) continue;
+    let size = parseFloat(getComputedStyle(sp).fontSize);
+    while (sp.scrollWidth > room && size > 7) { size -= 1; sp.style.fontSize = size + 'px'; }
+  }
+}
+window.addEventListener('resize', () => fitPadLabels());
 function shake() { const w = document.getElementById('viewWrap'); w.classList.remove('shake'); void w.offsetWidth; w.classList.add('shake'); }
 
 // ---------------------------------------------------------------------
@@ -1276,7 +1288,9 @@ function afterStep() {
 function interact() {
   const fx = state.x + DIRS[state.dir][0], fy = state.y + DIRS[state.dir][1];
   const ahead = edgeAt(state.fl, state.x, state.y, state.dir);
-  const n = !isBlocking(ahead) && npcAt(state.fl, fx, fy);
+  const lkAhead = ahead === DOOR && lockAt(state.fl, state.x, state.y, state.dir);
+  const shut = lkAhead && !state.flags[lkAhead]; // 鍵のかかった扉の向こうの人には話しかけられない（扉の錠を調べる）
+  const n = !isBlocking(ahead) && !shut && npcAt(state.fl, fx, fy);
   if (n) {
     const lines = n.talk(state);
     showDialog(lines, () => { if (n.after) n.after(state); render(); }, n);
@@ -1304,8 +1318,8 @@ function partyTalk() {
 }
 const canHeal = c => c.hp > 0 && ((c.spells.includes('heal') && c.mp >= SPELLS.heal.mp) || (c.spells.includes('chorus') && c.mp >= SPELLS.chorus.mp));
 function mateTalk(c) {
+  // 話の手がかりがあるときはそれを話す。そのあとも、回復は頼める
   const q = c.id && c.id.startsWith('t_') && teacherQuestTalk(c.id.slice(2), state);
-  if (q) { showDialog(q, () => render()); return; }
   const hurt = state.party.filter(t => t.hp > 0 && t.hp < t.maxhp * 0.6).length, down = state.party.filter(t => t.hp <= 0).length;
   let line;
   if (c.hp <= 0) line = dialogNotice(`${c.name}は 倒れたまま、目を閉じている。`);
@@ -1314,8 +1328,8 @@ function mateTalk(c) {
   else if (c.mp < c.maxmp * 0.3) line = `${c.name}「少し疲れてきた。呪文は、あまり使えないかも」`;
   else line = pick([`${c.name}「まだ大丈夫。行こう」`, `${c.name}「チャイム、まだ鳴ってるね」`, `${c.name}「離れないで歩こう」`]);
   const opts = [];
-  if (canHeal(c) && state.party.some(t => t.hp > 0 && t.hp < t.maxhp)) opts.push(['手当てを頼む', () => fieldHeal(c)]);
-  showDialog([line], () => { if (opts.length) showChoice(`${c.name}に頼む？`, [...opts, ['なんでもない', () => {}]]); render(); });
+  if (canHeal(c) && state.party.some(t => t.hp > 0 && t.hp < t.maxhp)) opts.push([c.spells.includes('heal') && c.mp >= SPELLS.heal.mp ? '手当てを頼む' : '歌声を頼む', () => fieldHeal(c)]);
+  showDialog(q || [line], () => { if (opts.length) showChoice(`${c.name}に頼む？`, [...opts, ['なんでもない', () => {}]]); render(); });
 }
 
 // 全員を全回復。何が満タンになったかの文（なければ null）を返す

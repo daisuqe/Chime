@@ -107,7 +107,8 @@
   #pad { display:none; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:6px; margin:8px 0 4px; }
   #pad button { width:auto; height:min(19vw, 13vh); padding:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
                 font-size:min(7vw, 30px); line-height:1; touch-action:manipulation; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; }
-  #pad button span { font-size:11px; }
+  #pad button span { font-size:11px; white-space:nowrap; } /* 行動の名前は改行しない（入りきらないときは文字を小さくする：game.js fitPadLabels） */
+  #pad button.txt { line-height:1.25; }
   #pad:not(.battle) button.txt { font-size:min(4vw, 20px); white-space:nowrap; } /* 文字だけのボタン（メニュー・話す） */
   #pad button:hover { background:#000; color:var(--fg); }
   #pad button { min-width:0; overflow:hidden; }
@@ -248,7 +249,7 @@
     <button data-k="Numpad5">↑</button>
     <button data-k="Numpad6"><svg viewBox="0 0 24 24" width="1em" height="1em" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="square" stroke-linejoin="miter"><path d="M8 21V9h11"/><path d="M15 5l4 4-4 4"/></svg></button>
     <button data-k="Numpad3" class="extra">→</button>
-    <button data-k=" " class="txt">話す</button>
+    <button data-k=" " class="txt">話す<br>調べる</button>
     <button data-k="Numpad2" class="extra">↓</button>
   </div>
 </div>
