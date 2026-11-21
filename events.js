@@ -135,8 +135,8 @@ function teacherNPC(t) {
   return {
     id: 't_' + t.key, fl: 1, x: t.x, y: t.y, name: t.name + '先生', img: `image/chara_${t.key}.png`, ht: t.ht,
     hide: s => inParty(t.key),
-    talk(s) { const q = teacherQuestTalk(t.key, s); if (q) { this.told = true; return q; } this.told = false; return [`${t.name}先生${t.line}`]; },
-    after() { if (!this.told) offerJoin(t.key); }, // 話の手がかりを話したときは、誘わない
+    talk(s) { return teacherQuestTalk(t.key, s) || [`${t.name}先生${t.line}`]; },
+    after() { offerJoin(t.key); }, // 手がかりを話したあとも誘う（手がかりは次の段階に進むまで何度でも話す）
   };
 }
 
@@ -246,7 +246,7 @@ const NPCS = [
       const healed = healAll(); // 満タンになったものがあれば、先生の言葉のあとに知らせる
       const recoveryNotice = healed ? [dialogNotice(healed)] : [];
       const hints = first && s.flags.q1s !== 1 ? [] : questHints(s);
-      if (first && !s.flags.bossDown) return [
+      if (!(s.flags.hadTeacher || s.flags.saeki) && !s.flags.bossDown) return [ // 先生を仲間にするまでは、最初の話を何度でも
         '保健の先生「起きられたのね。どこか痛む？」',
         '「廊下で倒れていたの。覚えてる？」',
         '「あなたを運んだときも、時計は五時だったの。まだ針が動いてない」',
@@ -262,7 +262,7 @@ const NPCS = [
     } },
   { id: 'mizuno', fl: 1, x: 25, y: 25, name: '図書委員', img: 'image/chara_mizuno.png', ht: 152, hide: () => inParty('mizuno'),
     talk(s) {
-      if (s.flags.metMizuno) return ['水野「……調べものの続き、いつでも手伝う」'];
+      if (s.flags.mizuno) return ['水野「……調べものの続き、いつでも手伝う」']; // 一度仲間になるまでは、最初の話を何度でも
       s.flags.metMizuno = true;
       return [
         '図書委員の水野「……静かに。本たちが、いいところを読んでるの」',
@@ -310,7 +310,8 @@ const NPCS = [
         '★ 古い紙切れと お守りを 受け取った',
       ];
       if (f.q1s >= 4) return ['1年生「紙切れ、用務員さんに見せた？」'];
-      if (f.q1) return ['1年生「上履き、どこまで行っちゃったんだろう」'];
+      if (f.q1 && f.q1s >= 2) return ['1年生「上履き、どこまで行っちゃったんだろう」'];
+      if (f.q1) return ['1年生「上履きが片方、ぴょんぴょん跳ねて逃げちゃったの」', '「保健室の方に跳ねてったの。先生、見てないかな」'];
       f.q1 = true; f.q1s = 1;
       return [
         '1年生「上履きが片方、ぴょんぴょん跳ねて逃げちゃったの」',
@@ -330,8 +331,7 @@ const NPCS = [
         '★ 気付け薬を もらった',
       ];
       if (f.q2open) return ['理科の先生「準備室の方で、さっき錠の音がしたな。扉が開いても、気をつけてくれ」'];
-      if (f.q2) return ['理科の先生「理科室の黒板に、実験の記録が残ってるよ」'];
-      f.q2 = true;
+      f.q2 = true; // 錠が開くまでは、何度でも同じ話
       return [
         '理科の先生「人体模型が二体、準備室に歩いて入るのを見たんだ」',
         '「追いかけたら扉が開かなくてね。錠に、見慣れない札がはまってる」',
@@ -371,7 +371,12 @@ const NPCS = [
         '放送部員「……また鳴った。でも、さっきと音が違う」',
         '「鐘楼の方、見てきてくれる？」',
       ];
-      if (f.q3) return [`放送部員「${hasItem('tape') ? '機材の鍵は、校長室の金庫の中' : hasItem('equipkey') ? 'あとはテープ' : 'テープと、機材の鍵'}。そろったら来て」`];
+      if (f.q3) {
+        const tapeLine = f.knowTape ? '「テープは、手紙に出てきた3年B組の人が知ってるかも」' : '「テープのケースはあるけど、中は空だった」';
+        if (hasItem('tape')) return ['放送部員「あとは機材の鍵」', '「放送卓に『機材の鍵は校長室の金庫へ』ってメモが貼ってあった」'];
+        if (hasItem('equipkey')) return ['放送部員「あとはテープ」', tapeLine];
+        return ['放送部員「いるのは、テープと、機材の鍵」', '「放送卓に『機材の鍵は校長室の金庫へ』ってメモが貼ってあった」', tapeLine];
+      }
       if (!openQuests().includes('q3')) return [
         '放送部員「最後の下校放送を流す準備をしてるの」',
         '「……でも、まだそのときじゃない気がする」',
@@ -401,7 +406,8 @@ const NPCS = [
         '「それと、これ。読みかけの気持ちを、なくさないように」',
         '★ 集合写真の写しと 古い栞を もらった',
       ];
-      if (f.q4) return ['司書「貸出カードは、図書室の机の上にあるわ」'];
+      if (f.q4s >= 4) return ['司書「アルバム、見つかりそう？」'];
+      if (f.q4) return ['司書「図書室の机に、貸出カードを出してあるの」', '「最後の日付と、借りた人の名前を見てきてくれない？」'];
       f.q4 = true; f.q4s = 1;
       return [
         '司書「1979年度の卒業アルバムが、ずっと返ってこないの」',
@@ -459,7 +465,7 @@ const NPCS = [
         '★ 古い封筒を 預かった',
         '新入生は、走っていった。',
       ];
-      if (f.q5) return ['新入生「時間割の貼ってある教室です。たぶん……」'];
+      if (f.q5) return ['新入生「3年E組にカバンを置いてきたんです。どの3年E組だったか……」', '「その教室、時間割が貼ってあったのは覚えてるんです」'];
       f.q5 = true; f.q5s = 1;
       return [
         '新入生「すみません。ここ、3年の教室ですよね……？」',
@@ -481,8 +487,7 @@ const NPCS = [
         '「ありがとう。これ、わたしが描いたこの階の見取り図」',
         '★ 2階の見取り図を もらった',
       ];
-      if (f.q6) return ['美術部員「……準備室には、来ないで」', '声が低い。'];
-      f.q6 = true; f.q6s = 1;
+      if (!f.q6) { f.q6 = true; f.q6s = 1; } // 肖像画を倒すまでは、何度でも同じ話
       return [
         '美術部員「……ねえ、準備室には何もないよ」',
         '声が、ときどき低くなる。',
@@ -523,8 +528,7 @@ const NPCS = [
           '「給水タンクのそばで手袋をはめ直したんだ。鍵束はそのとき、足元に置いた気がする」',
         ];
       }
-      if (f.q7s === 1) return ['用務員「二階の教室は見てきたかい」'];
-      f.q7 = true; f.q7s = 1;
+      f.q7 = true; f.q7s = 1; // 2年の生徒に聞くまでは、何度でも同じ話
       return [
         '用務員「二階の教室を見回ったんだ。そのどこかで鍵束を落としたんだと思うんだが」',
         '「二階へ行く用があったら、ついでに探してくれないか」',
@@ -602,16 +606,16 @@ function askSeq(title, opts, answer, ok) {
 //   職員室で話しかけても、仲間として連れている時に話しかけても同じことを話す
 function teacherQuestTalk(key, s) {
   const f = s.flags;
-  if (key === 'midorikawa' && f.q6s === 1) { f.q6s = 2; return [
+  if (key === 'midorikawa' && f.q6 && (f.q6s || 1) <= 2 && !hasItem('mirror') && !f.q6fight) { f.q6s = 2; return [
     '緑川先生「準備室で絵を片づけてたら、肖像画の目がこっちを追ってきたの」',
     '「向かいの鏡に絵が映ったときだけ、目が止まったわ。二階のトイレの鏡なら、小さいから持っていけるかも」',
   ]; }
-  if (key === 'shiraishi' && f.got_badge && !f.badgeShown) { f.badgeShown = true; return [
+  if (key === 'shiraishi' && f.got_badge) { return [
     '白石先生「その校章、見つけてくれたのね」',
     '「私がここの生徒だったころのものなの。あの日、鐘の音を聞きながらなくしたのよ」',
     '「あなたが持っていて。まだ放課後は続いてるから」',
   ]; }
-  if (key === 'kuroda' && f.q4s >= 1 && f.q4s < 4 && !f.q4kuroda) { f.q4kuroda = true; return [
+  if (key === 'kuroda' && f.q4s >= 1 && f.q4s < 4) { f.q4kuroda = true; return [
     '黒田先生「古い放送当番表を見たことがある。1979年度の最終日は、3年B組が当番だった」',
     '「その日の放送日誌は空欄だった。誰が当番だったかまでは覚えてないな」',
     '「貸出カードを調べるなら、名前より日付を見ることだ」',
