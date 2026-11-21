@@ -842,7 +842,7 @@ function renderMap() {
   const dpr = window.devicePixelRatio || 1, W = mc.clientWidth || 240, H = mc.clientHeight || 150, cs = Math.max(10, W / 24);
   if (mc.width !== Math.round(W * dpr) || mc.height !== Math.round(H * dpr)) { mc.width = Math.round(W * dpr); mc.height = Math.round(H * dpr); }
   mg.setTransform(dpr, 0, 0, dpr, 0, 0);
-  drawMap(mg, W, H, cs, Math.round(W / 2 - (state.x + 0.5) * cs), Math.round(H / 2 - (state.y + 0.5) * cs));
+  drawMap(mg, W, H, cs, Math.round(W / 2 - (state.x + 0.5) * cs), Math.round(H / 2 - (state.y + 0.5) * cs), state.fl, true); // 部屋の名前も出す
   if (mode === 'bigmap') renderBigMap();
 }
 // 地図に描くマス：歩いて見たマス。見取り図があればその階の全部
