@@ -172,6 +172,9 @@ function questHints(s) {
   let line = null;
   if (s.flags.q1s === 1) { s.flags.q1s = 2; line = '「上履きなら見たわ。階段の方へ跳ねていったの。A棟とB棟をつなぐ2階の渡り廊下を見てみたら？」'; }
   else if (q) { s.flags['hint_' + q] = true; line = QUEST_HINT[q]; }
+  else if (openQuests().includes('q3') && !s.flags.q3 && !s.flags.hint_q3b) { s.flags.hint_q3b = true; line = '「放送室の子、まだ誰かを待ってるみたい。顔を出してあげて」'; }
+  else if (s.flags.q6s === 1 && !s.flags.hint_q6b) { s.flags.hint_q6b = true; line = '「美術準備室の肖像画のこと、緑川先生が気にしてたわ。美術の先生だもの、何か知ってるかも」'; }
+  else if (s.flags.q3done && !s.flags.bossDown && !s.flags.hint_bell) { s.flags.hint_bell = true; line = '「放送のあと、上の方で重い扉の開く音がしたの。4階の廊下の突き当たりよ」'; }
   else if (s.flags.q2done && !s.flags.gakufu && !s.flags.hint_badge) { s.flags.hint_badge = true; line = '「白石先生が、C棟1階の音楽準備室で古い校章バッジを探してたわ。鍵穴のところに小さな鍵盤があったって」'; }
   if (!line) return [];
   s.flags.nurseHinted = true;
@@ -289,11 +292,21 @@ const NPCS = [
   { id: 'housou', fl: 1, x: 18, y: 1, name: '放送部員', img: 'image/chara_housou.png', ht: 160,
     talk(s) {
       const f = s.flags;
-      if (hasItem('letter')) return [
-        '放送部員「私に？ ……ずいぶん古い封筒だね」',
-        '「“3年B組の生徒がテープを抜くのを見た。今日は流したくない、と言っていた”」',
-        '「……1979年の日付。誰が書いたんだろう」',
-      ];
+      if (hasItem('letter')) {
+        // 封筒を渡すと迷子の話が終わる。そのとき放送の話が始められるなら、続けて頼む（話しかけ直さなくてよい）
+        const was = f.q5done; f.q5done = true; this.startQ3 = !f.q3 && openQuests().includes('q3'); f.q5done = was;
+        return [
+          '放送部員「私に？ ……ずいぶん古い封筒だね」',
+          '「“3年B組の生徒がテープを抜くのを見た。今日は流したくない、と言っていた”」',
+          '「……1979年の日付。誰が書いたんだろう」',
+          ...(this.startQ3 ? [
+            '「……ねえ。最後の下校放送を、流さなきゃいけないの」',
+            '「いるのは、テープと、機材の鍵」',
+            '「放送卓に『機材の鍵は校長室の金庫へ』ってメモが貼ってあった」',
+            '「テープは、手紙に出てきた3年B組の人が知ってるかも」',
+          ] : []),
+        ];
+      }
       if (f.q3done) return ['放送部員「放送、ちゃんと届いたかな」'];
       if (hasItem('tape') && hasItem('equipkey')) return [
         '放送部員「テープ、かけるね」',
@@ -316,7 +329,7 @@ const NPCS = [
       ];
     },
     after(s) {
-      if (hasItem('letter')) { takeItem('letter'); s.flags.knowTape = true; if (!s.flags.q5done) { s.flags.q5done = true; rewardExp(30); } return; }
+      if (hasItem('letter')) { takeItem('letter'); s.flags.knowTape = true; if (this.startQ3) s.flags.q3 = true; if (!s.flags.q5done) { s.flags.q5done = true; rewardExp(30); } return; }
       if (hasItem('tape') && hasItem('equipkey') && !s.flags.q3done) { takeItem('tape'); takeItem('equipkey'); s.flags.q3done = true; s.flags.bellopen = true; rewardExp(25); }
     } },
 
@@ -425,7 +438,8 @@ const NPCS = [
   { id: 'q6foe', quest: 'q6', fl: 2, x: 31, y: 7, name: '肖像画', img: 'image/enemy/enemy_portrait.png', ht: 120, foe: true, hide: s => s.flags.q6fight,
     talk() {
       if (hasItem('mirror')) return ['鏡を向けると、肖像画が身をよじった。'];
-      return ['肖像画と目が合った。', '体が動かない。目をそらした。'];
+      const told = inParty('midorikawa') && teacherQuestTalk('midorikawa', state);
+      return ['肖像画と目が合った。', '体が動かない。目をそらした。', ...(told || [])];
     },
     after() { if (!hasItem('mirror')) return; takeItem('mirror'); startBattle('portrait', 1, () => { state.flags.q6fight = true; }); } },
 
@@ -503,8 +517,8 @@ const EXAMINES = [
       after: s => { if (hit && s.flags.q5 && !s.flags.q5found) { s.flags.q5found = true; state.items.push('bag'); } } };
   }),
   // --- 6 2階のトイレの鏡 ---
-  { fl: 2, x: 14, y: 7, d: 3, cond: s => s.flags.q6s >= 2 && !hasItem('mirror') && !s.flags.q6fight,
-    talk: () => ['小さな鏡だ。下の留め具が外れている。', '★ 洗面台の鏡を 外して持った'], after: () => state.items.push('mirror') },
+  ...[7, 8].map(y => ({ fl: 2, x: 14, y, d: 3, cond: s => s.flags.q6s >= 2 && !hasItem('mirror') && !s.flags.q6fight,
+    talk: () => ['小さな鏡だ。下の留め具が外れている。', '★ 洗面台の鏡を 外して持った'], after: () => state.items.push('mirror') })),
   // --- 3 校長室の金庫と、ひとつだけ違う時計 ---
   { fl: 1, x: 17, y: 2, d: 1, deco: 'safe', cond: s => !hasItem('equipkey') && !s.flags.q3done,
     talk: () => ['金庫がある。ダイヤルは時計の形だ。'],

@@ -1152,6 +1152,8 @@ const windowLine = (x, y, d) => {
   if (curtainAt(state.fl, x, y, d) != null) return pick(CURTAIN_LINES);
   return skyVisible(x, y, d) ? pick(WINDOW_LINES) : '窓は開かない。';
 };
+// 鍵のかかった扉の文。鐘楼の扉だけは、向こうで鐘が鳴っている
+const lockLine = lk => (lk === 'bellopen' ? '扉には鍵がかかっている。向こうで、鐘が鳴っている。' : '扉には鍵がかかっている。');
 const WINDOW_LINES = ['夜が近づいている。', '遠くに街が見える。', '窓は開かない。'];
 
 // offset: 0 前進 / 2 後退 / 3 左平行 / 1 右平行（向きは変えない）
@@ -1162,7 +1164,7 @@ function move(offset) {
   if (e === DOOR && !inMap(state.fl, nx, ny)) { log('扉は開かない。', 'sys'); return; }
   if (isBlocking(e) || !inMap(state.fl, nx, ny)) { log(e === WIN || e === FENCE ? windowLine(state.x, state.y, d) : '壁だ。', 'sys'); return; }
   const lk = e === DOOR && lockAt(state.fl, state.x, state.y, d);
-  if (lk && !state.flags[lk]) { log('扉には鍵がかかっている。', 'sys'); return; }
+  if (lk && !state.flags[lk]) { log(lockLine(lk), 'sys'); return; }
   if (e === DOOR && offset !== 0) { log('扉は正面を向いて通る。', 'sys'); return; }
   if (e === DOOR) log('扉を開けた。', 'sys');
   const sa = stairAt(state.fl, nx, ny);
@@ -1201,6 +1203,7 @@ function afterStep() {
   markSeen();
   const a = areaAt(state.fl, state.x, state.y), r = roomAt(state.fl, state.x, state.y);
   const rn = placeName(state.fl, state.x, state.y);
+  if (a && a.name === '鐘楼') state.flags.bellRoom = true; // 進捗の「鐘楼にたどり着いた」は、鐘楼の部屋に入ったとき
   if (rn !== state.room) { state.room = rn; if (a) log(`― ${a.bld ? a.bld + ' ' : ''}${a.name} ―`, 'sys'); }
   render();
   const it = itemAt(state.fl, state.x, state.y);
@@ -1241,7 +1244,7 @@ function interact() {
   if (ahead === WIN || ahead === FENCE) { log(windowLine(state.x, state.y, state.dir), 'sys'); return; }
   if (ahead === DOOR) {
     const lk = lockAt(state.fl, state.x, state.y, state.dir);
-    log(!inMap(state.fl, fx, fy) ? '扉は開かない。' : lk && !state.flags[lk] ? '扉には鍵がかかっている。' : '扉だ。', 'sys'); return;
+    log(!inMap(state.fl, fx, fy) ? '扉は開かない。' : lk && !state.flags[lk] ? lockLine(lk) : '扉だ。', 'sys'); return;
   }
   partyTalk();
 }
@@ -1604,7 +1607,7 @@ function progressHTML() {
   const t = Math.floor(state.time / 60), time = `${Math.floor(t / 60)}時間${String(t % 60).padStart(2, '0')}分`;
   const main = [
     [f.metNurse, '保健の先生と話した'], [f.hadTeacher || f.saeki, '職員室の先生が仲間になった'], [f.reveal, '窓の外の空を見た'],
-    [f.mizuno, '水野が仲間になった'], [state.seen[4] && state.seen[4].size > 0, '鐘楼にたどり着いた'], [f.bossDown, '鐘の番人を倒した'],
+    [f.mizuno, '水野が仲間になった'], [f.bellRoom, '鐘楼にたどり着いた'], [f.bossDown, '鐘の番人を倒した'],
   ].filter(([b]) => b).map(([, t]) => `<div>■ ${t}</div>`);
   const quests = QUESTS.filter(([, a, b]) => f[a] || f[b]).map(([n, , b]) => `<div>${f[b] ? `■ ${n}　達成` : `□ ${n}　進行中`}</div>`);
   const floors = Object.keys(MAPS).filter(k => state.seen[k] && state.seen[k].size > 0).map(k => MAPS[k].name);
