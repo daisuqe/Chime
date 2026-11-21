@@ -185,8 +185,9 @@ function lineCol(d) { return `rgba(255,255,255,${clamp(1.08 - d / 6.5, 0.18, 1)}
 // --- 空と街並み：方位（東→西）で滑らかに変わるパノラマ ---
 // 空は無限遠なので、画面の各列の色は「その列の視線の方位」だけで決まる。
 // 西（夕日側）が最も明るく、東が最も暗い。間は連続的に補間する。
-const SKY_EAST = [[0, '#101c36'], [0.4, '#16162e'], [0.68, '#201024'], [0.86, '#2e0e18'], [1, '#420e14']];
-const SKY_WEST = [[0, '#1c2e52'], [0.4, '#2c2046'], [0.68, '#641e34'], [0.86, '#ac2a2c'], [1, '#e04a36']];
+// 夜の手前：上は紺、下へ暗い紫、地平の際だけ暗い赤。きれいな時間はもう過ぎた、少し不安な明るさ（オレンジは使わない）
+const SKY_EAST = [[0, '#070b1c'], [0.4, '#0b0e24'], [0.68, '#140f27'], [0.86, '#1c0e24'], [1, '#26101e']];
+const SKY_WEST = [[0, '#0b1430'], [0.4, '#181842'], [0.68, '#2a1a42'], [0.86, '#421a36'], [1, '#621c28']];
 const hex = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
 const mixCol = (a, b, t) => { const A = hex(a), B = hex(b); return 'rgb(' + A.map((v, i) => Math.round(v + (B[i] - v) * t)).join(',') + ')'; };
 // 方位 az（度, 北=0 東=90 南=180 西=270）→ 西らしさ 0..1
@@ -1050,11 +1051,11 @@ function skyVisible(x, y, d) {
 }
 // 窓を調べた時の文。外が校舎でふさがっていれば、夕焼けには触れない
 const windowLine = (x, y, d) => {
-  if (edgeAt(state.fl, x, y, d) === FENCE) return '柵の向こうに、夕焼けの空が広がっている。';
+  if (edgeAt(state.fl, x, y, d) === FENCE) return '柵の向こうに、夜になりきれない空が広がっている。';
   if (curtainAt(state.fl, x, y, d) != null) return pick(CURTAIN_LINES);
   return skyVisible(x, y, d) ? pick(WINDOW_LINES) : '窓は固く閉ざされ、びくともしない。';
 };
-const WINDOW_LINES = ['窓の外は燃えるような夕焼けだ。', '遠くの街並みが茜色に沈んでいく。', '窓は固く閉ざされ、びくともしない。', '紫からオレンジへ――空がゆっくり滲んでいる。'];
+const WINDOW_LINES = ['窓の外は、夜になりきれない空だ。', '遠くの街並みが、暗い赤の底に沈んでいる。', '窓は固く閉ざされ、びくともしない。', '紺から暗い紫へ――空の色が、どこか落ち着かない。'];
 
 // offset: 0 前進 / 2 後退 / 3 左平行 / 1 右平行（向きは変えない）
 function move(offset) {
@@ -1072,7 +1073,7 @@ function move(offset) {
     log('階段の側面だ。', 'sys'); return;
   }
   const pr = propAt(state.fl, nx, ny);
-  if (pr) { log({ bed: 'ベッドがある。', desk: '机がある。', getabako: '下駄箱が並んでいる。', getabako_ns: '下駄箱が並んでいる。', stall: 'トイレの個室だ。', sink: '洗面台がある。', stage: 'ステージだ。', tank: '給水タンクだ。', unit: '室外機が並んでいる。', pool: 'プールの水が、夕焼けを映している。' }[pr.split(':')[0]] || '何かがある。', 'sys'); return; }
+  if (pr) { log({ bed: 'ベッドがある。', desk: '机がある。', getabako: '下駄箱が並んでいる。', getabako_ns: '下駄箱が並んでいる。', stall: 'トイレの個室だ。', sink: '洗面台がある。', stage: 'ステージだ。', tank: '給水タンクだ。', unit: '室外機が並んでいる。', pool: 'プールの水が、暗い空を映している。' }[pr.split(':')[0]] || '何かがある。', 'sys'); return; }
   const n = npcAt(state.fl, nx, ny);
   if (n) { log(`${n.name}がいる。［${usePad() ? '話す' : 'Space'}］で話しかける`, 'sys'); return; }
   state.x = nx; state.y = ny;
@@ -1096,8 +1097,9 @@ function checkReveal() {
   if (!skyVisible(state.x, state.y, state.dir)) return; // 外が校舎でふさがっている窓では起きない
   state.flags.reveal = true;
   showDialog([
-    '窓の外は、燃えるような夕焼けだった。',
-    '紫からオレンジへ――見たこともないほど鮮やかな空。',
+    '窓の外は、夜の手前の空だった。',
+    '紺から暗い紫へ。地平の際にだけ、暗い赤が残っている。',
+    'きれいな時間は、もう過ぎてしまったような明るさだった。',
   ], () => render());
 }
 
@@ -1443,7 +1445,7 @@ async function victory() {
     state.flags.bossDown = true;
     showDialog([
       '番人が崩れ落ちると、鐘の音が ゆっくりと消えていった。',
-      '窓の外で、夕焼けがゆっくりと夜の藍色に溶けていく……',
+      '窓の外で、残っていた赤が、夜の藍色に溶けていく……',
       '― プロトタイプはここまで ―',
     ]);
   }
@@ -1499,7 +1501,7 @@ function progressHTML() {
   const f = state.flags;
   const t = Math.floor(state.time / 60), time = `${Math.floor(t / 60)}時間${String(t % 60).padStart(2, '0')}分`;
   const main = [
-    [f.metNurse, '保健の先生と話した'], [f.hadTeacher || f.saeki, '職員室の先生が仲間になった'], [f.reveal, '窓の外の夕焼けを見た'],
+    [f.metNurse, '保健の先生と話した'], [f.hadTeacher || f.saeki, '職員室の先生が仲間になった'], [f.reveal, '窓の外の空を見た'],
     [f.mizuno, '水野が仲間になった'], [state.seen[4] && state.seen[4].size > 0, '鐘楼にたどり着いた'], [f.bossDown, '鐘の番人を倒した'],
   ].filter(([b]) => b).map(([, t]) => `<div>■ ${t}</div>`);
   const quests = QUESTS.filter(([, a, b]) => f[a] || f[b]).map(([n, , b]) => `<div>${f[b] ? `■ ${n}　達成` : `□ ${n}　進行中`}</div>`);
@@ -1682,7 +1684,7 @@ state.room = placeName(1, START[0], START[1]);
 render();
 showDialog([
   '……目を覚ますと、保健室のベッドの上だった。',
-  '窓の外は、紫からオレンジへと滲む夕焼け。下校時刻はとうに過ぎている。',
+  '下校時刻は、とうに過ぎている。',
   'どこか遠くで、チャイムが鳴っている。',
 ]);
 }

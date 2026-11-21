@@ -71,7 +71,7 @@ const TEACHERS = [
     line: '「Don\'t worry. 先生がついてるから」', note: '素早い' },
   { key: 'midorikawa', name: '緑川', cls: '美術', x: 10, y: 2, ht: 172,
     st: { maxhp: 10, maxmp: 11, atk: [1, 4], ac: 9, agi: 10, grow: { hp: [2, 4], mp: 4 } }, spells: ['lecture', 'chorus'],
-    line: '「夕焼けの色、まだ描ききれてないんだ。歩きながら見ていこう」', note: '眠らせる呪文と全員の回復' },
+    line: '「この空の色、まだ描ききれてないんだ。歩きながら見ていこう」', note: '眠らせる呪文と全員の回復' },
   { key: 'akai', name: '赤井', cls: '家庭科', x: 13, y: 2, ht: 155,
     st: { maxhp: 12, maxmp: 9, atk: [1, 5], ac: 8, agi: 9, grow: { hp: [3, 5], mp: 3 } }, spells: ['heal', 'drill'],
     line: '「お腹すいてない？ ……冗談よ。危ないから、ついていくわ」', note: '回復と守りで支える' },
@@ -116,11 +116,19 @@ function addMate(key, outKey) {
   }
 }
 // 誘う：空きがあれば「はい／いいえ」、いっぱいなら誰と交代するかを選ぶ
+// 誘うときに見せる、その人の教科・呪文・得意なこと（物語の文ではなく、選ぶときの案内）
+function mateInfo(key) {
+  if (key === 'mizuno') return `${mateName(key)}（図書委員）　${['spark', 'thunder'].map(i => SPELLS[i].name).join('・')} ／ 素早い`;
+  const t = teacherOf(key);
+  return `${mateName(key)}（${t.cls}）　${t.spells.map(i => SPELLS[i].name).join('・')} ／ ${t.note}`;
+}
 function offerJoin(key) {
   const cap = partyCap();
-  if (state.party.length < cap) { showChoice(`${mateName(key)}に一緒に来てもらう？`, [['はい', () => addMate(key)], ['いいえ', () => {}]]); return; }
+  if (state.party.length < cap) { showChoice(`${mateInfo(key)}
+一緒に来てもらう？`, [['はい', () => addMate(key)], ['いいえ', () => {}]]); return; }
   const mates = state.party.slice(1).map(c => mateKey(c.id));
-  showChoice(`連れて行けるのは${cap}人まで。誰と交代する？`, [...mates.map(k => [`${mateName(k)}と交代`, () => addMate(key, k)]), ['やめる', () => {}]]);
+  showChoice(`${mateInfo(key)}
+連れて行けるのは${cap}人まで。誰と交代する？`, [...mates.map(k => [`${mateName(k)}と交代`, () => addMate(key, k)]), ['やめる', () => {}]]);
 }
 function teacherNPC(t) {
   return {
@@ -207,7 +215,7 @@ const NPCS = [
         '「ごめん。じゃらじゃら鳴るのが面白くて、空中廊下の曲がり角に押しこんだんだ」',
         '「用務員さんには、僕が見つけたって言っといてよ」',
       ]; }
-      return ['生徒「帰ろうと思ってたんだけど、夕焼けがきれいでさ」', '「チャイムが鳴り終わったら帰るよ」'];
+      return ['生徒「帰ろうと思ってたんだけど、空がずっとこの色でさ」', '「チャイムが鳴り終わったら帰るよ」'];
     } },
   { id: 'bell', fl: 4, x: 4, y: 20, name: '鐘の番人', img: 'image/enemy/enemy_time_warden_boss.png', ht: 200, boss: true, hide: s => s.flags.bossDown,
     talk(s) { return [
