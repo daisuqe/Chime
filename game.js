@@ -203,11 +203,11 @@ const colAzimuth = (dir, x) => dir * 90 + Math.atan((x - CX) / FX) * 180 / Math.
 const azToX = (dir, az) => { const r = ((az - dir * 90) % 360 + 540) % 360 - 180; if (Math.abs(r) > 80) return null; return CX + Math.tan(r * Math.PI / 180) * FX; };
 
 function seeded(seed) { let s = seed >>> 0; return () => ((s = (s * 1664525 + 1013904223) >>> 0) / 4294967296); }
-// 360°分の星と建物（単位：度）。画面中央付近で 1度 ≒ FX*π/180 px
+// 360°分の建物（単位：度）。空に星は描かない。画面中央付近で 1度 ≒ FX*π/180 px
 const PX_PER_DEG = FX * Math.PI / 180;
 const PANO = (() => {
-  const R = seeded(4242), stars = [], far = [], near = [];
-  for (let i = 0; i < 140; i++) stars.push({ az: R() * 360, y: R() * CY * 0.4, a: 0.15 + R() * 0.35 });
+  const R = seeded(4242), far = [], near = [];
+  for (let i = 0; i < 420; i++) R(); // 以前ここで星を作っていた分の乱数を空読みして、街並みの形を変えない
   // 遠景：横長が基本、ごくたまに小さな縦長
   for (let az = 0; az < 360;) {
     let w, h;
@@ -223,7 +223,7 @@ const PANO = (() => {
   // 遠くの山並み（方位の関数）：いくつかの正弦波の和。0 未満は地平線に沈む
   const waves = Array.from({ length: 7 }, (_, i) => ({ k: [3, 5, 8, 13, 21, 34, 55][i], a: [7, 6, 5, 3.5, 2.5, 1.5, 0.8][i], p: R() * Math.PI * 2 }));
   const ridge = az => Math.max(0, 13 + waves.reduce((v, w) => v + w.a * (1 - 2 * Math.abs(Math.sin(w.k * (az + 60) * Math.PI / 360 + w.p))), 0));
-  return { stars, far, near, ridge };
+  return { far, near, ridge };
 })();
 
 const skyCanvases = {}, townCanvases = {};
@@ -236,10 +236,6 @@ function buildSky(dir) {
     const gr = x.createLinearGradient(0, 0, 0, CY + 4);
     SKY_EAST.forEach(([o, col], i) => gr.addColorStop(o, mixCol(col, SKY_WEST[i][1], t)));
     x.fillStyle = gr; x.fillRect(sx, 0, STRIP, CY + 4);
-  }
-  for (const st of PANO.stars) {
-    const px = azToX(dir, st.az); if (px === null || px < 0 || px > VW) continue;
-    x.fillStyle = 'rgba(220,230,255,' + st.a + ')'; x.fillRect(px, st.y, 1, 1);
   }
   skyCanvases[dir] = c;
 
