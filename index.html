@@ -93,17 +93,19 @@
   #pad.battle button.extra { visibility:hidden; }
   /* スマホの縦画面：上からマップ、プレイ画面、ステータス（どれも全幅）、いちばん下に大きな操作ボタン */
   @media (max-width:700px) and (orientation:portrait), (pointer:coarse) and (orientation:portrait) {
-    #app { padding:6px; }
-    #top { flex-direction:column; gap:6px; }
+    /* 画面の高さ（見えている部分 dvh）にぴったり収める。マップが残りの高さを使う */
+    html, body { overflow:hidden; }
+    #app { padding:6px; height:100vh; height:100dvh; display:flex; flex-direction:column; }
+    #top { flex:1 1 auto; min-height:0; flex-direction:column; flex-wrap:nowrap; gap:6px; }
     #viewWrap { flex:none; width:100%; max-width:none; }
     #side { display:contents; } /* 中身（マップ・ステータス）を、プレイ画面と同じ並びに出す */
     #map { order:-1; } /* マップはプレイ画面の上 */
     #party { order:1; } /* ステータスはプレイ画面の下 */
     #party { width:100%; font-size:17px; }
     #party th, #party td { padding:2px 4px; }
-    #map { width:100%; height:auto; aspect-ratio:2 / 1; }
+    #map { display:block; flex:1 1 0; min-height:48px; width:100%; min-width:0; max-width:100%; height:auto; } /* 横は画面の幅まで（はみ出さない）、縦は残りの高さ */
     #menuHint { display:none; }
-    #pad { display:grid; }
+    #pad { display:grid; flex:none; }
     #loc { font-size:18px; top:4px; right:4px; }
     #log { font-size:18px; }
     #cmd button { display:none; } /* 戦闘の行動は下の大きなボタンで選ぶ */
