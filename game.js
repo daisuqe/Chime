@@ -846,15 +846,15 @@ function knownCells(fl) {
   return out;
 }
 // 地図を描く：cs＝1マスの大きさ、(ox, oy)＝マス (0,0) の左上の位置
-function drawMap(mg, W, H, cs, ox, oy) {
-  const F = MAPS[state.fl], k1 = cs / 10, S = knownCells(state.fl);
+function drawMap(mg, W, H, cs, ox, oy, fl = state.fl) { // fl：描く階（全画面の地図では、いる階以外も描ける）
+  const F = MAPS[fl], k1 = cs / 10, S = knownCells(fl);
   mg.fillStyle = '#000'; mg.fillRect(0, 0, W, H);
   const seen = (x, y) => S.has(x + ',' + y);
   for (let y = 0; y < F.H; y++) for (let x = 0; x < F.W; x++) {
     if (!seen(x, y)) continue;
     const px = ox + x * cs, py = oy + y * cs;
-    const n = npcAt(state.fl, x, y);
-    const pr = propAt(state.fl, x, y);
+    const n = npcAt(fl, x, y);
+    const pr = propAt(fl, x, y);
     if (pr) { mg.fillStyle = '#fff'; pr === 'bed' ? mg.fillRect(px + 3 * k1, py + k1, cs - 6 * k1, cs - 2 * k1) : mg.fillRect(px + 3 * k1, py + 3 * k1, cs - 6 * k1, cs - 6 * k1); }
     if (n) { mg.fillStyle = '#fff'; mg.beginPath(); mg.arc(px + cs / 2, py + cs / 2, 3 * k1, 0, 7); mg.fill(); }
   }
@@ -870,7 +870,7 @@ function drawMap(mg, W, H, cs, ox, oy) {
     if (k === OPEN || k === DOOR) return;
     mg.setLineDash(k === WIN ? [2 * k1, 2 * k1] : k === FENCE ? [k1, 3 * k1] : []); mg.beginPath(); mg.moveTo(x0, y0); mg.lineTo(x1, y1); mg.stroke(); mg.setLineDash([]);
   };
-  const SE = state.seenE[state.fl], all = state.flags.mapAll;
+  const SE = state.seenE[fl], all = state.flags.mapAll;
   for (let y = 0; y <= F.H; y++) for (let x = 0; x < F.W; x++) if (all ? seen(x, y) || seen(x, y - 1) : SE.has('h' + x + ',' + y)) {
     const k = F.h[y][x], px = ox + x * cs, py = oy + y * cs;
     if (k === DOOR) { seg(WALL, px, py, px + 3 * k1, py); seg(WALL, px + cs - 3 * k1, py, px + cs, py); } else seg(k, px, py, px + cs, py);
@@ -879,26 +879,37 @@ function drawMap(mg, W, H, cs, ox, oy) {
     const k = F.v[y][x], px = ox + x * cs, py = oy + y * cs;
     if (k === DOOR) { seg(WALL, px, py, px, py + 3 * k1); seg(WALL, px, py + cs - 3 * k1, px, py + cs); } else seg(k, px, py, px, py + cs);
   }
+  if (fl !== state.fl) return; // 自分の印は、いる階だけ
   const px = ox + state.x * cs + cs / 2, py = oy + state.y * cs + cs / 2, [dx, dy] = DIRS[state.dir];
   mg.fillStyle = '#ffffff'; mg.beginPath();
   mg.moveTo(px + dx * 5 * k1, py + dy * 5 * k1); mg.lineTo(px + (-dx * 3 - dy * 4) * k1, py + (-dy * 3 + dx * 4) * k1); mg.lineTo(px + (-dx * 3 + dy * 4) * k1, py + (-dy * 3 - dx * 4) * k1); mg.closePath(); mg.fill();
 }
 // 全画面の地図：小さな地図をクリック・タップすると開き、右上の × で閉じる
-//   見えるのは、その階でわかっている所だけ（わかっている範囲に合わせて拡大する。校舎全体の広さや階の数はわからない）
+//   見えるのは、わかっている所だけ。行ったことのある階が 2 つ以上になると、左上のボタンで階を切り替えられる
+//   縮尺と位置は、行った全部の階のわかっている範囲に合わせて 1 つに決める（階を切り替えても動かない）
 const bigEl = document.getElementById('bigmap'), bc = document.getElementById('bigmapCanvas'), bg = bc.getContext('2d');
+const bigFloorsEl = document.getElementById('bigmapFloors');
+let bigFl = 1;
+const visitedFloors = () => Object.keys(MAPS).map(Number).filter(k => knownCells(k).size > 0 || k === state.fl);
 function renderBigMap() {
   const dpr = window.devicePixelRatio || 1, W = bc.clientWidth, H = bc.clientHeight;
   bc.width = Math.round(W * dpr); bc.height = Math.round(H * dpr); bg.setTransform(dpr, 0, 0, dpr, 0, 0);
-  // わかっている範囲（記録したマスと、今いるマス）
+  // わかっている範囲：行った全部の階のマスと、今いるマス
   let x0 = state.x, x1 = state.x, y0 = state.y, y1 = state.y;
-  for (const k of knownCells(state.fl)) { const [x, y] = k.split(',').map(Number); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-  const pad = 1, bw = x1 - x0 + 1 + pad * 2, bh = y1 - y0 + 1 + pad * 2;
-  const cs = Math.max(6, Math.min(40, Math.floor(Math.min((W - 20) / bw, (H - 20) / bh))));
-  drawMap(bg, W, H, cs, Math.round(W / 2 - (x0 + x1 + 1) / 2 * cs), Math.round(H / 2 - (y0 + y1 + 1) / 2 * cs));
+  const fls = visitedFloors();
+  for (const k of fls) for (const c of knownCells(k)) { const [x, y] = c.split(',').map(Number); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+  const pad = 1, top = fls.length > 1 ? 60 : 0, bw = x1 - x0 + 1 + pad * 2, bh = y1 - y0 + 1 + pad * 2;
+  const cs = Math.max(6, Math.min(40, Math.floor(Math.min((W - 20) / bw, (H - 20 - top) / bh))));
+  drawMap(bg, W, H, cs, Math.round(W / 2 - (x0 + x1 + 1) / 2 * cs), Math.round(top + (H - top) / 2 - (y0 + y1 + 1) / 2 * cs), bigFl);
+  // 階のボタン（行った階が 2 つ以上のときだけ）
+  bigFloorsEl.innerHTML = fls.length > 1 ? fls.map(k => `<button data-fl="${k}" class="${k === bigFl ? 'on' : ''}">${MAPS[k].name}</button>`).join('') : '';
 }
+bigFloorsEl.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; e.stopPropagation(); bigFl = +b.dataset.fl; renderBigMap(); });
+// キーボード：← → ↑ ↓ で階を切り替える
+function bigMapStep(d) { const fls = visitedFloors(), i = fls.indexOf(bigFl); bigFl = fls[Math.max(0, Math.min(fls.length - 1, i + d))]; renderBigMap(); }
 function openBigMap() {
   if (mode !== 'explore') return;
-  mode = 'bigmap'; bigEl.style.display = 'block'; renderBigMap();
+  bigFl = state.fl; mode = 'bigmap'; bigEl.style.display = 'block'; renderBigMap();
 }
 function closeBigMap() { if (mode !== 'bigmap') return; mode = 'explore'; bigEl.style.display = 'none'; render(); }
 mc.addEventListener('click', openBigMap);
@@ -1548,7 +1559,12 @@ setInterval(saveGame, 15000);
 function handleKey(k) {
   if (battle && battle.auto) { stopAuto(); return; }
   if (mode === 'menu') { menuKey(k); return; }
-  if (mode === 'bigmap') { if (['Escape', 'm', 'M', ' ', 'Enter', 'Backspace'].includes(k)) closeBigMap(); return; }
+  if (mode === 'bigmap') {
+    if (['Escape', 'm', 'M', ' ', 'Enter', 'Backspace'].includes(k)) closeBigMap();
+    else if (['ArrowRight', 'ArrowUp', 'Numpad6', 'Numpad8', 'd', 'w'].includes(k)) bigMapStep(1);
+    else if (['ArrowLeft', 'ArrowDown', 'Numpad4', 'Numpad2', 'a', 's'].includes(k)) bigMapStep(-1);
+    return;
+  }
   if (mode === 'dialog') { if (k === ' ' || k === 'Enter' || k === 'z') advanceDialog(); return; }
   if (mode === 'choice') {
     const i = parseInt(k, 10);
@@ -1601,7 +1617,7 @@ document.addEventListener('gesturestart', e => e.preventDefault(), { passive: fa
 window.addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
   // テンキー：探索中は e.code（NumLock の有無に関係なく）で移動。戦闘・会話中は数字として扱う
-  if ((mode === 'explore' || mode === 'menu') && /^Numpad[1-8]$|^NumpadEnter$/.test(e.code)) { e.preventDefault(); handleKey(e.code); return; }
+  if ((mode === 'explore' || mode === 'menu' || mode === 'bigmap') && /^Numpad[1-8]$|^NumpadEnter$/.test(e.code)) { e.preventDefault(); handleKey(e.code); return; }
   if ((mode === 'battle' || mode === 'choice') && /^Numpad\d$/.test(e.code)) { handleKey(e.code.slice(-1)); return; }
   handleKey(e.key);
 });
