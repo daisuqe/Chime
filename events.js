@@ -52,7 +52,7 @@ const ITEMS = [
 //   画像は image/chara_<key>.png。無ければ棒人間で表示。ht は身長（cm）
 const TEACHERS = [
   { key: 'saeki', name: '佐伯', cls: '体育', x: 6, y: 1, ht: 178,
-    st: { maxhp: 16, maxmp: 8, atk: [3, 7], ac: 8, agi: 7, grow: { hp: [3, 6], mp: 3 } }, spells: ['heal', 'scold'],
+    st: { maxhp: 14, maxmp: 8, atk: [2, 6], ac: 8, agi: 7, grow: { hp: [3, 6], mp: 3 } }, spells: ['heal', 'scold'],
     line: '「なんだ、まだ残っていたのか。生徒を一人で歩かせるわけにはいかん」', note: '力が強い' },
   { key: 'furukawa', name: '古川', cls: '国語', x: 9, y: 1, ht: 162,
     st: { maxhp: 11, maxmp: 10, atk: [1, 4], ac: 9, agi: 8, grow: { hp: [2, 4], mp: 4 } }, spells: ['lecture', 'scold'],
@@ -64,7 +64,7 @@ const TEACHERS = [
     st: { maxhp: 10, maxmp: 11, atk: [1, 4], ac: 9, agi: 9, grow: { hp: [2, 4], mp: 4 } }, spells: ['chorus', 'scold'],
     line: '「あの鐘の音、いい音よね。最後まで聴いてみたくて」', note: '全員を回復できる' },
   { key: 'kuroda', name: '黒田', cls: '社会', x: 15, y: 2, ht: 176,
-    st: { maxhp: 14, maxmp: 7, atk: [2, 6], ac: 7, agi: 8, grow: { hp: [3, 5], mp: 2 } }, spells: ['drill', 'spark'],
+    st: { maxhp: 13, maxmp: 7, atk: [2, 5], ac: 7, agi: 8, grow: { hp: [3, 5], mp: 2 } }, spells: ['drill', 'spark'],
     line: '「この学校の古い記録は、俺が一番知っている。離れずについてこい」', note: '打たれ強い、全員を守れる' },
   { key: 'aoyama', name: '青山', cls: '英語', x: 6, y: 3, ht: 165,
     st: { maxhp: 11, maxmp: 9, atk: [1, 5], ac: 9, agi: 11, grow: { hp: [2, 4], mp: 3 } }, spells: ['heal', 'spark'],
@@ -255,9 +255,8 @@ const NPCS = [
         '「何か困ったことがあったら、私に相談してね」',
         ...recoveryNotice, ...hints,
       ];
-      const greeting = s.flags.bossDown ? '保健の先生「静かになったね。……おかえり」'
-        : healed ? '保健の先生「戻ってきてくれてよかった。まず座って。手当てするね」'
-                 : '保健の先生「おかえり。ここで少し休んでいく？」';
+      if (s.flags.bossDown) return ['保健の先生「もう帰れるだろうから、帰りなさい」', '「時計は、まだ五時を過ぎたばかりのようね」', ...recoveryNotice, ...hints];
+      const greeting = healed ? '保健の先生「戻ってきてくれてよかった。まず座って。手当てするね」' : '保健の先生「おかえり。ここで少し休んでいく？」';
       return [greeting, ...recoveryNotice, ...hints];
     } },
   { id: 'mizuno', fl: 1, x: 25, y: 25, name: '図書委員', img: 'image/chara_mizuno.png', ht: 152, hide: () => inParty('mizuno'),
@@ -303,7 +302,7 @@ const NPCS = [
   //   画像は image/chara_<id>.png（無ければ棒人間）
   { id: 'genkan', fl: 1, x: 3, y: 8, name: '外靴の生徒', img: 'image/chara_genkan.png', ht: 168,
     talk: s => s.flags.bossDown
-      ? ['生徒「チャイム、止まったね」', '「扉はまだ開かないけど、もう少し待ってみる」']
+      ? ['生徒「チャイム、止まったね」', '「……帰ろうか」']
       : ['生徒「靴、もう履き替えちゃった」', '「扉が開いたら、すぐ帰れるように」'] },
   { id: 'basket', fl: 1, x: 12, y: 22, name: 'バスケ部員', img: 'image/chara_basket.png', ht: 172,
     talk: s => s.flags.bossDown
@@ -376,8 +375,8 @@ const NPCS = [
     },
     after(s) { if (s.flags.q2fight && !s.flags.q2done) { s.flags.q2done = true; rewardAll(c => { c.maxhp += 3; c.hp += 3; }); rewardExp(20); } } },
   { id: 'q2foe', quest: 'q2', fl: 1, x: 31, y: 5, name: '人体模型', img: 'image/enemy/enemy_anatomical_model.png', ht: 165, foe: true, hide: s => s.flags.q2fight,
-    talk() { return ['人体模型が二体、こちらを向いた。']; },
-    after() { startBattle('model', 2, () => { state.flags.q2fight = true; }); } },
+    talk(s) { return s.flags.bossDown ? ['人体模型が二体、立っている。', 'もう動かない。'] : ['人体模型が二体、こちらを向いた。']; },
+    after(s) { if (s.flags.bossDown) { s.flags.q2fight = true; return; } startBattle('model', 2, () => { state.flags.q2fight = true; }); } }, // 番人を倒したあとは動かない
 
   // ===================== 3 最後の放送（放送部員・3年の先輩・校長室の金庫） =====================
   //   放送部員は最初から放送室にいる。話が始まるのは、ほかの話がおおむね終わってから
@@ -533,12 +532,13 @@ const NPCS = [
     },
     after(s) { if (s.flags.q6fight && !s.flags.q6done) { s.flags.q6done = true; state.items.push('map'); revealMap(2); rewardExp(20); } } },
   { id: 'q6foe', quest: 'q6', fl: 2, x: 31, y: 7, name: '肖像画', img: 'image/enemy/enemy_portrait.png', ht: 120, foe: true, hide: s => s.flags.q6fight,
-    talk() {
+    talk(s) {
+      if (s.flags.bossDown) return ['肖像画は、ただの絵に戻っていた。'];
       if (hasItem('mirror')) return ['鏡を向けると、肖像画が身をよじった。'];
       const told = inParty('midorikawa') && teacherQuestTalk('midorikawa', state);
       return ['肖像画と目が合った。', '体が動かない。目をそらした。', ...(told || [])];
     },
-    after() { if (!hasItem('mirror')) return; takeItem('mirror'); startBattle('portrait', 1, () => { state.flags.q6fight = true; }); } },
+    after(s) { if (s.flags.bossDown) { if (hasItem('mirror')) takeItem('mirror'); s.flags.q6fight = true; return; } if (!hasItem('mirror')) return; takeItem('mirror'); startBattle('portrait', 1, () => { state.flags.q6fight = true; }); } },
 
   // ===================== 7 用務員の鍵束（用務員・2年A組の生徒・屋上） =====================
   { id: 'youmu', quest: 'q7', fl: 1, x: 20, y: 6, name: '用務員', img: 'image/chara_caretaker.png', ht: 165,
