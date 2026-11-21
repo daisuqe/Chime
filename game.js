@@ -774,6 +774,8 @@ function drawEnemyAt(kind, l, f, flash, e) {
   return top;
 }
 // スマホ（縦画面、またはタッチ操作）では、画面の中の文字を 1.5 倍に
+// 画面の操作ボタン（スマホ）を使っているか。使っているときは、文の中にキーの名前を出さない
+const usePad = () => getComputedStyle(document.getElementById('pad')).display !== 'none';
 const MOBILE_Q = matchMedia('(max-width:700px) and (orientation:portrait), (pointer:coarse)');
 const textScale = () => (MOBILE_Q.matches ? 1.5 : 1);
 function renderBattle() {
@@ -958,7 +960,7 @@ function advanceDialog() {
     const p = document.createElement('img'); p.src = dialogQ.portrait; p.className = 'portrait'; dlgEl.appendChild(p);
   }
   const t = document.createElement('div'); t.className = 'text'; t.textContent = line; dlgEl.appendChild(t);
-  const nx = document.createElement('div'); nx.className = 'next'; nx.textContent = dialogQ.lines.length ? '▼ Space' : '■ Space'; dlgEl.appendChild(nx);
+  const nx = document.createElement('div'); nx.className = 'next'; nx.textContent = (dialogQ.lines.length ? '▼' : '■') + (usePad() ? '' : ' Space'); dlgEl.appendChild(nx); // スマホ（画面のボタン）ではキーの名前を出さない
   dlgEl.style.display = 'block';
   if (line.startsWith('★')) log(line.replace('★ ', ''), 'good');
 }
@@ -1043,12 +1045,12 @@ function move(offset) {
   const pr = propAt(state.fl, nx, ny);
   if (pr) { log({ bed: 'ベッドがある。', desk: '机がある。', getabako: '下駄箱が並んでいる。', getabako_ns: '下駄箱が並んでいる。', stall: 'トイレの個室だ。', sink: '洗面台がある。', stage: 'ステージだ。', tank: '給水タンクだ。', unit: '室外機が並んでいる。', pool: 'プールの水が、夕焼けを映している。' }[pr.split(':')[0]] || '何かがある。', 'sys'); return; }
   const n = npcAt(state.fl, nx, ny);
-  if (n) { log(`${n.name}がいる。［Space］で話しかける`, 'sys'); return; }
+  if (n) { log(`${n.name}がいる。［${usePad() ? '話す' : 'Space'}］で話しかける`, 'sys'); return; }
   state.x = nx; state.y = ny;
   afterStep();
 }
 function turn(delta) { state.dir = (state.dir + delta + 4) % 4; markSeen(); render(); stairHint(); checkReveal(); }
-function stairHint() { const st = stairAhead(); if (st) log(st.up ? '上り階段だ。［5］で上る' : '下り階段だ。［5］で下りる', 'sys'); }
+function stairHint() { const st = stairAhead(); if (st) { const k = usePad() ? '↑' : '5'; log(st.up ? `上り階段だ。［${k}］で上る` : `下り階段だ。［${k}］で下りる`, 'sys'); } }
 // 昇り降り：つながる階の同じ id の階段の手前のマスへ。向きは階段に背を向ける
 function useStairs(st) {
   const fl = +Object.keys(MAPS).find(k => +k !== state.fl && MAPS[k].stairs.some(t => t.id === st.id));
@@ -1444,26 +1446,22 @@ const QUESTS = [
   ['片方の上履き', 'q1', 'q1done'], ['逃げた人体模型', 'q2', 'q2done'], ['最後の放送', 'q3', 'q3done'],
   ['卒業アルバム', 'q4', 'q4done'], ['迷子の新入生', 'q5', 'q5done'], ['見つめる肖像画', 'q6', 'q6done'], ['用務員の鍵束', 'q7', 'q7done'],
 ];
+// 進捗：体験したことだけを並べる（まだ起きていない本筋・始まっていない話・行っていない階は出さない。全体の数や広さもわからないようにする）
 function progressHTML() {
-  const f = state.flags, mark = b => (b ? '■' : '□');
+  const f = state.flags;
   const t = Math.floor(state.time / 60), time = `${Math.floor(t / 60)}時間${String(t % 60).padStart(2, '0')}分`;
   const main = [
     [f.metNurse, '保健の先生と話した'], [f.hadTeacher || f.saeki, '職員室の先生が仲間になった'], [f.reveal, '窓の外の夕焼けを見た'],
     [f.mizuno, '水野が仲間になった'], [state.seen[4] && state.seen[4].size > 0, '鐘楼にたどり着いた'], [f.bossDown, '鐘の番人を倒した'],
-  ];
-  const quests = QUESTS.map(([n, a, b]) => f[b] ? `■ ${n}　達成` : f[a] ? `□ ${n}　進行中` : '□ ？？？');
-  const floors = Object.keys(MAPS).map(k => {
-    const F = MAPS[k]; let all = 0; for (const row of F.grid) for (const c of row) if (c) all++;
-    const n = state.seen[k] ? state.seen[k].size : 0;
-    return `${F.name} ${n ? Math.min(100, Math.round(n / all * 100)) + '%' : '未踏'}`;
-  });
-  const done = QUESTS.filter(q => f[q[2]]).length;
+  ].filter(([b]) => b).map(([, t]) => `<div>■ ${t}</div>`);
+  const quests = QUESTS.filter(([, a, b]) => f[a] || f[b]).map(([n, , b]) => `<div>${f[b] ? `■ ${n}　達成` : `□ ${n}　進行中`}</div>`);
+  const floors = Object.keys(MAPS).filter(k => state.seen[k] && state.seen[k].size > 0).map(k => MAPS[k].name);
   return `<div>現在地：${esc(placeName(state.fl, state.x, state.y))}</div>
-    <div>連れて行ける人数：${partyCap()}人（最大${PARTY_MAX}人）</div>
+    <div>連れて行ける人数：${partyCap()}人</div>
     <div>プレイ時間：${time}</div>
-    <h4>本筋</h4>${main.map(([b, t]) => `<div>${mark(b)} ${t}</div>`).join('')}
-    <h4>サブシナリオ（${done}/7）</h4>${quests.map(q => `<div>${q}</div>`).join('')}
-    <h4>探索</h4><div>${floors.join('　')}</div>
+    <h4>本筋</h4>${main.join('') || '<div>まだ何もない</div>'}
+    <h4>頼まれごと</h4>${quests.join('') || '<div>まだ何もない</div>'}
+    <h4>行った階</h4><div>${floors.join('　') || 'なし'}</div>
     <h4>持ち物</h4><div>${state.items.length ? state.items.map(i => esc(ITEM_NAME[i])).join('、') : 'なし'}</div>`;
 }
 function showMenuTab(tab) {
@@ -1472,7 +1470,7 @@ function showMenuTab(tab) {
   if (tab === 'help') menuBody.innerHTML = document.getElementById('helpText').innerHTML;
   else if (tab === 'prog') menuBody.innerHTML = progressHTML();
   else if (tab === 'log') menuBody.innerHTML = state.history.length ? state.history.map(t => `<div>${esc(t)}</div>`).join('') : '<div>まだ何もない</div>';
-  else menuBody.innerHTML = '<div>保存されているデータを消して、最初からやり直します。</div><div class="restart"><button id="restartBtn">はじめからやり直す</button></div><div style="margin-top:6px">（Space・Enter でも選べる）</div>';
+  else menuBody.innerHTML = '<div>保存されているデータを消して、最初からやり直します。</div><div class="restart"><button id="restartBtn">はじめからやり直す</button></div>' + (usePad() ? '' : '<div style="margin-top:6px">（Space・Enter でも選べる）</div>');
   menuBody.scrollTop = tab === 'log' ? menuBody.scrollHeight : 0;
   const rb = document.getElementById('restartBtn');
   if (rb) rb.onclick = askRestart;
