@@ -978,13 +978,13 @@ function remember(text) {
   if (state.history.length > HISTORY_MAX) state.history.splice(0, state.history.length - HISTORY_MAX);
 }
 function log(msg, cls = '') {
-  remember(msg.trim());
   const d = document.createElement('div'); d.textContent = msg; if (cls) d.className = cls;
   logEl.appendChild(d);
   while (logEl.children.length > LOG_MAX) logEl.removeChild(logEl.firstChild);
   setTimeout(() => { d.classList.add('fade'); setTimeout(() => d.remove(), 400); }, LOG_MS);
 }
 const dlgEl = document.getElementById('dialog');
+const dialogNotice = text => ({ text }); // ダイアログに表示するシステム通知
 // npc を渡すと、会話中はそのキャラを目の前（近距離）に大きく表示する
 function showDialog(lines, cb, npc, item) {
   dialogQ = { lines: lines.slice(), cb, prev: mode, npc, item };
@@ -999,8 +999,11 @@ function advanceDialog() {
     mode = prev === 'dialog' ? 'explore' : prev;
     render(); if (cb) cb(); return;
   }
-  const line = dialogQ.lines.shift();
-  if (!line.startsWith('★')) remember(line); // ★ の行は log() 側で残る
+  const entry = dialogQ.lines.shift();
+  const story = typeof entry === 'string';
+  const line = story ? entry : entry.text;
+  const reward = line.startsWith('★');
+  if (story) remember(reward ? line.replace('★ ', '') : line);
   dlgEl.innerHTML = '';
   // ★ で始まる行（手に入れた・受け取った）は、その物の絵を左に出す
   const got = line.startsWith('★') && Object.keys(ITEM_IMG).find(id => ITEM_NAME[id] && line.includes(ITEM_NAME[id]));
@@ -1008,7 +1011,7 @@ function advanceDialog() {
   const t = document.createElement('div'); t.className = 'text'; t.textContent = line; dlgEl.appendChild(t);
   const nx = document.createElement('div'); nx.className = 'next'; nx.textContent = (dialogQ.lines.length ? '▼' : '■') + (usePad() ? '' : ' Space'); dlgEl.appendChild(nx); // スマホ（画面のボタン）ではキーの名前を出さない
   dlgEl.style.display = 'block';
-  if (line.startsWith('★')) log(line.replace('★ ', ''), 'good');
+  if (reward) log(line.replace('★ ', ''), 'good');
 }
 dlgEl.addEventListener('click', advanceDialog);
 
@@ -1174,7 +1177,7 @@ function mateTalk(c) {
   if (q) { showDialog(q, () => render()); return; }
   const hurt = state.party.filter(t => t.hp > 0 && t.hp < t.maxhp * 0.6).length, down = state.party.filter(t => t.hp <= 0).length;
   let line;
-  if (c.hp <= 0) line = `${c.name}は 倒れたまま、目を閉じている。`;
+  if (c.hp <= 0) line = dialogNotice(`${c.name}は 倒れたまま、目を閉じている。`);
   else if (down) line = `${c.name}「倒れている人がいる。保健室まで戻ったほうがいい」`;
   else if (hurt) line = `${c.name}「ずいぶん傷だらけね。少し休もうか」`;
   else if (c.mp < c.maxmp * 0.3) line = `${c.name}「少し疲れてきた。呪文は、あまり使えないかも」`;
@@ -1485,11 +1488,11 @@ async function defeat() {
   log('パーティは全滅した……', 'bad');
   await sleep(800);
   battle = null; mode = 'explore';
-  const down = state.party.filter(levelDown).map(c => `${c.name}は レベル${c.lv}に下がった……`);
+  const down = state.party.filter(levelDown).map(c => dialogNotice(`${c.name}は レベル${c.lv}に下がった……`));
   // 途中で閉じられても、保健室で回復した状態から再開できるよう、先に戻して保存しておく
   Object.assign(state, { fl: 1, x: START[0], y: START[1], dir: 2, room: null, cool: 6 });
   healAll(); markSeen(); saveGame();
-  showDialog(['パーティは全滅した……', '……気がつくと、保健室のベッドの上だった。', ...down], () => render());
+  showDialog([dialogNotice('パーティは全滅した……'), '……気がつくと、保健室のベッドの上だった。', ...down], () => render());
 }
 
 // ---------------------------------------------------------------------
@@ -1574,18 +1577,48 @@ menuEl.querySelector('.close').addEventListener('click', () => toggleMenu(false)
 //  （ブラウザごと・ホーム画面のアプリごとに別々に保存される）
 // ---------------------------------------------------------------------
 const SAVE_KEY = 'chime.save.v1';
+// 旧セーブの履歴は文章だけなので、既知の通知の文型を取り除く。
+const LEGACY_NOTICE_PATTERNS = [
+  /^― (?!プロトタイプはここまで ―$).+ ―$/,
+  /^(?:ゴツン。)?壁だ。$|^扉(?:だ。.*|を開け(?:た|て通り抜けた)。|は開かない。|は正面を向いて通る。|には鍵がかかっている。)$|^横移動では扉を通れない。$/,
+  /^(?:上り|下り)階段だ。.*$|^階段(?:の側面だ。|を(?:上った|下りた)。.+)$|^.+がいる。(?:［[^］]+］(?:で話しかける)?)?$/,
+  /^(?:ベッドがある|机がある|下駄箱が並んでいる|トイレの個室だ|洗面台がある|ステージだ|給水タンクだ|室外機が並んでいる|プールだ|プールの水が、.*|何かがある|特に何もない)。$/,
+  /^(?:カーテンが閉まっている|カーテンの隙間からも、外の様子はうかがえない|外は見えない|窓は開かない|窓は固く閉ざされ、びくともしない|遠くに街が見える)。$/,
+  /^(?:窓の外は、夜になりきれない空だ|窓の外は燃えるような夕焼けだ|遠くの街並みが、?暗い赤の底に沈んでいる|遠くの街並みが茜色に沈んでいく|(?:紺から暗い紫|紫からオレンジ)へ――空の色?が、?(?:どこか落ち着かない|ゆっくり滲んでいる)|柵の向こうに、(?:空がある|夜になりきれない空が広がっている))。$/,
+  /が (?:舞い上がった|飛んできた|動き出した|立ち上がった|浮かび上がった|起き上がった|構えた|顔を上げた|襲いかかってきた|\d+体 あらわれた|あらわれた)[。！]$/,
+  /(?:の こうげき|を たおした|は (?:身を守っている|気力が足りない|眠った|眠っている|縮みあがって眠ってしまった|まどろみに 落ちた|(?:ひらりと)?かわした|消えた|動かなくなった|じゅもんを知らない)|には 効かなかった|を となえた)[。！]?$/,
+  /^(?:番人が (?:大槌で)?鐘を打った。.*|……はずれた|MPが足りない|全員が 身構えた|逃げ出した……|(?:うまく)?逃げきれた。|(?:しかし )?回りこまれた|しかし 回りこまれてしまった！|パーティは全滅した……)$/,
+  /^(?:オートを止めた。|オート戦闘を止めた。.*|勝った。経験値 \d+|敵を全滅させた！.*)$|(?:に \d+ のダメージ|は \d+ のダメージを受けた|は 倒れた……|は 倒れたまま、目を閉じている。|は レベル\d+に(?:上がった！|下がった……))$/,
+  /^(?:(?:体力(?:とMP)?|MP)が回復した。|誰も怪我をしていない。|手当てできる人がいない。|回復の呪文を使える仲間がいない|みんな ?回復した|仲間全員の HP が 回復した)$|(?:を手当てした| HP が回復した|HPが \d+ 回復した|は \d+ 回復した)$/,
+  /^★ (?:頼れる仲間が増え、)?\d+人で行動できるようになった$|が ?仲間に加わった！?$|^(?:カードを束に戻した。|開かない。|……何も起きない。)$|^「[^」]+」が貼ってある。$/,
+];
+function legacyStoryHistory(history) {
+  let windowRecorded = false;
+  return history.filter(text => {
+    const line = text.trim();
+    // 最初に外を見た場面と窓の通常通知で同じ文を使っていた。
+    if (line === '夜が近づいている。') {
+      if (windowRecorded) return false;
+      windowRecorded = true;
+    }
+    return !LEGACY_NOTICE_PATTERNS.some(pattern => pattern.test(line));
+  });
+}
+
 const setsToArrays = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v]]));
 function saveGame() {
   if (!state || battle || restarting) return; // 戦闘中は保存しない（戦闘前の状態から再開）
-  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 1, at: Date.now(), state: { ...state, seen: setsToArrays(state.seen), seenE: setsToArrays(state.seenE) } })); } catch (e) { /* 保存できない環境では何もしない */ }
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 2, at: Date.now(), state: { ...state, seen: setsToArrays(state.seen), seenE: setsToArrays(state.seenE) } })); } catch (e) { /* 保存できない環境では何もしない */ }
 }
 function loadGame() {
   try {
     const raw = localStorage.getItem(SAVE_KEY); if (!raw) return false;
-    const s = JSON.parse(raw).state;
+    const save = JSON.parse(raw), s = save.state;
     const toSets = o => Object.fromEntries(Object.keys(MAPS).map(k => [k, new Set((o && o[k]) || [])]));
     s.seen = toSets(s.seen); s.seenE = toSets(s.seenE);
-    s.items = s.items || []; s.history = s.history || []; s.time = s.time || 0; s.flags = s.flags || {};
+    s.items = s.items || []; s.time = s.time || 0; s.flags = s.flags || {};
+    s.history = Array.isArray(s.history) ? s.history.filter(t => typeof t === 'string') : [];
+    if (!(save.v >= 2)) s.history = legacyStoryHistory(s.history);
     if (s.flags.saeki && !s.flags.teacher) { // 旧版：佐伯先生がいたら、そのまま先生枠に
       const c = (s.party || []).find(c => c.id === 'saeki');
       s.teachers = { saeki: c || null }; if (c) { c.id = 't_saeki'; c.cls = '体育'; s.flags.teacher = 'saeki'; s.flags.hadTeacher = true; } else delete s.teachers.saeki;

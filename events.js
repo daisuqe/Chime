@@ -185,6 +185,7 @@ const NPCS = [
     talk(s) {
       const first = !s.flags.metNurse; s.flags.metNurse = true;
       const healed = healAll(); // 満タンになったものがあれば、先生の言葉のあとに知らせる
+      const recoveryNotice = healed ? [dialogNotice(healed)] : [];
       const hints = first && s.flags.q1s !== 1 ? [] : questHints(s);
       if (first) s.flags.nurseHinted = true;
       if (first && !s.flags.bossDown) return [
@@ -193,12 +194,12 @@ const NPCS = [
         '「あなたを運んだときも、時計は五時だったの。まだ針が動いてない」',
         '「ほら。また同じチャイム」',
         '「廊下に出るなら、隣の職員室で先生を呼んでね。ひとりで行かないで」',
-        ...(healed ? [healed] : []), ...hints,
+        ...recoveryNotice, ...hints,
       ];
       const greeting = s.flags.bossDown ? '保健の先生「静かになったね。……おかえり」'
         : healed ? '保健の先生「戻ってきてくれてよかった。まず座って。手当てするね」'
                  : '保健の先生「おかえり。ここで少し休んでいく？」';
-      return [greeting, ...(healed ? [healed] : []), ...hints];
+      return [greeting, ...recoveryNotice, ...hints];
     } },
   { id: 'mizuno', fl: 1, x: 25, y: 25, name: '図書委員', img: 'image/chara_mizuno.png', ht: 152, hide: () => inParty('mizuno'),
     talk(s) {
@@ -486,10 +487,10 @@ const EXAMINES = [
   { fl: 1, x: 23, y: 25, d: 3, cond: s => s.flags.q4s >= 1 && s.flags.q4s < 4,
     talk: () => ['机に、貸出カードが散らばっている。'],
     after: () => showChoice('最後に借りたのは？', [
-      ['相沢　3月2日　1年', () => showDialog(['カードを束に戻した。'])],
-      ['木下　2月28日　2年', () => showDialog(['カードを束に戻した。'])],
+      ['相沢　3月2日　1年', () => showDialog([dialogNotice('カードを束に戻した。')])],
+      ['木下　2月28日　2年', () => showDialog([dialogNotice('カードを束に戻した。')])],
       ['（名前がにじんでいる）　3月14日　3年B組', () => { state.flags.q4s = 4; showDialog(['名前はにじんで読めない。', '★ 最後に借りたのは、3年B組の生徒だった']); }],
-      ['相沢　3月9日　1年', () => showDialog(['カードを束に戻した。'])],
+      ['相沢　3月9日　1年', () => showDialog([dialogNotice('カードを束に戻した。')])],
     ]) },
   // --- 5 3年E組の掲示物（時間割が貼ってある教室に、カバン） ---
   ...[[2, 13], [7, 13], [12, 13], [17, 13], [2, 8], [7, 8], [12, 8], [17, 8]].map(([x0, y0], i) => {
@@ -497,7 +498,7 @@ const EXAMINES = [
     const notes = ['「今月の目標　廊下は静かに」', '「遠足のしおり」', '「保健だより」', '「清掃当番表」', '「図書室だより」', '「学級目標　ひとりひとりが主役」', '「進路説明会のお知らせ」'];
     return { fl: 3, x, y, d, deco: 'bulletin',
       talk: s => hit ? ['時間割が貼ってある。', ...(s.flags.q5 && !s.flags.q5found ? ['机に、カバンが掛かっている。', '★ 新入生のカバンを 見つけた'] : [])]
-                     : [`${notes[i % notes.length]}が貼ってある。`],
+                     : [dialogNotice(`${notes[i % notes.length]}が貼ってある。`)],
       after: s => { if (hit && s.flags.q5 && !s.flags.q5found) { s.flags.q5found = true; state.items.push('bag'); } } };
   }),
   // --- 6 2階のトイレの鏡 ---
@@ -507,7 +508,7 @@ const EXAMINES = [
   { fl: 1, x: 17, y: 2, d: 1, deco: 'safe', cond: s => !hasItem('equipkey') && !s.flags.q3done,
     talk: () => ['金庫がある。ダイヤルは時計の形だ。'],
     after: () => showChoice('ダイヤルを合わせる', ['3時', '5時', '7時', '9時'].map(t => [t, () => {
-      if (t !== '7時') { showDialog(['開かない。']); return; }
+      if (t !== '7時') { showDialog([dialogNotice('開かない。')]); return; }
       state.items.push('equipkey'); showDialog(['金庫が開いた。', '★ 機材の鍵を 手に入れた']);
     }])) },
   { fl: 3, x: 30, y: 24, d: 0, deco: 'clock7', talk: () => ['この時計だけ、7時を指している。'] },
@@ -520,7 +521,7 @@ const examineAt = s => EXAMINES.find(e => e.fl === s.fl && e.x === s.x && e.y ==
 function askSeq(title, opts, answer, ok) {
   const picks = [];
   const step = () => {
-    if (picks.length === answer.length) { if (picks.every((p, i) => p === answer[i])) ok(); else showDialog(['……何も起きない。']); return; }
+    if (picks.length === answer.length) { if (picks.every((p, i) => p === answer[i])) ok(); else showDialog([dialogNotice('……何も起きない。')]); return; }
     showChoice(`${title}：${picks.length ? picks.join('・') : '―'}`, [...opts.map(o => [o, () => { picks.push(o); step(); }]), ['やめる', () => {}]]);
   };
   step();
