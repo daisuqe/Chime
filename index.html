@@ -105,6 +105,9 @@
     html, body { overflow-x:hidden; }
     /* ふつうは見えている高さ（dvh）にぴったり。入りきらない小さな画面では、重ならずに縦にスクロールする */
     #app { padding:6px; min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; }
+    /* iPhone の Safari は、中身が一瞬でも横にはみ出すとページの幅そのものを広げてしまう。
+       外枠で切り取って、何があっても画面の幅を超えないようにする */
+    #app { width:100%; max-width:100vw; overflow:hidden; }
     #top { flex:1 1 auto; min-height:0; flex-direction:column; flex-wrap:nowrap; gap:6px; }
     #viewWrap { flex:none; width:100%; max-width:none; }
     #side { display:contents; } /* 中身（マップ・ステータス）を、プレイ画面と同じ並びに出す */
@@ -134,7 +137,7 @@
      並び：左へ・左を向く・直進・右を向く・右へ・話す・手当・メニュー（後退は使わない）
      戦闘で行動を選ぶ間は、行動 1〜6 と「戻る」が並ぶ */
   @media (pointer:coarse) and (orientation:landscape) {
-    #app { display:grid; grid-template-columns:auto 260px; grid-template-areas:'view side' 'pad pad';
+    #app { overflow:hidden; max-width:100vw; display:grid; grid-template-columns:auto 260px; grid-template-areas:'view side' 'pad pad';
            gap:6px; padding:6px; max-width:none; justify-content:center; align-items:start; }
     #top { display:contents; }
     #viewWrap { grid-area:view; flex:none; width:calc((100vh - 96px) * 832 / 611); max-width:calc(100vw - 284px); }

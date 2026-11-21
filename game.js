@@ -914,7 +914,11 @@ function openBigMap() {
 function closeBigMap() { if (mode !== 'bigmap') return; mode = 'explore'; bigEl.style.display = 'none'; render(); }
 mc.addEventListener('pointerup', openBigMap); // タップでも開く（touchstart を止めているので click は来ない）
 document.getElementById('bigmapClose').addEventListener('click', e => { e.stopPropagation(); closeBigMap(); });
-window.addEventListener('resize', () => { if (mode === 'bigmap') renderBigMap(); else if (state) renderMap(); });
+window.addEventListener('resize', () => { if (mode === 'bigmap') renderBigMap(); else if (state) renderMap(); keepLeft(); });
+// 横にずれて表示されていたら左端に戻す（iPhone の Safari 対策。フォントの読み込み後や画面の回転後にも確かめる）
+function keepLeft() { if (window.scrollX) window.scrollTo(0, window.scrollY); }
+if (document.fonts) document.fonts.ready.then(() => { if (state) renderMap(); keepLeft(); });
+window.addEventListener('orientationchange', () => setTimeout(keepLeft, 300));
 function renderHUD() {
   // プレイ画面の右上（内側）に現在地：例「B棟 1F 保健室 [2, 1] 南」
   document.getElementById('loc').textContent = `${placeName(state.fl, state.x, state.y)} [${state.x}, ${state.y}] ${DIR_NAME[state.dir]}`;
