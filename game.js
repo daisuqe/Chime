@@ -159,8 +159,13 @@ function newGame() {
 }
 
 const itemAt = (fl, x, y) => ITEMS.find(it => it.fl === fl && it.x === x && it.y === y && !state.flags['got_' + it.id] && questVisible(it.quest) && (!it.cond || it.cond(state))) || null;
+// 仲間になった人物や、まだ始まっていない話の人物は、その場にいない。
+const npcVisible = n => !n.hide?.(state) && questVisible(n.quest);
 function npcAt(fl, x, y) {
-  return NPCS.find(n => n.fl === fl && n.x === x && n.y === y && !(n.hide && n.hide(state)) && questVisible(n.quest)) || null; // まだ始まっていない話の人物はいない
+  return NPCS.find(n => n.fl === fl && n.x === x && n.y === y && npcVisible(n)) || null;
+}
+function roomHasPerson(fl, room) {
+  return NPCS.some(n => n.fl === fl && !n.foe && !n.boss && roomAt(fl, n.x, n.y) === room && npcVisible(n));
 }
 const aliveParty = () => state.party.filter(c => c.hp > 0);
 
@@ -1136,10 +1141,13 @@ function afterStep() {
   checkReveal();
   if (mode !== 'explore') return;
   state.cool--;
-  const safe = r && r.safe;
-  if (!safe && state.cool <= 0 && Math.random() < 0.09) {
-    const k = encounterKind(state.fl, areaAt(state.fl, state.x, state.y)), m = MONS[k];
-    startBattle(k, groupSize(m));
+  if (r?.safe || state.cool > 0) return;
+  // 話の中で怪異が起きている部屋だけ、人がいても指定の敵が出る。
+  const poltergeist = r?.poltergeist?.(state);
+  if (r && !poltergeist && roomHasPerson(state.fl, r)) return;
+  if (Math.random() < 0.09) {
+    const k = poltergeist || encounterKind(state.fl, a);
+    startBattle(k, groupSize(MONS[k]));
   }
 }
 

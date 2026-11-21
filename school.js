@@ -200,7 +200,8 @@ const MAPS = {
     m.hall('渡り廊下', '', [[25, 12], [26, 12]]); m.link(24, 12, 1); m.link(26, 12, 1);
     // C棟2F：1F の C棟の真上。廊下の南に階段ホール
     const cCor = m.hall('廊下', C, [[27, 1], [27, 20]]); m.rect(cCor, 28, 17, 32, 20);
-    m.room('美術室', C, 28, 1, 32, 5); m.door(28, 2, 3); m.prop('desk', 29, 4, 31, 4);
+    m.room('美術室', C, 28, 1, 32, 5, { poltergeist: s => s.flags.q6 && !s.flags.q6fight ? 'paper' : null });
+    m.door(28, 2, 3); m.prop('desk', 29, 4, 31, 4);
     m.room('美術準備室', C, 28, 6, 32, 7); m.door(28, 6, 3);
     m.room('書道室', C, 28, 8, 32, 11); m.door(28, 9, 3); m.prop('desk', 30, 9, 30, 10);
     m.room('被服室', C, 28, 12, 32, 15); m.door(28, 13, 3); m.prop('desk', 30, 13, 30, 14);
