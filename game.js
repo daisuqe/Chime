@@ -914,11 +914,19 @@ function openBigMap() {
 function closeBigMap() { if (mode !== 'bigmap') return; mode = 'explore'; bigEl.style.display = 'none'; render(); }
 mc.addEventListener('pointerup', openBigMap); // タップでも開く（touchstart を止めているので click は来ない）
 document.getElementById('bigmapClose').addEventListener('click', e => { e.stopPropagation(); closeBigMap(); });
-window.addEventListener('resize', () => { if (mode === 'bigmap') renderBigMap(); else if (state) renderMap(); keepLeft(); });
+window.addEventListener('resize', () => { fitHeight(); if (mode === 'bigmap') renderBigMap(); else if (state) renderMap(); keepLeft(); });
 // 横にずれて表示されていたら左端に戻す（iPhone の Safari 対策。フォントの読み込み後や画面の回転後にも確かめる）
 function keepLeft() { if (window.scrollX) window.scrollTo(0, window.scrollY); }
+// 画面の高さ：見えている高さを CSS に渡す（ホーム画面から開いた iPhone では 100dvh がずれることがあるため）
+function fitHeight() {
+  const h = Math.round((window.visualViewport && window.visualViewport.height) || window.innerHeight);
+  if (document.documentElement.style.getPropertyValue('--appH') !== h + 'px') { document.documentElement.style.setProperty('--appH', h + 'px'); if (state) renderMap(); }
+  if (window.scrollY && usePad()) window.scrollTo(window.scrollX, 0);
+}
+fitHeight();
+if (window.visualViewport) window.visualViewport.addEventListener('resize', fitHeight);
 if (document.fonts) document.fonts.ready.then(() => { if (state) renderMap(); keepLeft(); });
-window.addEventListener('orientationchange', () => setTimeout(keepLeft, 300));
+window.addEventListener('orientationchange', () => setTimeout(() => { fitHeight(); keepLeft(); }, 300));
 function renderHUD() {
   // プレイ画面の右上（内側）に現在地：例「B棟 1F 保健室 [2, 1] 南」
   document.getElementById('loc').textContent = `${placeName(state.fl, state.x, state.y)} [${state.x}, ${state.y}] ${DIR_NAME[state.dir]}`;
@@ -930,6 +938,7 @@ function renderHUD() {
     '<tr><th>Name</th><th>Lv</th><th>HP</th><th>MP</th><th>Status</th></tr>' + rows;
 }
 function render() {
+  fitHeight();
   updatePad();
   if (state.flags.nurseHinted && (state.fl !== 1 || (areaAt(1, state.x, state.y) || {}).name !== '保健室')) state.flags.nurseHinted = false; // 保健室を出た
   updateQuestLocks(); renderView(); renderMap(); renderHUD(); checkCap(); saveSoon(); }
