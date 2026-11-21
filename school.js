@@ -11,9 +11,17 @@
 //  この校舎は現実離れしている：階ごとに棟の位置も向きもまるで違い、
 //  下に何もない場所に上の階が浮かんでいる（floating な区画）。
 //  階段：2マス使うソリッド。stairs(id, x, y, dir, up)：(x,y) から dir 方向へ2マス。
-//        同じ id の階段どうしがつながる（隣の階とは限らない）
+//        同じ id の階段どうしがつながる。B棟の屋上へは B棟3F から上る。
 // =====================================================================
 const OPEN = 0, WALL = 1, DOOR = 2, WIN = 3, FENCE = 4; // FENCE：屋外（屋上・プール）の柵。向こうが透けて見える
+
+// 階段の2マスを囲む左右と奥の辺。手前は出入口として残す。
+function stairWallEdges(x, y, dir) {
+  const [dx, dy] = [[0, -1], [1, 0], [0, 1], [-1, 0]][dir];
+  const left = (dir + 3) % 4, right = (dir + 1) % 4;
+  const farX = x + dx, farY = y + dy;
+  return [[x, y, left], [x, y, right], [farX, farY, left], [farX, farY, right], [farX, farY, dir]];
+}
 
 // 辺のキー：マス(x,y)の d 側。南・東の辺は隣のマスの北・西の辺として数える
 function edgeKey(x, y, d) {
@@ -25,7 +33,7 @@ function edgeKey(x, y, d) {
 
 function makeFloor(name, W, H, build) {
   const F = {
-    name, W, H, areas: [], cells: {}, props: {}, stairs: [], locks: {}, deco: {}, lines: [],
+    name, W, H, areas: [], cells: {}, props: {}, stairs: [], stairWalls: new Set(), locks: {}, deco: {}, lines: [],
     grid: Array.from({ length: H }, () => Array(W).fill(null)), // マス → 区画（null は虚空）
   };
   const over = [];
@@ -62,6 +70,12 @@ function makeFloor(name, W, H, build) {
     },
   };
   build(api);
+  for (const { x, y, dir } of F.stairs) {
+    for (const edge of stairWallEdges(x, y, dir)) {
+      F.stairWalls.add(edgeKey(...edge));
+      over.push([...edge, WALL]);
+    }
+  }
   const at = (x, y) => (x >= 0 && y >= 0 && x < W && y < H ? F.grid[y][x] : null);
   // 校舎に囲まれた狭い空き地（盤面の外とつながらず、POCKET_MAX マス未満）を探す
   const POCKET_MAX = 40, outside = new Set(), pocket = new Set();
@@ -155,7 +169,7 @@ const MAPS = {
     m.room('図書室', D, 20, 24, 28, 27); m.door(24, 24, 0); m.prop('desk', 22, 25, 22, 26, 27, 25, 27, 26);
     m.room('司書室', D, 29, 24, 31, 27); m.door(30, 24, 0, 'open_q4');
     m.room('自習室', D, 32, 24, 38, 27); m.door(35, 24, 0); m.prop('desk', 34, 26, 36, 26);
-    m.stairs('D13', 37, 21, 0, true); // D棟の階段は 2F を飛ばして 3F に出る
+    m.stairs('D12', 37, 21, 0, true);
   }),
 
   // ---------------- 2F：1F の真上。教室の並びはふつうだが、中庭の宙を空中廊下が折れ曲がって渡る ----------------
@@ -192,6 +206,11 @@ const MAPS = {
     m.room('被服室', C, 28, 12, 32, 15); m.door(28, 13, 3); m.prop('desk', 30, 13, 30, 14);
     m.stairs('C12', 31, 18, 3, false);
     m.stairs('C23', 29, 20, 1, true);
+
+    // D棟2F：踊り場で階段を乗り継ぐ
+    m.room('階段室', 'D棟', 36, 19, 38, 22, { solid: true });
+    m.stairs('D12', 37, 20, 2, false);
+    m.stairs('D23', 38, 21, 0, true);
   }),
 
   // ---------------- 3F：同じ教室がどこまでも並ぶ廊下と、宙に浮いた D棟 ----------------
@@ -212,12 +231,12 @@ const MAPS = {
     m.room('3年B組', C, 28, 5, 32, 8); m.door(28, 6, 3); m.prop('desk', 31, 5, 31, 7, 30, 8);
     m.room('化学室', C, 28, 9, 32, 12); m.door(28, 10, 3); m.prop('desk', 30, 10, 30, 11, 32, 10, 32, 11);
     m.stairs('C23', 30, 20, 3, false);
-    // D棟3F：その下の 2F には何もない（1F の D棟の真上に浮いている）
+    // D棟3F：階段室から先は、2F の床がない場所に浮いている
     m.hall('空中渡り廊下', '', [[27, 21], [27, 22]], { floating: true }); m.link(27, 20, 2); m.link(27, 22, 2);
     const dCor = m.hall('廊下', D, [[26, 23], [38, 23]], { floating: true }); m.rect(dCor, 36, 19, 38, 22);
     m.room('視聴覚室', D, 26, 24, 31, 27, { floating: true }); m.door(28, 24, 0); m.prop('desk', 27, 26, 28, 26, 29, 26, 30, 26);
     m.room('放送準備室', D, 32, 24, 35, 26, { floating: true }); m.door(33, 24, 0);
-    m.stairs('D13', 37, 20, 2, false);
+    m.stairs('D23', 38, 20, 2, false);
     m.stairs('X34', 36, 21, 0, true);
   }),
 

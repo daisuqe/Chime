@@ -47,6 +47,7 @@ function decoAt(fl, x, y, d) {
   if (e !== WALL) return null;
   if (!a || a.outdoor) return null;
   const man = F.deco[x + ',' + y + ',' + d]; if (man) return man;
+  if (F.stairWalls.has(edgeKey(x, y, d))) return null;
   if (/組$/.test(a.name) && d === (a.board ?? 1)) return 'board';
   if (a.hiwin && !areaAt(fl, x + DIRS[d][0], y + DIRS[d][1])) return 'hiwin';
   let h = (x * 374761393 + y * 668265263 + d * 2246822519 + fl * 3266489917) >>> 0; // 位置で決まる乱数
@@ -390,16 +391,35 @@ const STEPS = 7, STAIR_A = 0.44;
 function drawStairSolid(st) {
   const [sx, sy] = DIRS[st.dir], [tx, ty] = DIRS[(st.dir + 1) % 4];
   const ox = st.x - sx * 0.5 - state.x, oy = st.y - sy * 0.5 - state.y; // 手前の辺の中心（自分からの相対）
+  if (ox * sx + oy * sy <= 0) return; // 外側から階段の側壁や奥の壁を透かさない
   const [fx, fy] = DIRS[state.dir], [rx, ry] = DIRS[(state.dir + 1) % 4];
   // 局所 (u,v,h) → 視点座標 [横, 奥行, 高さ]
   const V = (u, v, h) => { const wx = ox + sx * u + tx * v, wy = oy + sy * u + ty * v; return [wx * rx + wy * ry, wx * fx + wy * fy, h]; };
   const N = (nu, nv, nh) => { const wx = sx * nu + tx * nv, wy = sy * nu + ty * nv; return [wx * rx + wy * ry, wx * fx + wy * fy, nh]; };
+  // 視点より後ろにかかる面を切ってから投影する。
+  const near = 0.08;
+  const project = points => {
+    const projected = [];
+    for (let i = 0; i < points.length; i++) {
+      const a = points[i], b = points[(i + 1) % points.length];
+      if (a[1] >= near) projected.push(P(...a));
+      if ((a[1] >= near) !== (b[1] >= near)) {
+        const t = (near - a[1]) / (b[1] - a[1]);
+        projected.push(P(a[0] + (b[0] - a[0]) * t, near, a[2] + (b[2] - a[2]) * t));
+      }
+    }
+    return projected;
+  };
+  const opening = project([[0, -0.5, -0.5], [0, 0.5, -0.5], [0, 0.5, 0.5], [0, -0.5, 0.5]].map(q => V(...q)));
+  if (opening.length < 3) return;
+  const hole = st.up ? null : project([[0, -0.5], [2, -0.5], [2, 0.5], [0, 0.5]].map(([u, v]) => V(u, v, -0.5)));
+  if (hole && hole.length < 3) return;
   const faces = [];
   const add = (pts, n) => {
     const p = pts.map(q => V(...q)), nn = N(...n), c = p[0];
     if (nn[0] * -c[0] + nn[1] * -c[1] + nn[2] * -c[2] <= 1e-6) return; // 裏向きは描かない（視点は原点）
     const m = p.reduce((a, q) => [a[0] + q[0] / p.length, a[1] + q[1] / p.length, a[2] + q[2] / p.length], [0, 0, 0]);
-    faces.push({ p, dist: Math.hypot(m[0], m[1], m[2]), dmin: Math.min(...p.map(q => q[1])) });
+    faces.push({ p, dist: Math.hypot(m[0], m[1], m[2]) });
   };
   const A = STAIR_A, dd = 2 / STEPS, rh = 1 / STEPS;
   if (st.up) {
@@ -428,27 +448,27 @@ function drawStairSolid(st) {
     add(wall.map(([u, h]) => [u, A, h]), [0, -1, 0]);
   }
   faces.sort((a, b) => b.dist - a.dist);
+  g.save();
+  path(opening); g.clip();
   g.lineJoin = 'bevel'; g.lineWidth = 1.5; g.fillStyle = '#000'; g.strokeStyle = '#fff';
-  // 下り階段は床に開いた穴の中だけに描く（床下の部分が手前の壁の下からはみ出さないように）
-  const hole = !st.up && [[0, -0.5], [2, -0.5], [2, 0.5], [0, 0.5]].map(([u, v]) => V(u, v, -0.5));
-  const clip = hole && hole.every(q => q[1] > 0.06);
-  if (clip) { g.save(); path(hole.map(q => P(...q))); g.clip(); }
+  // 床下の線や奥の窓が、吹き抜けの隙間から見えないようにする。
+  if (hole) { path(hole); g.fill(); g.clip(); }
   for (const fc of faces) {
-    if (fc.p.every(q => q[1] < 0.06)) continue; // 自分より後ろ
-    path(fc.p.map(q => P(...q))); g.fill(); g.stroke();
+    const face = project(fc.p);
+    if (face.length < 3) continue;
+    path(face); g.fill(); g.stroke();
   }
-  if (clip) g.restore();
   // 上り階段：天井に開いた穴（枠だけ）。マス2つ分の幅・長さ、天井の高さ h=+0.5
   if (st.up) {
     const c = [[0, -0.5], [2, -0.5], [2, 0.5], [0, 0.5]].map(([u, v]) => V(u, v, 0.5));
     g.strokeStyle = lineCol(Math.max(0.5, Math.min(...c.map(q => q[1])))); g.lineWidth = 1.5;
     for (let i = 0; i < 4; i++) {
       const a = c[i], b = c[(i + 1) % 4];
-      if (a[1] < 0.06 || b[1] < 0.06) continue; // 自分より後ろにかかる辺は描かない
+      if (a[1] < near || b[1] < near) continue; // 自分より後ろにかかる辺は描かない
       g.beginPath(); g.moveTo(...P(...a)); g.lineTo(...P(...b)); g.stroke();
     }
   }
-  g.lineJoin = 'miter';
+  g.restore();
 }
 // --- 家具：マス中心 (l,f)。寸法はワールド座標（hx 東西・hy 南北の半分）で、向きに合わせて回す ---
 // 1 = 約 230cm（天井高）。床 h=-0.5
@@ -858,8 +878,10 @@ function drawMap(mg, W, H, cs, ox, oy, fl = state.fl) { // fl：描く階（全�
     if (pr) { mg.fillStyle = '#fff'; pr === 'bed' ? mg.fillRect(px + 3 * k1, py + k1, cs - 6 * k1, cs - 2 * k1) : mg.fillRect(px + 3 * k1, py + 3 * k1, cs - 6 * k1, cs - 6 * k1); }
     if (n) { mg.fillStyle = '#fff'; mg.beginPath(); mg.arc(px + cs / 2, py + cs / 2, 3 * k1, 0, 7); mg.fill(); }
   }
+  const knownStairWalls = new Set();
   for (const st of F.stairs) {
-    const [ex, ey] = stairEntry(st); if (!seen(ex, ey) && !mapKnown(fl)) continue;
+    const [ex, ey] = stairEntry(st); if (!seen(ex, ey)) continue;
+    for (const edge of stairWallEdges(st.x, st.y, st.dir)) knownStairWalls.add(edgeKey(...edge));
     mg.fillStyle = '#fff'; mg.font = `${cs}px monospace`; mg.textAlign = 'center';
     for (const [x, y] of stairCells(st)) mg.fillText(st.up ? '▲' : '▼', ox + x * cs + cs / 2, oy + y * cs + cs - 2 * k1);
   }
@@ -871,11 +893,11 @@ function drawMap(mg, W, H, cs, ox, oy, fl = state.fl) { // fl：描く階（全�
     mg.setLineDash(k === WIN ? [2 * k1, 2 * k1] : k === FENCE ? [k1, 3 * k1] : []); mg.beginPath(); mg.moveTo(x0, y0); mg.lineTo(x1, y1); mg.stroke(); mg.setLineDash([]);
   };
   const SE = state.seenE[fl], all = mapKnown(fl);
-  for (let y = 0; y <= F.H; y++) for (let x = 0; x < F.W; x++) if (all ? seen(x, y) || seen(x, y - 1) : SE.has('h' + x + ',' + y)) {
+  for (let y = 0; y <= F.H; y++) for (let x = 0; x < F.W; x++) if (all ? seen(x, y) || seen(x, y - 1) : SE.has('h' + x + ',' + y) || knownStairWalls.has('h' + x + ',' + y)) {
     const k = F.h[y][x], px = ox + x * cs, py = oy + y * cs;
     if (k === DOOR) { seg(WALL, px, py, px + 3 * k1, py); seg(WALL, px + cs - 3 * k1, py, px + cs, py); } else seg(k, px, py, px + cs, py);
   }
-  for (let y = 0; y < F.H; y++) for (let x = 0; x <= F.W; x++) if (all ? seen(x, y) || seen(x - 1, y) : SE.has('v' + x + ',' + y)) {
+  for (let y = 0; y < F.H; y++) for (let x = 0; x <= F.W; x++) if (all ? seen(x, y) || seen(x - 1, y) : SE.has('v' + x + ',' + y) || knownStairWalls.has('v' + x + ',' + y)) {
     const k = F.v[y][x], px = ox + x * cs, py = oy + y * cs;
     if (k === DOOR) { seg(WALL, px, py, px, py + 3 * k1); seg(WALL, px, py + cs - 3 * k1, px, py + cs); } else seg(k, px, py, px, py + cs);
   }
@@ -1060,6 +1082,7 @@ function move(offset) {
   if (isBlocking(e) || !inMap(state.fl, nx, ny)) { log(e === WIN || e === FENCE ? windowLine(state.x, state.y, d) : '壁だ。', 'sys'); return; }
   const lk = e === DOOR && lockAt(state.fl, state.x, state.y, d);
   if (lk && !state.flags[lk]) { log('扉には鍵がかかっている。', 'sys'); return; }
+  if (e === DOOR && offset !== 0) { log('扉は正面を向いて通る。', 'sys'); return; }
   if (e === DOOR) log('扉を開けた。', 'sys');
   const sa = stairAt(state.fl, nx, ny);
   if (sa) {
@@ -1221,6 +1244,8 @@ const APPEAR = {
   recorder: '飛んできた', cymbal: '飛んできた', tuba: '浮かび上がった', drums: '動き出した', piano: '動き出した',
   hammer: '飛んできた', saw: '飛んできた',
 };
+// 出現時にその場から動き出す備品は、戦闘後に動きを止める。
+const STATIONARY_ENEMIES = new Set(['chair', 'mop', 'desk', 'beam', 'vault', 'model', 'skel', 'portrait', 'david', 'thinker', 'drums', 'piano']);
 const appearLine = (kind, m) => `${m.name}が ${APPEAR[kind] || '動き出した'}。`; // 数は言わない
 async function startBattle(kind, n, onWin) {
   const m = MONS[kind];
@@ -1318,7 +1343,11 @@ async function hurtEnemy(e, dmg) {
   e.hp -= dmg; e.flash = true; if (e.sleep && Math.random() < 0.5) e.sleep = 0;
   render(); log(`${e.name}に ${dmg} のダメージ`);
   await sleep(SPD); e.flash = false;
-  if (e.hp <= 0) { e.hp = 0; log(`${e.name}を たおした`, 'good'); }
+  if (e.hp <= 0) {
+    e.hp = 0;
+    const result = STATIONARY_ENEMIES.has(battle.kind) ? '動かなくなった' : '消えた';
+    log(e.boss ? `${e.name}を たおした` : `${e.name}は ${result}`, 'good');
+  }
   render(); await sleep(SPD / 3);
 }
 async function partyAct(c, cmd) {
@@ -1562,6 +1591,11 @@ function loadGame() {
       s.teachers = { saeki: c || null }; if (c) { c.id = 't_saeki'; c.cls = '体育'; s.flags.teacher = 'saeki'; s.flags.hadTeacher = true; } else delete s.teachers.saeki;
     }
     if (!MAPS[s.fl] || !inMap(s.fl, s.x, s.y)) Object.assign(s, { fl: 1, x: START[0], y: START[1], dir: 2 }); // 校舎の形が変わって位置が無くなったら保健室から
+    const savedStair = stairAt(s.fl, s.x, s.y);
+    if (savedStair) { // 階段の配置が変わった旧セーブは、出入口へ移す
+      [s.x, s.y] = stairEntry(savedStair.st);
+      s.dir = (savedStair.st.dir + 2) % 4;
+    }
     state = s;
     s.teachers = s.teachers || {};
     s.party = s.party.map(c => {
