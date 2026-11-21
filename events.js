@@ -37,10 +37,10 @@ function rewardExp(n) { aliveParty().forEach(c => { c.exp += n; }); levelUps(); 
 function rewardAll(fn) { state.party.forEach(fn); }
 
 const ITEMS = [
-  { id: 'shoe', quest: 'q1', fl: 2, x: 14, y: 23, text: ['床に、上履きが片方だけ落ちている。', 'かかとに「1-A」と書かれた名前の欄がある。'] },
-  { id: 'keys', quest: 'q7', fl: 2, x: 16, y: 6, text: ['廊下の真ん中に、鍵束が落ちている。', 'タグに「用務員室」とある。'] },
-  { id: 'tape', quest: 'q3', fl: 3, x: 34, y: 22, text: ['棚の奥に、ラベルの褪せたカセットテープがある。', '「最終下校　1979」と書かれている。'] },
-  { id: 'bag', quest: 'q5', fl: 3, x: 24, y: 11, text: ['机の脇に、真新しい学生カバンが掛かっている。', '名札には「1年」とだけ読める。'] },
+  { id: 'shoe', quest: 'q1', fl: 2, x: 9, y: 7, text: ['床に、上履きが片方だけ落ちている。', 'かかとに「1-A」と書かれた名前の欄がある。'] },
+  { id: 'keys', quest: 'q7', fl: 2, x: 16, y: 4, text: ['廊下の真ん中に、鍵束が落ちている。', 'タグに「用務員室」とある。'] },
+  { id: 'tape', quest: 'q3', fl: 3, x: 34, y: 25, text: ['棚の奥に、ラベルの褪せたカセットテープがある。', '「最終下校　1979」と書かれている。'] },
+  { id: 'bag', quest: 'q5', fl: 3, x: 14, y: 9, text: ['机の脇に、真新しい学生カバンが掛かっている。', '名札には「1年」とだけ読める。'] },
   { id: 'badge', fl: 1, x: 31, y: 12, text: ['楽譜の山の下に、古い校章バッジが埋もれていた。'], get() { const p = state.party[0]; p.atk = [p.atk[0] + 2, p.atk[1] + 2]; } },
 ];
 
@@ -196,7 +196,7 @@ const NPCS = [
       ];
     },
     after() { offerJoin('mizuno'); } },
-  { id: 's2a', fl: 2, x: 4, y: 10, name: '2年の生徒', img: 'image/chara_student_year2.png', ht: 170,
+  { id: 's2a', fl: 2, x: 4, y: 1, name: '2年の生徒', img: 'image/chara_student_year2.png', ht: 170,
     talk() { return [
       '生徒「帰ろうと思ってたんだけど、夕焼けがきれいでさ」',
       '「チャイムが鳴り終わったら帰るよ」',
@@ -287,7 +287,7 @@ const NPCS = [
       ];
     },
     after(s) { if (hasItem('album') && !s.flags.q4done) { takeItem('album'); state.items.push('bookmark'); rewardAll(c => { if (c.maxmp) { c.maxmp += 2; c.mp += 2; } }); s.flags.q4done = true; rewardExp(15); } } },
-  { id: 'senpai', fl: 3, x: 9, y: 17, name: '3年の先輩', img: 'image/chara_senior_year3.png', ht: 150,
+  { id: 'senpai', fl: 3, x: 30, y: 6, name: '3年の先輩', img: 'image/chara_senior_year3.png', ht: 150,
     talk(s) {
       if (s.flags.q4 && !s.flags.q4got) { s.flags.q4got = true; state.items.push('album'); return [
         '先輩「司書さんの使い？ ……ああ、このアルバムか」',
@@ -319,7 +319,7 @@ const NPCS = [
     after(s) { if (hasItem('bag') && !s.flags.q5done) { takeItem('bag'); s.flags.q5done = true; rewardExp(30); } } },
 
   // ===================== 6 見つめる肖像画 =====================
-  { id: 'art', quest: 'q6', fl: 2, x: 26, y: 13, name: '美術部員', img: 'image/chara_art_club.png', ht: 155,
+  { id: 'art', quest: 'q6', fl: 2, x: 30, y: 3, name: '美術部員', img: 'image/chara_art_club.png', ht: 155,
     talk(s) {
       if (s.flags.q6done) return ['美術部員「もう、誰にも見られてない感じがする。……ありがとう」'];
       if (s.flags.q6fight) return [
@@ -334,7 +334,7 @@ const NPCS = [
       ];
     },
     after(s) { if (s.flags.q6fight && !s.flags.q6done) { s.flags.q6done = true; state.items.push('map'); revealAllMaps(); rewardExp(20); } } },
-  { id: 'q6foe', quest: 'q6', fl: 2, x: 31, y: 13, name: '肖像画', img: 'image/enemy/enemy_portrait.png', ht: 120, foe: true, hide: s => s.flags.q6fight,
+  { id: 'q6foe', quest: 'q6', fl: 2, x: 32, y: 2, name: '肖像画', img: 'image/enemy/enemy_portrait.png', ht: 120, foe: true, hide: s => s.flags.q6fight,
     talk() { return ['イーゼルに立てかけられた肖像画が、まばたきをした――！']; },
     after() { startBattle('portrait', 1, () => { state.flags.q6fight = true; }); } },
 
