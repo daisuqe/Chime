@@ -103,8 +103,8 @@ const MAPS = {
     //   先生は島の自分の席のところと、窓ぎわ・壁ぎわに立つ（events.js の TEACHERS の x, y）
     m.room('職員室', A, 6, 0, 15, 3, { safe: true }); m.door(8, 3, 2);
     m.prop('desk', 8, 1, 10, 1, 11, 1, 13, 1, 8, 2, 9, 2, 11, 2, 12, 2);
-    m.room('校長室', A, 16, 1, 17, 3); m.door(16, 3, 2); m.prop('desk', 17, 1);
-    m.room('放送室', A, 18, 1, 20, 3); m.door(19, 3, 2, 'open_q3'); m.prop('desk', 20, 1);
+    m.room('校長室', A, 16, 1, 17, 3); m.door(16, 3, 2, 'kouchou'); m.prop('desk', 17, 1);
+    m.room('放送室', A, 18, 1, 20, 3); m.door(19, 3, 2); m.prop('desk', 20, 1);
     m.room('用務員室', A, 19, 5, 20, 7, { safe: true }); m.door(19, 5, 0);
     m.stairs('A12', 23, 2, 0, true);
     // トイレ：A棟の廊下の南側
@@ -139,9 +139,9 @@ const MAPS = {
 
     const cCor = m.hall('廊下', C, [[27, 1], [27, 20]]); m.rect(cCor, 28, 17, 32, 20);
     m.room('理科室', C, 28, 1, 32, 4); m.door(28, 2, 3); m.prop('desk', 30, 1, 30, 3);
-    m.room('理科準備室', C, 28, 5, 32, 6); m.door(28, 5, 3); m.door(31, 4, 2);
+    m.room('理科準備室', C, 28, 5, 32, 6); m.door(28, 5, 3, 'q2open'); m.door(31, 4, 2, 'q2open');
     m.room('音楽室', C, 28, 7, 32, 10); m.door(28, 8, 3);
-    m.room('音楽準備室', C, 28, 11, 32, 12); m.door(28, 11, 3, 'keys');
+    m.room('音楽準備室', C, 28, 11, 32, 12); m.door(28, 11, 3, 'gakufu');
     m.room('家庭科室', C, 28, 13, 32, 16); m.door(28, 14, 3); m.prop('desk', 30, 14, 30, 15);
     m.stairs('C12', 30, 18, 1, true);
     // プール：屋外。まわりは柵
@@ -224,7 +224,7 @@ const MAPS = {
   // ---------------- 4F：鐘楼。どの棟の上でもない宙に浮いている ----------------
   4: makeFloor('4F', 40, 28, m => {
     const cor = m.hall('廊下', '', [[36, 19], [36, 4], [10, 4], [10, 14], [4, 14]], { floating: true }); m.rect(cor, 36, 20, 36, 21);
-    m.room('鐘楼', '', 2, 15, 7, 21, { floating: true }); m.door(4, 14, 2);
+    m.room('鐘楼', '', 2, 15, 7, 21, { floating: true }); m.door(4, 14, 2, 'bellopen');
     m.stairs('X34', 36, 20, 2, false);
   }),
 

@@ -157,7 +157,7 @@ function newGame() {
   };
 }
 
-const itemAt = (fl, x, y) => ITEMS.find(it => it.fl === fl && it.x === x && it.y === y && !state.flags['got_' + it.id] && questVisible(it.quest)) || null;
+const itemAt = (fl, x, y) => ITEMS.find(it => it.fl === fl && it.x === x && it.y === y && !state.flags['got_' + it.id] && questVisible(it.quest) && (!it.cond || it.cond(state))) || null;
 function npcAt(fl, x, y) {
   return NPCS.find(n => n.fl === fl && n.x === x && n.y === y && !(n.hide && n.hide(state)) && questVisible(n.quest)) || null; // まだ始まっていない話の人物はいない
 }
@@ -348,6 +348,10 @@ function drawDeco(e1, e2, d, type, edgeL, edgeR, top = 0.5) {
     box(0.18, 0.4, 0.0, 0.24); box(0.56, 0.8, 0.04, 0.22);
   } else if (type === 'hydrant') { // 消火栓の箱
     box(0.3, 0.7, -0.42, -0.02); box(0.36, 0.64, -0.36, -0.16); ln(0.36, -0.08, 0.64, -0.08);
+  } else if (type === 'safe') { // 金庫：床に置いた箱と、丸くない（四角い）ダイヤル
+    box(0.28, 0.72, -0.5, -0.02); box(0.42, 0.58, -0.32, -0.16); ln(0.5, -0.24, 0.5, -0.18); ln(0.64, -0.3, 0.64, -0.18);
+  } else if (type === 'clock7') { // 7時を指す時計（ここだけ）
+    box(0.43, 0.57, 0.3, 0.44); ln(0.5, 0.37, 0.5, 0.425); ln(0.5, 0.37, 0.48, 0.335);
   } else if (type === 'clock') { // 四角い時計
     box(0.43, 0.57, 0.3, 0.44); ln(0.5, 0.37, 0.5, 0.425); ln(0.5, 0.37, 0.52, 0.335); // 5時：長い針は12、短い針は5の方向
   } else if (type === 'hoop') { // バスケットゴール：板と、その下のリング（四角）。床から約 3m
@@ -840,7 +844,7 @@ function renderMap() {
 }
 // 地図に描くマス：歩いて見たマス。見取り図があればその階の全部
 function knownCells(fl) {
-  if (!state.flags.mapAll) return state.seen[fl];
+  if (!mapKnown(fl)) return state.seen[fl];
   const F = MAPS[fl], out = new Set(state.seen[fl]);
   for (let y = 0; y < F.H; y++) for (let x = 0; x < F.W; x++) if (F.grid[y][x]) out.add(x + ',' + y);
   return out;
@@ -859,7 +863,7 @@ function drawMap(mg, W, H, cs, ox, oy, fl = state.fl) { // fl：描く階（全�
     if (n) { mg.fillStyle = '#fff'; mg.beginPath(); mg.arc(px + cs / 2, py + cs / 2, 3 * k1, 0, 7); mg.fill(); }
   }
   for (const st of F.stairs) {
-    const [ex, ey] = stairEntry(st); if (!seen(ex, ey) && !state.flags.mapAll) continue;
+    const [ex, ey] = stairEntry(st); if (!seen(ex, ey) && !mapKnown(fl)) continue;
     mg.fillStyle = '#fff'; mg.font = `${cs}px monospace`; mg.textAlign = 'center';
     for (const [x, y] of stairCells(st)) mg.fillText(st.up ? '▲' : '▼', ox + x * cs + cs / 2, oy + y * cs + cs - 2 * k1);
   }
@@ -870,7 +874,7 @@ function drawMap(mg, W, H, cs, ox, oy, fl = state.fl) { // fl：描く階（全�
     if (k === OPEN || k === DOOR) return;
     mg.setLineDash(k === WIN ? [2 * k1, 2 * k1] : k === FENCE ? [k1, 3 * k1] : []); mg.beginPath(); mg.moveTo(x0, y0); mg.lineTo(x1, y1); mg.stroke(); mg.setLineDash([]);
   };
-  const SE = state.seenE[fl], all = state.flags.mapAll;
+  const SE = state.seenE[fl], all = mapKnown(fl);
   for (let y = 0; y <= F.H; y++) for (let x = 0; x < F.W; x++) if (all ? seen(x, y) || seen(x, y - 1) : SE.has('h' + x + ',' + y)) {
     const k = F.h[y][x], px = ox + x * cs, py = oy + y * cs;
     if (k === DOOR) { seg(WALL, px, py, px + 3 * k1, py); seg(WALL, px + cs - 3 * k1, py, px + cs, py); } else seg(k, px, py, px + cs, py);
@@ -980,9 +984,9 @@ function advanceDialog() {
   const line = dialogQ.lines.shift();
   if (!line.startsWith('★')) remember(line); // ★ の行は log() 側で残る
   dlgEl.innerHTML = '';
-  if (dialogQ.portrait) {
-    const p = document.createElement('img'); p.src = dialogQ.portrait; p.className = 'portrait'; dlgEl.appendChild(p);
-  }
+  // ★ で始まる行（手に入れた・受け取った）は、その物の絵を左に出す
+  const got = line.startsWith('★') && Object.keys(ITEM_IMG).find(id => ITEM_NAME[id] && line.includes(ITEM_NAME[id]));
+  if (got) { const p = document.createElement('img'); p.src = ITEM_IMG[got].src; p.className = 'itemicon'; dlgEl.appendChild(p); }
   const t = document.createElement('div'); t.className = 'text'; t.textContent = line; dlgEl.appendChild(t);
   const nx = document.createElement('div'); nx.className = 'next'; nx.textContent = (dialogQ.lines.length ? '▼' : '■') + (usePad() ? '' : ' Space'); dlgEl.appendChild(nx); // スマホ（画面のボタン）ではキーの名前を出さない
   dlgEl.style.display = 'block';
@@ -1105,7 +1109,7 @@ function afterStep() {
   const it = itemAt(state.fl, state.x, state.y);
   if (it) {
     state.flags['got_' + it.id] = true;
-    if (it.get) it.get(); else state.items.push(it.id);
+    if (it.get) it.get(); state.items.push(it.id);
     showDialog([...it.text, `★ ${ITEM_NAME[it.id]}を 手に入れた`], () => render(), null, it.id);
     return;
   }
@@ -1129,6 +1133,9 @@ function interact() {
     showDialog(lines, () => { if (n.after) n.after(state); render(); }, n);
     return;
   }
+  // 調べるもの（掲示・黒板・錠など）
+  const ex = examineAt(state);
+  if (ex) { showDialog(ex.talk(state), () => { if (ex.after) ex.after(state); render(); }); return; }
   const st = stairAhead();
   if (st) { useStairs(st); return; }
   if (ahead === WIN || ahead === FENCE) { log(windowLine(state.x, state.y, state.dir), 'sys'); return; }
@@ -1147,6 +1154,8 @@ function partyTalk() {
 }
 const canHeal = c => c.hp > 0 && ((c.spells.includes('heal') && c.mp >= SPELLS.heal.mp) || (c.spells.includes('chorus') && c.mp >= SPELLS.chorus.mp));
 function mateTalk(c) {
+  const q = c.id && c.id.startsWith('t_') && teacherQuestTalk(c.id.slice(2), state);
+  if (q) { showDialog(q, () => render()); return; }
   const hurt = state.party.filter(t => t.hp > 0 && t.hp < t.maxhp * 0.6).length, down = state.party.filter(t => t.hp <= 0).length;
   let line;
   if (c.hp <= 0) line = `${c.name}は 倒れたまま、目を閉じている。`;
@@ -1413,10 +1422,9 @@ function levelUps() {
     }
   }
 }
-// 見取り図：全階の歩けるマスを「見た」ことにする（壁が描かれる）
-function revealAllMaps() {
-  state.flags.mapAll = true; // 地図には全部描く（drawMap）。歩いた記録 seen は増やさないので、探索率はそのまま
-}
+// 見取り図：手に入れた階だけ、地図に全部描く（歩いた記録 seen は増やさないので、探索率はそのまま）
+function revealMap(fl) { state.flags.mapFl = state.flags.mapFl || {}; state.flags.mapFl[fl] = true; }
+const mapKnown = fl => !!(state.flags.mapFl && state.flags.mapFl[fl]);
 async function victory() {
   const m = MONS[battle.kind];
   const total = Math.round(m.exp * battle.enemies.length * battle.expMul);
@@ -1658,7 +1666,8 @@ window.addEventListener('keydown', e => {
 // ---------------------------------------------------------------------
 //  Boot
 // ---------------------------------------------------------------------
-NPCS.forEach(n => n.img && getImage(n.img));
+NPCS.forEach(n => [...(n.imgs || []), n.img].forEach(s => s && getImage(s)));
+Object.values(ITEM_IMG).forEach(v => getImage(v.src));
 Object.values(MONS).forEach(m => [m.img, ...(m.imgs || [])].forEach(s => s && getImage(s)));
 Object.values(ITEM_IMG).forEach(i => getImage(i.src)); DECOR.forEach(d => getImage(d.img));
 if (loadGame()) {
