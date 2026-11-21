@@ -1694,22 +1694,19 @@ function showMenuTab(tab) {
   if (tab === 'help') menuBody.innerHTML = document.getElementById('helpText').innerHTML;
   else if (tab === 'prog') menuBody.innerHTML = progressHTML();
   else if (tab === 'log') menuBody.innerHTML = state.history.length ? state.history.map(t => `<div>${esc(t)}</div>`).join('') : '<div>まだ何もない</div>';
-  else menuBody.innerHTML = '<div>保存されているデータを消して、最初からやり直します。</div><div class="restart"><button id="restartBtn">はじめからやり直す</button></div>' + (usePad() ? '' : '<div style="margin-top:6px">（Space・Enter でも選べる）</div>');
+  else menuBody.innerHTML = '<div>タイトル画面に戻ります。進み具合は保存されていて、「つづきから」で続けられます。</div><div class="restart"><button id="restartBtn">タイトルに戻る</button></div>' + (usePad() ? '' : '<div style="margin-top:6px">（Space・Enter でも選べる）</div>');
   menuBody.scrollTop = tab === 'log' ? menuBody.scrollHeight : 0;
   const rb = document.getElementById('restartBtn');
   if (rb) rb.onclick = askRestart;
 }
 // はじめから：確認を 2 回出す（念押し）。消したら保存を止めて読み込み直す
 let restarting = false;
+// メニューの「タイトルに戻る」：保存してからタイトル画面へ（データは消さない）
 function askRestart() {
   toggleMenu(false);
-  showChoice('保存されているデータが消えます。はじめからやり直しますか？', [
-    ['はい', () => showChoice('本当によろしいですか？ 消したデータは元に戻せません。', [
-      ['消してはじめから', () => { restarting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {} location.reload(); }],
-      ['やめる', () => {}],
-    ])],
-    ['いいえ', () => {}],
-  ]);
+  saveGame();
+  document.getElementById('log').innerHTML = '';
+  showTitle(true);
 }
 // メニュー内の操作：← → でタブ、↑ ↓ でスクロール、M・Esc で閉じる
 function menuKey(k) {
@@ -1760,7 +1757,7 @@ function legacyStoryHistory(history) {
 
 const setsToArrays = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, [...v]]));
 function saveGame() {
-  if (!state || battle || restarting) return; // 戦闘中は保存しない（戦闘前の状態から再開）
+  if (!state || battle || restarting || mode === 'title') return; // タイトル画面では保存しない。戦闘中は保存しない（戦闘前の状態から再開）
   try { localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 2, at: Date.now(), state: { ...state, seen: setsToArrays(state.seen), seenE: setsToArrays(state.seenE) } })); } catch (e) { /* 保存できない環境では何もしない */ }
 }
 function loadGame() {
@@ -1802,7 +1799,7 @@ function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(saveGame, 
 document.addEventListener('visibilitychange', () => { if (document.hidden) saveGame(); });
 window.addEventListener('pagehide', saveGame);
 // プレイ時間（画面が見えている間だけ数える）
-setInterval(() => { if (state && !document.hidden) state.time++; }, 1000);
+setInterval(() => { if (state && !document.hidden && mode !== 'title') state.time++; }, 1000);
 setInterval(saveGame, 15000);
 function handleKey(k) {
   if (mode === 'ending') { if (endingStep && [' ', 'Enter', 'NumpadEnter', 'z'].includes(k)) endingStep(); return; }
@@ -1878,6 +1875,8 @@ for (const el of [...document.querySelectorAll('#pad button'), document.getEleme
   el.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
 document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false }); // 2本指の拡大
 window.addEventListener('keydown', e => {
+  if (appsDlg.classList.contains('on')) { appsKey(e); return; } // アプリ一覧への確認：ゲームのキーは効かない
+  if (mode === 'title' || licenseEl.classList.contains('on')) { titleKey(e); return; }
   if (mode === 'bigmap' && e.target instanceof HTMLButtonElement && bigEl.contains(e.target) && [' ', 'Enter'].includes(e.key)) return;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
   // テンキー：探索中は e.code（NumLock の有無に関係なく）で移動。戦闘・会話中は数字として扱う
@@ -1890,26 +1889,124 @@ window.addEventListener('keydown', e => {
 });
 
 // ---------------------------------------------------------------------
+//  タイトル画面と License
+// ---------------------------------------------------------------------
+const titleEl = document.getElementById('title'), titleBtns = titleEl.querySelector('.btns');
+const licenseEl = document.getElementById('license'), copyrightEl = document.getElementById('copyright');
+function setTitleButtons(opts, ask) {
+  titleBtns.innerHTML = ask ? `<div class="ask">${ask}</div>` : '';
+  opts.forEach(([label, fn]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = fn; titleBtns.appendChild(b); });
+  titleBtns.querySelector('button').focus();
+}
+function showTitle(hasSave) {
+  mode = 'title'; titleEl.classList.add('on');
+  // 進み具合があるときだけ「はじめから」を出す。消す前に 2 回確かめる
+  const main = () => setTitleButtons(hasSave
+    ? [['つづきから', () => startFromTitle(true)], ['はじめから', () => setTitleButtons([
+        ['はい', () => setTitleButtons([['消してはじめから', () => startFromTitle(false)], ['やめる', main]], '本当によろしいですか？<br>消したデータは元に戻せません。')],
+        ['いいえ', main]], '保存されているデータが消えます。<br>はじめからやり直しますか？')]]
+    : [['ベッドから出る', () => startFromTitle(false)]]);
+  main();
+}
+function startFromTitle(cont) {
+  titleEl.classList.remove('on');
+  document.activeElement?.blur();
+  mode = 'explore';
+  if (cont) { render(); log('― 続きから再開した ―', 'sys'); return; }
+  try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
+  newGame(); markSeen(); state.room = placeName(1, START[0], START[1]);
+  render();
+  showDialog([
+    '……目を覚ますと、保健室のベッドの上だった。',
+    '下校時刻は、とうに過ぎている。',
+    'どこか遠くで、チャイムが鳴っている。',
+  ]);
+}
+// タイトル画面のキー：W S（↑ ↓）で選び、Space・Enter で決める。Tab でも移動できる（著作権の表示にも届く）
+//   License が開いているときは、Esc・Space・Enter で閉じる
+function titleKey(e) {
+  if (licenseEl.classList.contains('on')) {
+    if (['Escape', 'Enter', ' '].includes(e.key) || e.code === 'Space') { e.preventDefault(); closeLicense(); }
+    else if (e.key === 'Tab') { e.preventDefault(); licenseEl.querySelector('.close').focus(); } // 開いている間は Close から出ない
+    return;
+  }
+  const btns = [...titleBtns.querySelectorAll('button')];
+  if (e.key === 'Tab') return; // Tab での移動はブラウザに任せる
+  if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') {
+    if (document.activeElement instanceof HTMLButtonElement && titleEl.contains(document.activeElement)) return; // 選んでいるボタンをそのまま押す
+    e.preventDefault(); btns[0].click(); return; // どのボタンも選んでいないときは、いちばん上
+  }
+  const i = btns.indexOf(document.activeElement);
+  if (['KeyW', 'KeyA', 'KeyQ'].includes(e.code) || ['ArrowUp', 'ArrowLeft'].includes(e.key)) { e.preventDefault(); btns[(i + btns.length - 1) % btns.length].focus(); }
+  else if (['KeyS', 'KeyD', 'KeyE'].includes(e.code) || ['ArrowDown', 'ArrowRight'].includes(e.key)) { e.preventDefault(); btns[(i + 1) % btns.length].focus(); }
+}
+function openLicense() { licenseEl.classList.add('on'); licenseEl.querySelector('.close').focus(); }
+function closeLicense() { licenseEl.classList.remove('on'); copyrightEl.focus(); }
+copyrightEl.addEventListener('click', openLicense);
+licenseEl.querySelector('.close').addEventListener('click', closeLicense);
+licenseEl.addEventListener('click', e => { if (e.target === licenseEl) closeLicense(); }); // 枠の外を押したら閉じる
+
+// タイトル画面の右上：アプリ一覧へ移動するボタン（アイコンは文字のデータから描く。# が白）
+const APPS_ICON = [
+  '......###...###.',
+  '.....#...#.#...#',
+  '.....#...#.#...#',
+  '.....#..#..#..#.',
+  '.....#..#..#..#.',
+  '....##..####..#.',
+  '..##.......#..#.',
+  '.#............#.',
+  '#.............#.',
+  '#..............#',
+  '############...#',
+  '............#..#',
+  '.###########...#',
+  '.#............#.',
+  '..##........##..',
+  '....########....'
+];
+const appsBtn = document.getElementById('appsBtn'), appsDlg = document.getElementById('appsDlg');
+{
+  const ctx = appsBtn.querySelector('canvas').getContext('2d');
+  ctx.fillStyle = '#fff';
+  APPS_ICON.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === '#') ctx.fillRect(x, y, 1, 1); }));
+}
+// 言葉：ブラウザの言語が ja なら日本語（確かめるときは ?lang=en / ?lang=ja でも切り替えられる）
+const isJa = () => (new URLSearchParams(location.search).get('lang') || navigator.language || '').toLowerCase().startsWith('ja');
+appsDlg.querySelector('.msg').textContent = isJa()
+  ? 'アプリ一覧に移動します。\nこのゲームを離れますがよろしいですか？'
+  : 'This will take you to the app list.\nDo you want to leave this game?';
+function openApps() { appsDlg.classList.add('on'); appsDlg.querySelector('.no').focus(); } // 誤って移動しないよう、はじめは No
+function closeApps() { appsDlg.classList.remove('on'); appsBtn.focus(); }
+appsBtn.addEventListener('click', openApps);
+appsDlg.querySelector('.yes').addEventListener('click', () => { location.href = 'https://daisuqe.github.io/'; });
+appsDlg.querySelector('.no').addEventListener('click', closeApps);
+appsDlg.addEventListener('click', e => { if (e.target === appsDlg) closeApps(); }); // 外側を押したら閉じる
+// 確認の間のキー：A D・W S・← → で Yes / No を選び、Space・Enter で押す。Esc・M で閉じる
+function appsKey(e) {
+  const yes = appsDlg.querySelector('.yes'), no = appsDlg.querySelector('.no');
+  if (e.key === 'Escape' || e.code === 'KeyM') { e.preventDefault(); closeApps(); return; }
+  if (e.key === 'Tab') { e.preventDefault(); (document.activeElement === no ? yes : no).focus(); return; }
+  if (['KeyA', 'KeyD', 'KeyW', 'KeyS', 'KeyQ', 'KeyE'].includes(e.code) || ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+    e.preventDefault(); (document.activeElement === no ? yes : no).focus(); return;
+  }
+  if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') {
+    if (document.activeElement === yes || document.activeElement === no) return; // 選んでいるボタンをそのまま押す
+    e.preventDefault(); no.focus();
+  }
+}
+
+// ---------------------------------------------------------------------
 //  Boot
 // ---------------------------------------------------------------------
 NPCS.forEach(n => [...(n.imgs || []), n.img].forEach(s => s && getImage(s)));
 Object.values(ITEM_IMG).forEach(v => getImage(v.src));
 Object.values(MONS).forEach(m => [m.img, ...(m.imgs || [])].forEach(s => s && getImage(s)));
 Object.values(ITEM_IMG).forEach(i => getImage(i.src)); DECOR.forEach(d => getImage(d.img));
-if (loadGame()) {
-  state.room = placeName(state.fl, state.x, state.y);
-  render();
-  log('― 続きから再開した ―', 'sys');
-} else {
-newGame();
-markSeen();
-state.room = placeName(1, START[0], START[1]);
+const hasSave = loadGame();
+if (!hasSave) { newGame(); markSeen(); }
+state.room = placeName(state.fl, state.x, state.y);
 render();
-showDialog([
-  '……目を覚ますと、保健室のベッドの上だった。',
-  '下校時刻は、とうに過ぎている。',
-  'どこか遠くで、チャイムが鳴っている。',
-]);
-}
+showTitle(hasSave);
 // fonts may load late; redraw once they do
 if (document.fonts) document.fonts.ready.then(() => render());
