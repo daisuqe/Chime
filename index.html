@@ -62,8 +62,10 @@
   #menuHint { font-size:14px; }
   /* メニュー（M）：プレイ画面の上に重ねる */
   /* プレイ画面の中に収め、中身だけをスクロールする */
-  #menu { position:absolute; left:6%; right:6%; top:5%; bottom:5%; background:#000; border:2px solid var(--fg); padding:12px 16px;
-          font-size:14px; line-height:1.7; display:none; flex-direction:column; z-index:3; }
+  /* メニュー：画面全体に出す（スマホの操作ボタンの上にも重なる） */
+  #menu { position:fixed; inset:0; background:#000; border:2px solid var(--fg); padding:12px 16px;
+          padding-top:max(12px, env(safe-area-inset-top)); padding-bottom:max(12px, env(safe-area-inset-bottom));
+          font-size:14px; line-height:1.7; display:none; flex-direction:column; z-index:40; }
   #menu .tabs { display:flex; gap:6px; margin-bottom:8px; }
   #menu .tabs button { flex:1; }
   #menu .tabs button.on { background:#fff; color:#000; }
@@ -71,6 +73,8 @@
   #menuBody h4 { margin:8px 0 2px; font-size:14px; font-weight:normal; text-decoration:underline; }
   #menu .restart { margin-top:10px; }
   #menu .close { margin-top:8px; cursor:pointer; font-size:12px; }
+  #menu .close.btn { flex:none; border:2px solid var(--fg); text-align:center; padding:10px 0; font-size:20px !important; }
+  #menu .tabs button { white-space:nowrap; min-width:0; overflow:hidden; }
   button { font-family:inherit; font-size:14px; background:#000; color:var(--fg); border:1px solid var(--fg); padding:4px 10px; cursor:pointer; }
   button:hover { background:#fff; color:#000; }
   table { width:100%; border-collapse:collapse; font-size:13px; }
@@ -120,8 +124,8 @@
     #dialog .next { font-size:16px; }
     #cmd .who { font-size:21px; }
     #pad button span { font-size:16px; }
-    #menu { font-size:18px; line-height:1.5; top:2%; bottom:2%; left:2%; right:2%; padding:6px 8px; }
-    #menu .tabs button { padding:2px 4px; font-size:18px; }
+    #menu { font-size:18px; line-height:1.5; padding-left:8px; padding-right:8px; }
+    #menu .tabs button { padding:2px 4px; font-size:min(4.4vw, 18px); }
     #menuBody h4 { margin:4px 0 0; font-size:18px; }
     #menu .close { margin-top:4px; font-size:15px; }
     #menu button { font-size:18px; }
@@ -153,8 +157,8 @@
     #party { font-size:17px; }
     #party th, #party td { padding:2px 4px; }
     #pad button span { font-size:16px; }
-    #menu { font-size:18px; line-height:1.5; top:2%; bottom:2%; left:2%; right:2%; padding:6px 8px; }
-    #menu .tabs button { padding:2px 4px; font-size:18px; }
+    #menu { font-size:18px; line-height:1.5; padding-left:8px; padding-right:8px; }
+    #menu .tabs button { padding:2px 4px; font-size:min(4.4vw, 18px); }
     #menuBody h4 { margin:4px 0 0; font-size:18px; }
     #menu .close { margin-top:4px; font-size:15px; }
     #menu button { font-size:18px; }

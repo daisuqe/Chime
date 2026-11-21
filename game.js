@@ -1449,6 +1449,9 @@ function toggleMenu(open) {
   if (open && mode !== 'explore') return;
   mode = open ? 'menu' : 'explore';
   menuEl.style.display = open ? 'flex' : 'none';
+  // スマホ（画面のボタン）では、メニューが操作ボタンを覆うので、下に大きな「閉じる」を出す（キーの説明は出さない）
+  const cl = menuEl.querySelector('.close');
+  if (open) { cl.classList.toggle('btn', usePad()); cl.textContent = usePad() ? '閉じる' : 'M・Esc 閉じる ／ ← → 切り替え ／ ↑ ↓ スクロール（ここをタップでも閉じる）'; }
   if (open) showMenuTab(menuTab);
 }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
