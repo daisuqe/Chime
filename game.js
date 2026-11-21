@@ -796,13 +796,7 @@ function renderBattle() {
     const top = drawEnemyAt(battle.kind, p.l, p.f, e.flash, e);
     if (e.sleep > 0) { g.fillStyle = '#fff'; g.font = `${Math.round(18 * textScale())}px DotGothic16, monospace`; g.textAlign = 'center'; g.fillText('Zz', top[0] + 24, top[1] + 4); }
   });
-  const alive = battle.enemies.filter(e => e.hp > 0).length;
-  g.font = `${Math.round(18 * textScale())}px DotGothic16, monospace`; g.textAlign = 'center';
-  const label = `${m.name}  ×${alive}`;
-  const w = g.measureText(label).width + 28;
-  const bh = Math.round(30 * textScale());
-  g.fillStyle = '#000'; g.fillRect(CX - w / 2, 12, w, bh); g.strokeStyle = '#fff'; g.lineWidth = 1.5; g.strokeRect(CX - w / 2, 12, w, bh);
-  g.fillStyle = '#fff'; g.fillText(label, CX, 12 + bh * 0.7);
+  // 画面上の「敵の名前 ×数」は出さない
 }
 
 // ---------------------------------------------------------------------
@@ -936,7 +930,7 @@ window.addEventListener('orientationchange', () => setTimeout(() => { fitHeight(
 function renderHUD() {
   // プレイ画面の右上（内側）に現在地：例「B棟 1F 保健室 [2, 1] 南」
   document.getElementById('loc').textContent = `${placeName(state.fl, state.x, state.y)} [${state.x}, ${state.y}] ${DIR_NAME[state.dir]}`;
-  document.getElementById('loc').style.display = battle ? 'none' : ''; // 戦闘中は敵の名前と重ならないよう隠す
+  document.getElementById('loc').style.display = battle ? 'none' : ''; // 戦闘中は隠す
   const rows = state.party.map(c => `<tr class="${c.hp <= 0 ? 'dead' : ''}" title="${c.cls} / AC ${c.ac}"><td>${c.name}</td><td class="num">${c.lv}</td>` +
     `<td class="num">${c.hp}/${c.maxhp}</td><td class="num">${c.maxmp ? c.mp : '-'}</td>` +
     `<td>${c.hp <= 0 ? '不能' : c.defend ? '防御' : 'OK'}</td></tr>`).join('');
@@ -1222,7 +1216,7 @@ const hpMul = () => 1 + 0.3 * partyExtra(), atkMul = () => 1 + 0.15 * partyExtra
 const enemyHP = m => (m.boss ? 50 + 20 * state.party.length : Math.round(rnd(m.hp[0], m.hp[1]) * hpMul()));
 const enemyAtk = m => m.atk.map(v => Math.max(1, Math.round(v * atkMul())));
 // 敵が現れたときの文：ふだんからそこにある物なので「あらわれた」ではなく、動き出した・飛んできた など
-//   数え方：紙は枚、人の形のものは体、ほかは つ
+
 const APPEAR = {
   paper: '舞い上がった', eraser: '飛んできた', chair: '動き出した', mop: '立ち上がった', desk: '動き出した',
   globe: '浮かび上がった', extinguisher: '飛んできた', bball: '飛んできた', vball: '飛んできた',
@@ -1231,8 +1225,7 @@ const APPEAR = {
   recorder: '飛んできた', cymbal: '飛んできた', tuba: '浮かび上がった', drums: '動き出した', piano: '動き出した',
   hammer: '飛んできた', saw: '飛んできた',
 };
-const UNIT = { paper: '枚', model: '体', skel: '体', david: '体', thinker: '体', kendo: '体' };
-const appearLine = (kind, m, n) => `${m.name}が ${n > 1 ? n + (UNIT[kind] || 'つ') + ' ' : ''}${APPEAR[kind] || '動き出した'}！`;
+const appearLine = (kind, m) => `${m.name}が ${APPEAR[kind] || '動き出した'}！`; // 数は言わない
 async function startBattle(kind, n, onWin) {
   const m = MONS[kind];
   mode = 'busy';
