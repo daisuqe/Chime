@@ -1209,6 +1209,18 @@ const groupSize = m => Math.min(ENEMY_MAX, rnd(m.grp[0], m.grp[1]));
 const hpMul = () => 1 + 0.3 * partyExtra(), atkMul = () => 1 + 0.15 * partyExtra(), expMul = () => 1 + 0.3 * partyExtra();
 const enemyHP = m => (m.boss ? 50 + 20 * state.party.length : Math.round(rnd(m.hp[0], m.hp[1]) * hpMul()));
 const enemyAtk = m => m.atk.map(v => Math.max(1, Math.round(v * atkMul())));
+// 敵が現れたときの文：ふだんからそこにある物なので「あらわれた」ではなく、動き出した・飛んできた など
+//   数え方：紙は枚、人の形のものは体、ほかは つ
+const APPEAR = {
+  paper: '舞い上がった', eraser: '飛んできた', chair: '動き出した', mop: '立ち上がった', desk: '動き出した',
+  globe: '浮かび上がった', extinguisher: '飛んできた', bball: '飛んできた', vball: '飛んできた',
+  beam: '起き上がった', vault: '動き出した', bat: '飛んできた', kendo: '構えた', flask: '浮かび上がった', burner: '浮かび上がった',
+  model: '動き出した', skel: '動き出した', portrait: '浮かび上がった', david: '動き出した', thinker: '顔を上げた',
+  recorder: '飛んできた', cymbal: '飛んできた', tuba: '浮かび上がった', drums: '動き出した', piano: '動き出した',
+  hammer: '飛んできた', saw: '飛んできた',
+};
+const UNIT = { paper: '枚', model: '体', skel: '体', david: '体', thinker: '体', kendo: '体' };
+const appearLine = (kind, m, n) => `${m.name}が ${n > 1 ? n + (UNIT[kind] || 'つ') + ' ' : ''}${APPEAR[kind] || '動き出した'}！`;
 async function startBattle(kind, n, onWin) {
   const m = MONS[kind];
   mode = 'busy';
@@ -1221,7 +1233,7 @@ async function startBattle(kind, n, onWin) {
   faceOpenSide();
   shake(); render();
   const cnt = battle.enemies.length;
-  log(m.boss ? `${m.name}が 襲いかかってきた！` : `${m.name}が ${cnt > 1 ? cnt + '体 ' : ''}あらわれた！`, 'warn');
+  log(m.boss ? `${m.name}が 襲いかかってきた！` : appearLine(battle.kind, m, cnt), 'warn');
   await sleep(500);
   beginInput();
 }
