@@ -779,7 +779,8 @@ function drawEnemyAt(kind, l, f, flash, e) {
 }
 // スマホ（縦画面、またはタッチ操作）では、画面の中の文字を 1.5 倍に
 // 画面の操作ボタン（スマホ）を使っているか。使っているときは、文の中にキーの名前を出さない
-const usePad = () => getComputedStyle(document.getElementById('pad')).display !== 'none';
+const PC_Q = matchMedia('(hover:hover) and (pointer:fine)'); // マウスのある PC では、ボタンが出ていてもキーの案内は残す
+const usePad = () => !PC_Q.matches && getComputedStyle(document.getElementById('pad')).display !== 'none';
 const MOBILE_Q = matchMedia('(max-width:700px) and (orientation:portrait), (pointer:coarse)');
 const textScale = () => (MOBILE_Q.matches ? 1.5 : 1);
 function renderBattle() {
