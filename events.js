@@ -65,7 +65,7 @@ const TEACHERS = [
     line: '「あの鐘の音、いい音よね。最後まで聴いてみたくて」', note: '全員を回復できる' },
   { key: 'kuroda', name: '黒田', cls: '社会', x: 15, y: 2, ht: 176,
     st: { maxhp: 14, maxmp: 7, atk: [2, 6], ac: 7, agi: 8, grow: { hp: [3, 5], mp: 2 } }, spells: ['drill', 'spark'],
-    line: '「この学校の古い記録は、俺が一番知っている。離れずについてこい」', note: '打たれ強い。全員を守れる' },
+    line: '「この学校の古い記録は、俺が一番知っている。離れずについてこい」', note: '打たれ強い、全員を守れる' },
   { key: 'aoyama', name: '青山', cls: '英語', x: 6, y: 3, ht: 165,
     st: { maxhp: 11, maxmp: 9, atk: [1, 5], ac: 9, agi: 11, grow: { hp: [2, 4], mp: 3 } }, spells: ['heal', 'spark'],
     line: '「Don\'t worry. 先生がついてるから」', note: '素早い' },
@@ -118,9 +118,10 @@ function addMate(key, outKey) {
 // 誘う：空きがあれば「はい／いいえ」、いっぱいなら誰と交代するかを選ぶ
 // 誘うときに見せる、その人の教科・呪文・得意なこと（物語の文ではなく、選ぶときの案内）
 function mateInfo(key) {
-  if (key === 'mizuno') return `${mateName(key)}（図書委員）　${['spark', 'thunder'].map(i => SPELLS[i].name).join('・')} ／ 素早い`;
+  // 例：佐伯先生（体育、手当て、一喝、力が強い）
+  if (key === 'mizuno') return `${mateName(key)}（${['図書委員', ...['spark', 'thunder'].map(i => SPELLS[i].name), '素早い'].join('、')}）`;
   const t = teacherOf(key);
-  return `${mateName(key)}（${t.cls}）　${t.spells.map(i => SPELLS[i].name).join('・')} ／ ${t.note}`;
+  return `${mateName(key)}（${[t.cls, ...t.spells.map(i => SPELLS[i].name), t.note].join('、')}）`;
 }
 function offerJoin(key) {
   const cap = partyCap();
