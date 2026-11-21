@@ -912,7 +912,7 @@ function openBigMap() {
   bigFl = state.fl; mode = 'bigmap'; bigEl.style.display = 'block'; renderBigMap();
 }
 function closeBigMap() { if (mode !== 'bigmap') return; mode = 'explore'; bigEl.style.display = 'none'; render(); }
-mc.addEventListener('click', openBigMap);
+mc.addEventListener('pointerup', openBigMap); // タップでも開く（touchstart を止めているので click は来ない）
 document.getElementById('bigmapClose').addEventListener('click', e => { e.stopPropagation(); closeBigMap(); });
 window.addEventListener('resize', () => { if (mode === 'bigmap') renderBigMap(); else if (state) renderMap(); });
 function renderHUD() {
@@ -1614,6 +1614,11 @@ let lastTouchEnd = 0;
 document.addEventListener('touchend', e => { const now = Date.now(); if (now - lastTouchEnd < 350) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
+// iPhone の Safari は「拡大しない」指定を無視してダブルタップで拡大するので、タップする所では touchstart を止める
+//   （操作ボタン・プレイ画面・ステータス・地図。ボタンの動作は pointerdown / pointerup で受けているので影響しない）
+for (const el of [...document.querySelectorAll('#pad button'), document.getElementById('view'), document.getElementById('party'), mc, document.getElementById('bigmapCanvas')])
+  el.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false }); // 2本指の拡大
 window.addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
   // テンキー：探索中は e.code（NumLock の有無に関係なく）で移動。戦闘・会話中は数字として扱う

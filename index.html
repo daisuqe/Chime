@@ -18,6 +18,7 @@
   /* 外の景色以外は白と黒だけ */
   :root { --fg:#fff; --dim:#fff; --warn:#fff; --bad:#fff; --good:#fff; --line:#fff; }
   * { box-sizing:border-box; }
+  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
   html,body { margin:0; background:#000; color:var(--fg); font-family:'DotGothic16','MS Gothic',monospace; }
   /* スマホで長押し・連打しても文字の範囲選択や拡大鏡・メニューが出ないように */
   body { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; -webkit-tap-highlight-color:transparent; touch-action:manipulation; }
@@ -79,12 +80,13 @@
   @keyframes shake { 0%,100%{transform:translate(0,0)} 25%{transform:translate(-6px,3px)} 50%{transform:translate(5px,-3px)} 75%{transform:translate(-3px,2px)} }
   /* スマホ用の操作ボタン（ふだんは隠す） */
   /* ボタンは横長（高さ＝幅の 2/3） */
-  #pad { display:none; grid-template-columns:repeat(5, 1fr); gap:6px; margin:8px 0 4px; }
+  #pad { display:none; grid-template-columns:repeat(5, minmax(0, 1fr)); gap:6px; margin:8px 0 4px; }
   #pad button { width:auto; height:min(19vw, 13vh); padding:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;
                 font-size:min(7vw, 30px); line-height:1; touch-action:manipulation; user-select:none; -webkit-user-select:none; -webkit-tap-highlight-color:transparent; }
   #pad button span { font-size:11px; }
   #pad:not(.battle) button.txt { font-size:min(4vw, 20px); white-space:nowrap; } /* 文字だけのボタン（メニュー・話す） */
   #pad button:hover { background:#000; color:var(--fg); }
+  #pad button { min-width:0; overflow:hidden; }
   #pad button.on { background:#fff; color:#000; }
   #pad button:disabled { border-color:#333; }
   #pad button[data-k="Numpad1"] { grid-row:2; grid-column:2; }
@@ -93,15 +95,18 @@
   #pad.battle button.extra { visibility:hidden; }
   /* スマホの縦画面：上からマップ、プレイ画面、ステータス（どれも全幅）、いちばん下に大きな操作ボタン */
   @media (max-width:700px) and (orientation:portrait), (pointer:coarse) and (orientation:portrait) {
-    /* 画面の高さ（見えている部分 dvh）にぴったり収める。マップが残りの高さを使う */
-    html, body { overflow:hidden; }
-    #app { padding:6px; height:100vh; height:100dvh; display:flex; flex-direction:column; }
+    /* マップが残りの高さを使う */
+    html, body { overflow-x:hidden; }
+    /* ふつうは見えている高さ（dvh）にぴったり。入りきらない小さな画面では、重ならずに縦にスクロールする */
+    #app { padding:6px; min-height:100vh; min-height:100dvh; display:flex; flex-direction:column; }
     #top { flex:1 1 auto; min-height:0; flex-direction:column; flex-wrap:nowrap; gap:6px; }
     #viewWrap { flex:none; width:100%; max-width:none; }
     #side { display:contents; } /* 中身（マップ・ステータス）を、プレイ画面と同じ並びに出す */
     #map { order:-1; } /* マップはプレイ画面の上 */
     #party { order:1; } /* ステータスはプレイ画面の下 */
-    #party { width:100%; font-size:17px; }
+    #party { width:100%; font-size:17px; table-layout:fixed; }
+    #party td, #party th { overflow:hidden; white-space:nowrap; }
+    #top > *, #side > * { min-width:0; max-width:100%; } /* どの部品も画面の幅を超えない */
     #party th, #party td { padding:2px 4px; }
     #map { display:block; flex:1 1 0; min-height:48px; width:100%; min-width:0; max-width:100%; height:auto; } /* 横は画面の幅まで（はみ出さない）、縦は残りの高さ */
     #menuHint { display:none; }
@@ -130,10 +135,10 @@
     #side { grid-area:side; flex:none; width:260px; gap:6px; }
     #map { width:260px; height:auto; }
     #menuHint { display:none; }
-    #pad { grid-area:pad; display:grid; gap:6px; margin:0; grid-template-columns:repeat(7, 1fr); }
+    #pad { grid-area:pad; display:grid; gap:6px; margin:0; grid-template-columns:repeat(7, minmax(0, 1fr)); }
     #pad button[data-k] { grid-row:auto; grid-column:auto; }
     #pad button[data-k="Numpad2"] { display:none; }
-    #pad.battle { grid-template-columns:repeat(5, 1fr); }
+    #pad.battle { grid-template-columns:repeat(5, minmax(0, 1fr)); }
     #pad.battle button.extra { display:none; }
     #pad button { width:auto; height:52px; font-size:24px; }
     #pad.battle button:disabled { display:none; }
