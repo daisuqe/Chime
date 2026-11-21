@@ -1040,7 +1040,6 @@ function renderHUD() {
 function render() {
   fitHeight();
   updatePad();
-  if (state.flags.nurseHinted && (state.fl !== 1 || (areaAt(1, state.x, state.y) || {}).name !== '保健室')) state.flags.nurseHinted = false; // 保健室を出た
   updateQuestLocks(); renderView(); renderMap(); renderHUD(); checkCap(); saveSoon(); }
 
 // ---------------------------------------------------------------------
@@ -1609,12 +1608,13 @@ function progressHTML() {
     [f.metNurse, '保健の先生と話した'], [f.hadTeacher || f.saeki, '職員室の先生が仲間になった'], [f.reveal, '窓の外の空を見た'],
     [f.mizuno, '水野が仲間になった'], [f.bellRoom, '鐘楼にたどり着いた'], [f.bossDown, '鐘の番人を倒した'],
   ].filter(([b]) => b).map(([, t]) => `<div>■ ${t}</div>`);
+  if (!f.bossDown) main.push('<div>□ ？？？</div>'); // 本筋がまだ終わっていないことだけを示す（中身は出さない）
   const quests = QUESTS.filter(([, a, b]) => f[a] || f[b]).map(([n, , b]) => `<div>${f[b] ? `■ ${n}　達成` : `□ ${n}　進行中`}</div>`);
   const floors = Object.keys(MAPS).filter(k => state.seen[k] && state.seen[k].size > 0).map(k => MAPS[k].name);
   return `<div>現在地：${esc(placeName(state.fl, state.x, state.y))}</div>
     <div>連れて行ける人数：${partyCap()}人</div>
     <div>プレイ時間：${time}</div>
-    <h4>本筋</h4>${main.join('') || '<div>まだ何もない</div>'}
+    <h4>本筋</h4>${main.join('')}
     <h4>頼まれごと</h4>${quests.join('') || '<div>まだ何もない</div>'}
     <h4>行った階</h4><div>${floors.join('　') || 'なし'}</div>
     <h4>持ち物</h4><div>${state.items.length ? state.items.map(i => esc(ITEM_NAME[i])).join('、') : 'なし'}</div>`;

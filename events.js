@@ -143,7 +143,7 @@ function teacherNPC(t) {
 // ===================== サブシナリオの進み方 =====================
 //   同時に進められるのは 2 本まで。この順に、終わるたび次の 1 本が「始まる」
 //   始まっていない話の人物・落とし物・敵は、まだそこにいない（放送室・司書室は鍵がかかっている）
-//   新しく始まった話は、保健の先生がヒントをくれる
+//   始まった話は、保健の先生がヒントをくれる（話しかけるたびに 1 つ）
 const QUEST_ORDER = ['q7', 'q1', 'q2', 'q6', 'q4', 'q5', 'q3'];
 const QUEST_MAX_OPEN = 2;
 function openQuests() {
@@ -155,30 +155,43 @@ function openQuests() {
 const questVisible = q => !q || state.flags[q + 'done'] || openQuests().includes(q);
 // 鍵のかかった部屋の扉（放送室・司書室）は、その話が始まると開く
 function updateQuestLocks() { for (const q of QUEST_ORDER) state.flags['open_' + q] = questVisible(q); }
+// 場所は「何棟・何階」と部屋の種類まで。教室（◯年◯組）は「教室」とだけ言い、それ以外の部屋は名前で言う
 const QUEST_HINT = {
   q7: '「用務員さんに鍵束を見なかったか聞かれたの。A棟1階の用務員室にいるわ」',
-  q1: '「B棟1階の1年A組の前を通ったら、中から『上履きがない』って声がしたわ」',
+  q1: '「B棟1階の教室の前を通ったら、中から『上履きがない』って声がしたわ」',
   q2: '「理科の先生、C棟1階の理科室に戻るって。理科準備室から物音がするそうよ」',
   q6: '「C棟2階の美術室の子がここに寄ったの。美術準備室から名前を呼ばれたって」',
   q4: '「司書さんが、返ってこない本があるって言ってたわ。D棟1階の司書室にいるはずよ」',
-  q5: '「職員室で聞いたの。B棟3階の3年E組のあたりで、カバンを探してる子がいるって」',
+  q5: '「職員室で聞いたの。B棟3階の教室のあたりで、カバンを探してる子がいるって」',
   q3: '「A棟1階の放送室の子に、下校放送のテープを見なかったか聞かれたの」',
 };
-// まだ伝えていないヒントを 1 つだけ返す（一度伝えたら繰り返さない）
-//   保健室に来るたびに 1 つまで。保健室を出て、また戻ってくると次の 1 つ（nurseHinted は保健室の外に出ると消える）
+// 保健の先生のヒント：話しかけるたびに 1 つ。いま役に立つものを順番に、聞き逃しても何度でも話す
+//   どれも今の進み具合から決まる（終わった話のヒントは出ない）。まだ聞いていないものが先
+function nurseHintList(s) {
+  const f = s.flags, list = [];
+  if (f.q1s === 1 || (f.q1s === 2 && !hasItem('shoe') && !f.got_shoe)) list.push('q1see');
+  for (const q of openQuests()) if (!f[q]) list.push(q);
+  if (f.q6s === 1) list.push('q6b');
+  if (f.q3done && !f.bossDown) list.push('bell');
+  if (f.q2done && !f.gakufu) list.push('badge');
+  return list;
+}
+const NURSE_HINT = {
+  ...QUEST_HINT,
+  q1see: '「上履きなら見たわ。階段の方へ跳ねていったの。A棟とB棟をつなぐ2階の渡り廊下を見てみたら？」',
+  q6b: '「美術準備室の肖像画のこと、緑川先生が気にしてたわ。美術の先生だもの、何か知ってるかも」',
+  bell: '「放送のあと、上の方で重い扉の開く音がしたの。4階の廊下の突き当たりよ」',
+  badge: '「白石先生が、C棟1階の音楽準備室で古い校章バッジを探してたわ。鍵穴のところに小さな鍵盤があったって」',
+};
 function questHints(s) {
-  if (s.flags.nurseHinted) return [];
-  const q = openQuests().find(q => !s.flags[q] && !s.flags['hint_' + q]);
-  let line = null;
-  if (s.flags.q1s === 1) { s.flags.q1s = 2; line = '「上履きなら見たわ。階段の方へ跳ねていったの。A棟とB棟をつなぐ2階の渡り廊下を見てみたら？」'; }
-  else if (q) { s.flags['hint_' + q] = true; line = QUEST_HINT[q]; }
-  else if (openQuests().includes('q3') && !s.flags.q3 && !s.flags.hint_q3b) { s.flags.hint_q3b = true; line = '「放送室の子、まだ誰かを待ってるみたい。顔を出してあげて」'; }
-  else if (s.flags.q6s === 1 && !s.flags.hint_q6b) { s.flags.hint_q6b = true; line = '「美術準備室の肖像画のこと、緑川先生が気にしてたわ。美術の先生だもの、何か知ってるかも」'; }
-  else if (s.flags.q3done && !s.flags.bossDown && !s.flags.hint_bell) { s.flags.hint_bell = true; line = '「放送のあと、上の方で重い扉の開く音がしたの。4階の廊下の突き当たりよ」'; }
-  else if (s.flags.q2done && !s.flags.gakufu && !s.flags.hint_badge) { s.flags.hint_badge = true; line = '「白石先生が、C棟1階の音楽準備室で古い校章バッジを探してたわ。鍵穴のところに小さな鍵盤があったって」'; }
-  if (!line) return [];
-  s.flags.nurseHinted = true;
-  return [line];
+  const list = nurseHintList(s);
+  if (!list.length) return [];
+  // まだ聞いていないものを先に。全部聞いたあとは、順番にくり返す
+  const heard = s.flags.nurseHeard = s.flags.nurseHeard || {};
+  const k = list.find(h => !heard[h]) || list[(s.flags.nurseTurn || 0) % list.length];
+  heard[k] = true; s.flags.nurseTurn = (s.flags.nurseTurn || 0) + 1;
+  if (k === 'q1see') s.flags.q1s = 2; // 上履きを見た話を聞くと、上履きが落ちている
+  return [NURSE_HINT[k]];
 }
 
 const NPCS = [
@@ -190,13 +203,13 @@ const NPCS = [
       const healed = healAll(); // 満タンになったものがあれば、先生の言葉のあとに知らせる
       const recoveryNotice = healed ? [dialogNotice(healed)] : [];
       const hints = first && s.flags.q1s !== 1 ? [] : questHints(s);
-      if (first) s.flags.nurseHinted = true;
       if (first && !s.flags.bossDown) return [
         '保健の先生「起きられたのね。どこか痛む？」',
         '「廊下で倒れていたの。覚えてる？」',
         '「あなたを運んだときも、時計は五時だったの。まだ針が動いてない」',
         '「ほら。また同じチャイム」',
         '「廊下に出るなら、隣の職員室で先生を呼んでね。ひとりで行かないで」',
+        '「何か困ったことがあったら、私に相談してね」',
         ...recoveryNotice, ...hints,
       ];
       const greeting = s.flags.bossDown ? '保健の先生「静かになったね。……おかえり」'
