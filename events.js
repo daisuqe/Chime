@@ -156,13 +156,13 @@ const questVisible = q => !q || state.flags[q + 'done'] || openQuests().includes
 // 鍵のかかった部屋の扉（放送室・司書室）は、その話が始まると開く
 function updateQuestLocks() { for (const q of QUEST_ORDER) state.flags['open_' + q] = questVisible(q); }
 const QUEST_HINT = {
-  q7: '「用務員さんに、鍵束を見なかったか聞かれたの」',
-  q1: '「1年A組の前を通ったら、中から『上履きがない』って声がしたわ」',
-  q2: '「理科の先生に廊下で会ったの。準備室から物音がするって言ってたわ」',
-  q6: '「美術部の子がここに寄ったの。準備室から名前を呼ばれたって」',
-  q4: '「司書さんが、返ってこない本があるって職員室に来てたわ」',
-  q5: '「職員室で聞いたの。三階の教室を回って、カバンを探してる子がいるって」',
-  q3: '「放送室の子に、下校放送のテープを見なかったか聞かれたの」',
+  q7: '「用務員さんに鍵束を見なかったか聞かれたの。A棟1階の用務員室にいるわ」',
+  q1: '「B棟1階の1年A組の前を通ったら、中から『上履きがない』って声がしたわ」',
+  q2: '「理科の先生、C棟1階の理科室に戻るって。理科準備室から物音がするそうよ」',
+  q6: '「C棟2階の美術室の子がここに寄ったの。美術準備室から名前を呼ばれたって」',
+  q4: '「司書さんが、返ってこない本があるって言ってたわ。D棟1階の司書室にいるはずよ」',
+  q5: '「職員室で聞いたの。B棟3階の3年E組のあたりで、カバンを探してる子がいるって」',
+  q3: '「A棟1階の放送室の子に、下校放送のテープを見なかったか聞かれたの」',
 };
 // まだ伝えていないヒントを 1 つだけ返す（一度伝えたら繰り返さない）
 //   保健室に来るたびに 1 つまで。保健室を出て、また戻ってくると次の 1 つ（nurseHinted は保健室の外に出ると消える）
@@ -170,9 +170,9 @@ function questHints(s) {
   if (s.flags.nurseHinted) return [];
   const q = openQuests().find(q => !s.flags[q] && !s.flags['hint_' + q]);
   let line = null;
-  if (s.flags.q1s === 1) { s.flags.q1s = 2; line = '「上履きなら見たわ。廊下に出たら、階段の方へ跳ねていったの。二階の渡り廊下を見てみたら？」'; }
+  if (s.flags.q1s === 1) { s.flags.q1s = 2; line = '「上履きなら見たわ。階段の方へ跳ねていったの。A棟とB棟をつなぐ2階の渡り廊下を見てみたら？」'; }
   else if (q) { s.flags['hint_' + q] = true; line = QUEST_HINT[q]; }
-  else if (s.flags.q2done && !s.flags.gakufu && !s.flags.hint_badge) { s.flags.hint_badge = true; line = '「白石先生が、音楽準備室の古い校章バッジを探してたわ。鍵穴のところに、小さな鍵盤が付いてたそうよ」'; }
+  else if (s.flags.q2done && !s.flags.gakufu && !s.flags.hint_badge) { s.flags.hint_badge = true; line = '「白石先生が、C棟1階の音楽準備室で古い校章バッジを探してたわ。鍵穴のところに小さな鍵盤があったって」'; }
   if (!line) return [];
   s.flags.nurseHinted = true;
   return [line];

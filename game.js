@@ -392,7 +392,7 @@ function drawFace(e1, e2, kind, d, edgeL = true, edgeR = true, curtain = null, d
 }
 // 階段（ソリッド）。局所座標 u：進む方向 0..2（2マス）、v：横 -A..A、h：高さ
 // 上り：床 -0.5 から天井 +0.5 へ。下り：床 -0.5 から下の階の床 -1.5 へ（床に開いた吹き抜け）
-const STEPS = 7, STAIR_A = 0.44;
+const STEPS = 7, STAIR_A = 0.5;
 function drawStairSolid(st) {
   const [sx, sy] = DIRS[st.dir], [tx, ty] = DIRS[(st.dir + 1) % 4];
   const ox = st.x - sx * 0.5 - state.x, oy = st.y - sy * 0.5 - state.y; // 手前の辺の中心（自分からの相対）
@@ -419,49 +419,35 @@ function drawStairSolid(st) {
   if (opening.length < 3) return;
   const hole = st.up ? null : project([[0, -0.5], [2, -0.5], [2, 0.5], [0, 0.5]].map(([u, v]) => V(u, v, -0.5)));
   if (hole && hole.length < 3) return;
-  const faces = [];
-  const add = (pts, n) => {
+  const surface = (pts, n) => {
     const p = pts.map(q => V(...q)), nn = N(...n), c = p[0];
-    if (nn[0] * -c[0] + nn[1] * -c[1] + nn[2] * -c[2] <= 1e-6) return; // 裏向きは描かない（視点は原点）
-    const m = p.reduce((a, q) => [a[0] + q[0] / p.length, a[1] + q[1] / p.length, a[2] + q[2] / p.length], [0, 0, 0]);
-    faces.push({ p, dist: Math.hypot(m[0], m[1], m[2]) });
+    if (nn[0] * -c[0] + nn[1] * -c[1] + nn[2] * -c[2] <= 1e-6) return;
+    const face = project(p);
+    if (face.length < 3) return;
+    path(face); g.fill(); g.stroke();
   };
-  const A = STAIR_A, dd = 2 / STEPS, rh = 1 / STEPS;
-  if (st.up) {
-    const prof = [[0, -0.5]];
-    for (let k = 0; k < STEPS; k++) {
-      const u0 = k * dd, u1 = u0 + dd, h0 = -0.5 + k * rh, h1 = h0 + rh;
-      add([[u0, -A, h0], [u0, A, h0], [u0, A, h1], [u0, -A, h1]], [-1, 0, 0]); // 蹴込み
-      add([[u0, -A, h1], [u0, A, h1], [u1, A, h1], [u1, -A, h1]], [0, 0, 1]);  // 踏み板
-      prof.push([u0, h1], [u1, h1]);
-    }
-    prof.push([2, -0.5]);
-    add(prof.map(([u, h]) => [u, -A, h]), [0, -1, 0]); // 側面（段々の形）
-    add(prof.map(([u, h]) => [u, A, h]).reverse(), [0, 1, 0]);
-  } else {
-    const prof = [[0, -0.5], [2, -0.5]];
-    const low = [];
-    for (let k = 0; k < STEPS; k++) {
-      const u0 = k * dd, u1 = u0 + dd, h1 = -0.5 - (k + 1) * rh, h0 = h1 + rh;
-      add([[u0, -A, h1], [u0, A, h1], [u1, A, h1], [u1, -A, h1]], [0, 0, 1]);  // 踏み板
-      add([[u0, -A, h0], [u0, A, h0], [u0, A, h1], [u0, -A, h1]], [1, 0, 0]);  // 段の落ち（奥向き）
-      low.push([u0, h1], [u1, h1]);
-    }
-    add([[2, -A, -0.5], [2, A, -0.5], [2, A, -1.5], [2, -A, -1.5]], [-1, 0, 0]); // 吹き抜けの奥の壁
-    const wall = prof.concat(low.slice().reverse()); // 床の高さ〜段の上の、吹き抜けの側壁
-    add(wall.map(([u, h]) => [u, -A, h]), [0, 1, 0]);
-    add(wall.map(([u, h]) => [u, A, h]), [0, -1, 0]);
-  }
-  faces.sort((a, b) => b.dist - a.dist);
   g.save();
   path(opening); g.clip();
   g.lineJoin = 'bevel'; g.lineWidth = 1.5; g.fillStyle = '#000'; g.strokeStyle = '#fff';
-  // 床下の線や奥の窓が、吹き抜けの隙間から見えないようにする。
-  if (hole) { path(hole); g.fill(); g.clip(); }
-  for (const fc of faces) {
-    const face = project(fc.p);
-    if (face.length < 3) continue;
-    path(face); g.fill(); g.stroke();
+  const A = STAIR_A, stepDepth = 2 / STEPS, floor = -0.5;
+  const height = step => floor + (st.up ? step : -step) / STEPS;
+  const profile = [];
+  for (let k = 0; k < STEPS; k++) {
+    profile.push([k * stepDepth, height(k + 1)], [(k + 1) * stepDepth, height(k + 1)]);
+  }
+  // 壁に接する奥と側面を先に描き、その上に入口から見える段を重ねる。
+  if (hole) {
+    path(hole); g.fill(); g.clip();
+    surface([[2, -A, floor], [2, A, floor], [2, A, height(STEPS)], [2, -A, height(STEPS)]], [-1, 0, 0]);
+    const side = [[0, floor], ...profile, [2, floor]];
+    surface(side.map(([u, h]) => [u, -A, h]), [0, 1, 0]);
+    surface(side.map(([u, h]) => [u, A, h]), [0, -1, 0]);
+  }
+  // 入口からは奥の段ほど先。各段は奥行きのある踏み板、手前の蹴込みの順。
+  for (let k = STEPS - 1; k >= 0; k--) {
+    const u0 = k * stepDepth, u1 = (k + 1) * stepDepth, h = height(k + 1);
+    surface([[u0, -A, h], [u0, A, h], [u1, A, h], [u1, -A, h]], [0, 0, 1]);
+    if (st.up) surface([[u0, -A, height(k)], [u0, A, height(k)], [u0, A, h], [u0, -A, h]], [-1, 0, 0]);
   }
   // 上り階段：天井に開いた穴（枠だけ）。マス2つ分の幅・長さ、天井の高さ h=+0.5
   if (st.up) {
@@ -716,12 +702,8 @@ function renderView() {
       // マスの中身（階段・人）
       if (f >= 1 && inMap(state.fl, wx(f, l), wy(f, l))) {
         const sa = stairAt(state.fl, wx(f, l), wy(f, l));
-        if (sa) {
-          // もう一方のマスの (f,l)。こちらが先（f が大きい、同じなら |l| が大きい）なら描く
-          const [ox2, oy2] = stairCells(sa.st)[1 - sa.i], dx = ox2 - state.x, dy = oy2 - state.y;
-          const f2 = dx * fx + dy * fy, l2 = dx * rx + dy * ry;
-          if (f > f2 || (f === f2 && Math.abs(l) > Math.abs(l2))) drawStairSolid(sa.st);
-        }
+        // 2マスの階段は、奥の壁を描き終えた入口側のマスで一度だけ描く。
+        if (sa?.i === 0) drawStairSolid(sa.st);
         const pr = propAt(state.fl, wx(f, l), wy(f, l));
         if (pr === 'pool') drawPool(wx(f, l), wy(f, l), WP, wline, f);
         else if (pr === 'bed' || pr === 'desk') drawTable(pr, l, f);
@@ -871,7 +853,7 @@ function knownCells(fl) {
   return out;
 }
 // 地図を描く：cs＝1マスの大きさ、(ox, oy)＝マス (0,0) の左上の位置
-function drawMap(mg, W, H, cs, ox, oy, fl = state.fl) { // fl：描く階（全画面の地図では、いる階以外も描ける）
+function drawMap(mg, W, H, cs, ox, oy, fl = state.fl, labels = false) { // fl：描く階（全画面の地図では、いる階以外も描ける）
   const F = MAPS[fl], k1 = cs / 10, S = knownCells(fl);
   mg.fillStyle = '#000'; mg.fillRect(0, 0, W, H);
   const seen = (x, y) => S.has(x + ',' + y);
@@ -906,41 +888,132 @@ function drawMap(mg, W, H, cs, ox, oy, fl = state.fl) { // fl：描く階（全�
     const k = F.v[y][x], px = ox + x * cs, py = oy + y * cs;
     if (k === DOOR) { seg(WALL, px, py, px, py + 3 * k1); seg(WALL, px, py + cs - 3 * k1, px, py + cs); } else seg(k, px, py, px, py + cs);
   }
+  if (labels) drawRoomLabels(mg, F, S, cs, ox, oy);
   if (fl !== state.fl) return; // 自分の印は、いる階だけ
   const px = ox + state.x * cs + cs / 2, py = oy + state.y * cs + cs / 2, [dx, dy] = DIRS[state.dir];
   mg.fillStyle = '#ffffff'; mg.beginPath();
   mg.moveTo(px + dx * 5 * k1, py + dy * 5 * k1); mg.lineTo(px + (-dx * 3 - dy * 4) * k1, py + (-dy * 3 + dx * 4) * k1); mg.lineTo(px + (-dx * 3 + dy * 4) * k1, py + (-dy * 3 - dx * 4) * k1); mg.closePath(); mg.fill();
 }
-// 全画面の地図：小さな地図をクリック・タップすると開き、右上の × で閉じる
-//   見えるのは、わかっている所だけ。行ったことのある階が 2 つ以上になると、左上のボタンで階を切り替えられる
-//   縮尺と位置は、行った全部の階のわかっている範囲に合わせて 1 つに決める（階を切り替えても動かない）
+function drawRoomLabels(ctx, floor, known, cs, ox, oy) {
+  const size = clamp(Math.round(cs * 0.6), 11, 17);
+  const rows = Math.ceil((size + 5) / cs);
+  const covered = (a, x, y) => {
+    for (let dy = 0; dy < rows; dy++) {
+      if (floor.grid[y + dy]?.[x] !== a || !known.has(x + ',' + (y + dy))) return false;
+    }
+    return true;
+  };
+  const spans = new Map();
+  for (let y = 0; y < floor.H; y++) for (let x = 0; x < floor.W; x++) {
+    const a = floor.grid[y][x];
+    if (a?.kind !== 'room' || !covered(a, x, y)) continue;
+    let end = x + 1;
+    while (covered(a, end, y)) end++;
+    const width = end - x;
+    if (!spans.has(a) || spans.get(a).width < width) spans.set(a, { x, y, width });
+    x = end - 1;
+  }
+  ctx.font = size + 'px DotGothic16, "MS Gothic", sans-serif';
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const [a, { x, y, width }] of spans) {
+    const w = Math.ceil(ctx.measureText(a.name).width) + 4;
+    if (w > width * cs - 4) continue;
+    const px = ox + (x + width / 2) * cs, py = oy + y * cs + (size + 6) / 2;
+    ctx.fillStyle = '#000'; ctx.fillRect(px - w / 2, py - size / 2 - 1, w, size + 2);
+    ctx.fillStyle = '#fff'; ctx.fillText(a.name, px, py);
+  }
+  ctx.textBaseline = 'alphabetic';
+}
+// 全画面の地図：判明済みの範囲を表示し、階ごとに拡大・ドラッグできる。
 const bigEl = document.getElementById('bigmap'), bc = document.getElementById('bigmapCanvas'), bg = bc.getContext('2d');
-const bigFloorsEl = document.getElementById('bigmapFloors');
-let bigFl = 1;
+const bigFloorsEl = document.getElementById('bigmapFloors'), bigClose = document.getElementById('bigmapClose');
+const bigOut = document.getElementById('bigmapOut'), bigFit = document.getElementById('bigmapFit'), bigIn = document.getElementById('bigmapIn');
+const BIG_ZOOMS = [1, 1.5, 2.25, 3.375, 5];
+let bigFl = 1, bigZoom = 0, bigCenter = null, bigScale = 1, mapDrag = null;
 const visitedFloors = () => Object.keys(MAPS).map(Number).filter(k => knownCells(k).size > 0 || k === state.fl);
 function renderBigMap() {
   const dpr = window.devicePixelRatio || 1, W = bc.clientWidth, H = bc.clientHeight;
-  bc.width = Math.round(W * dpr); bc.height = Math.round(H * dpr); bg.setTransform(dpr, 0, 0, dpr, 0, 0);
-  // わかっている範囲：行った全部の階のマスと、今いるマス
-  let x0 = state.x, x1 = state.x, y0 = state.y, y1 = state.y;
-  const fls = visitedFloors();
-  for (const k of fls) for (const c of knownCells(k)) { const [x, y] = c.split(',').map(Number); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
-  const pad = 1, top = fls.length > 1 ? 60 : 0, bw = x1 - x0 + 1 + pad * 2, bh = y1 - y0 + 1 + pad * 2;
-  const cs = Math.max(6, Math.min(40, Math.floor(Math.min((W - 20) / bw, (H - 20 - top) / bh))));
-  drawMap(bg, W, H, cs, Math.round(W / 2 - (x0 + x1 + 1) / 2 * cs), Math.round(top + (H - top) / 2 - (y0 + y1 + 1) / 2 * cs), bigFl);
-  // 階のボタン（行った階が 2 つ以上のときだけ）
-  bigFloorsEl.innerHTML = fls.length > 1 ? fls.map(k => `<button data-fl="${k}" class="${k === bigFl ? 'on' : ''}">${MAPS[k].name}</button>`).join('') : '';
+  if (!W || !H) return;
+  const pw = Math.round(W * dpr), ph = Math.round(H * dpr);
+  if (bc.width !== pw || bc.height !== ph) { bc.width = pw; bc.height = ph; }
+  bg.setTransform(dpr, 0, 0, dpr, 0, 0);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const c of knownCells(bigFl)) {
+    const [x, y] = c.split(',').map(Number);
+    x0 = Math.min(x0, x); x1 = Math.max(x1, x + 1);
+    y0 = Math.min(y0, y); y1 = Math.max(y1, y + 1);
+  }
+  if (bigFl === state.fl) {
+    x0 = Math.min(x0, state.x); x1 = Math.max(x1, state.x + 1);
+    y0 = Math.min(y0, state.y); y1 = Math.max(y1, state.y + 1);
+  }
+  const midX = (x0 + x1) / 2, midY = (y0 + y1) / 2;
+  const margin = 12, innerW = Math.max(1, W - margin * 2), innerH = Math.max(1, H - margin * 2);
+  const fit = Math.min(40, innerW / (x1 - x0), innerH / (y1 - y0));
+  bigScale = Math.min(144, fit * BIG_ZOOMS[bigZoom]);
+  const center = bigCenter || { x: midX, y: midY };
+  const dx = Math.max(0, (x1 - x0 - innerW / bigScale) / 2), dy = Math.max(0, (y1 - y0 - innerH / bigScale) / 2);
+  bigCenter = { x: clamp(center.x, midX - dx, midX + dx), y: clamp(center.y, midY - dy, midY + dy) };
+  drawMap(bg, W, H, bigScale, W / 2 - bigCenter.x * bigScale, H / 2 - bigCenter.y * bigScale, bigFl, true);
+  bigOut.disabled = bigFit.disabled = bigZoom === 0;
+  bigIn.disabled = bigZoom === BIG_ZOOMS.length - 1 || bigScale === 144;
 }
-bigFloorsEl.addEventListener('click', e => { const b = e.target.closest('button'); if (!b) return; e.stopPropagation(); bigFl = +b.dataset.fl; renderBigMap(); });
-// キーボード：← → ↑ ↓ で階を切り替える
-function bigMapStep(d) { const fls = visitedFloors(), i = fls.indexOf(bigFl); bigFl = fls[Math.max(0, Math.min(fls.length - 1, i + d))]; renderBigMap(); }
+function fitBigMap() {
+  bigZoom = 0; bigCenter = null;
+  renderBigMap();
+}
+function selectBigFloor(fl) {
+  if (bigFl !== fl) { bigFl = fl; fitBigMap(); }
+  for (const b of bigFloorsEl.querySelectorAll('button')) b.setAttribute('aria-pressed', +b.dataset.fl === fl);
+}
+bigFloorsEl.addEventListener('click', e => {
+  const b = e.target.closest('button[data-fl]');
+  if (b) selectBigFloor(+b.dataset.fl);
+});
+function bigMapStep(d) {
+  const fls = visitedFloors();
+  selectBigFloor(fls[clamp(fls.indexOf(bigFl) + d, 0, fls.length - 1)]);
+}
 function openBigMap() {
   if (mode !== 'explore') return;
-  bigFl = state.fl; mode = 'bigmap'; bigEl.style.display = 'block'; renderBigMap();
+  bigFl = state.fl; mode = 'bigmap'; bigEl.style.display = 'flex';
+  bigFloorsEl.innerHTML = visitedFloors().map(fl => `<button type="button" data-fl="${fl}" aria-pressed="${fl === bigFl}">${MAPS[fl].name}</button>`).join('');
+  fitBigMap();
+  bigClose.focus({ preventScroll: true });
 }
-function closeBigMap() { if (mode !== 'bigmap') return; mode = 'explore'; bigEl.style.display = 'none'; render(); }
-mc.addEventListener('pointerup', openBigMap); // タップでも開く（touchstart を止めているので click は来ない）
-document.getElementById('bigmapClose').addEventListener('click', e => { e.stopPropagation(); closeBigMap(); });
+function closeBigMap() {
+  if (mode !== 'bigmap') return;
+  mode = 'explore'; bigEl.style.display = 'none'; mapDrag = null; render();
+  mc.focus({ preventScroll: true });
+}
+// ドラッグ直後にブラウザがクリックを省いても、タップでボタンを押せるようにする。
+bigEl.addEventListener('pointerup', e => {
+  if (e.pointerType !== 'touch') return;
+  const button = e.target.closest('button');
+  if (button && document.elementFromPoint(e.clientX, e.clientY)?.closest('button') === button) button.click();
+});
+bigOut.addEventListener('click', () => { bigZoom--; renderBigMap(); });
+bigIn.addEventListener('click', () => { bigZoom++; renderBigMap(); });
+bigFit.addEventListener('click', fitBigMap);
+bc.addEventListener('pointerdown', e => {
+  if (e.button !== 0 || mapDrag) return;
+  mapDrag = { id: e.pointerId, x: e.clientX, y: e.clientY };
+  bc.setPointerCapture(e.pointerId);
+});
+bc.addEventListener('pointermove', e => {
+  if (mapDrag?.id !== e.pointerId) return;
+  bigCenter.x -= (e.clientX - mapDrag.x) / bigScale;
+  bigCenter.y -= (e.clientY - mapDrag.y) / bigScale;
+  mapDrag.x = e.clientX; mapDrag.y = e.clientY;
+  renderBigMap();
+});
+bc.addEventListener('lostpointercapture', e => { if (mapDrag?.id === e.pointerId) mapDrag = null; });
+mc.addEventListener('pointerup', openBigMap);
+mc.addEventListener('keydown', e => {
+  if (e.key !== 'Enter' && e.key !== ' ') return;
+  e.preventDefault(); e.stopPropagation(); openBigMap();
+});
+bigClose.addEventListener('click', closeBigMap);
 window.addEventListener('resize', () => { fitHeight(); if (mode === 'bigmap') renderBigMap(); else if (state) renderMap(); keepLeft(); });
 // 横にずれて表示されていたら左端に戻す（iPhone の Safari 対策。フォントの読み込み後や画面の回転後にも確かめる）
 function keepLeft() { if (window.scrollX) window.scrollTo(0, window.scrollY); }
@@ -1714,15 +1787,22 @@ document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('selectstart', e => e.preventDefault());
 // ダブルタップでの拡大・ピンチでの拡大を止める（iPhone の Safari は viewport の指定だけでは止まらないため）
 let lastTouchEnd = 0;
-document.addEventListener('touchend', e => { const now = Date.now(); if (now - lastTouchEnd < 350) e.preventDefault(); lastTouchEnd = now; }, { passive: false });
+document.addEventListener('touchend', e => {
+  if (bigEl.contains(e.target)) {
+    if (e.target.closest('button')) e.preventDefault(); // 地図ボタンは pointerup で反応済み
+    return;
+  }
+  const now = Date.now(); if (now - lastTouchEnd < 350) e.preventDefault(); lastTouchEnd = now;
+}, { passive: false });
 document.addEventListener('dblclick', e => e.preventDefault(), { passive: false });
 document.addEventListener('gesturestart', e => e.preventDefault(), { passive: false });
 // iPhone の Safari は「拡大しない」指定を無視してダブルタップで拡大するので、タップする所では touchstart を止める
 //   （操作ボタン・プレイ画面・ステータス・地図。ボタンの動作は pointerdown / pointerup で受けているので影響しない）
-for (const el of [...document.querySelectorAll('#pad button'), document.getElementById('view'), document.getElementById('party'), mc, document.getElementById('bigmapCanvas')])
+for (const el of [...document.querySelectorAll('#pad button'), document.getElementById('view'), document.getElementById('party'), mc])
   el.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
 document.addEventListener('touchstart', e => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false }); // 2本指の拡大
 window.addEventListener('keydown', e => {
+  if (mode === 'bigmap' && e.target instanceof HTMLButtonElement && bigEl.contains(e.target) && [' ', 'Enter'].includes(e.key)) return;
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
   // テンキー：探索中は e.code（NumLock の有無に関係なく）で移動。戦闘・会話中は数字として扱う
   if ((mode === 'explore' || mode === 'menu' || mode === 'bigmap') && /^Numpad[1-8]$|^NumpadEnter$/.test(e.code)) { e.preventDefault(); handleKey(e.code); return; }
