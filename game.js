@@ -1089,15 +1089,26 @@ function advanceDialog() {
 dlgEl.addEventListener('click', advanceDialog);
 
 const cmdEl = document.getElementById('cmd');
+let menuCur = 0; // キーボードで選んでいる行動・選択肢（W A S D で動かし、Space で決める）
 function setMenu(title, opts) {
-  menuOpts = opts;
+  menuOpts = opts; menuCur = 0;
   cmdEl.innerHTML = '';
   if (title) { const s = document.createElement('span'); s.className = 'who'; s.textContent = title; cmdEl.appendChild(s); }
   opts.forEach(([label, fn], i) => {
     const b = document.createElement('button'); b.textContent = `${i + 1} ${label}`; b.onclick = () => { if (mode === 'battle' || mode === 'choice') fn(); };
     cmdEl.appendChild(b);
   });
+  showMenuCur();
   updatePad();
+}
+function showMenuCur() { cmdEl.querySelectorAll('button').forEach((b, i) => b.classList.toggle('cur', i === menuCur)); }
+// 選択肢・戦闘の行動：W A（↑ ←）で前、S D（↓ →）で次、Space・Enter で決める。M・Esc は戻る
+function menuCursorKey(k) {
+  const n = menuOpts.length; if (!n) return false;
+  if (['w', 'W', 'a', 'A', 'q', 'Q', 'ArrowUp', 'ArrowLeft'].includes(k)) { menuCur = (menuCur + n - 1) % n; showMenuCur(); return true; }
+  if (['s', 'S', 'd', 'D', 'e', 'E', 'ArrowDown', 'ArrowRight'].includes(k)) { menuCur = (menuCur + 1) % n; showMenuCur(); return true; }
+  if ([' ', 'Enter', 'NumpadEnter'].includes(k)) { menuOpts[Math.min(menuCur, n - 1)][1](); return true; }
+  return false;
 }
 // 会話のあとに選択肢を出す。数字キー・画面のボタン・スマホのボタンで選ぶ。Esc・M は最後の選択肢（いいえ）
 function showChoice(title, opts) {
@@ -1641,11 +1652,11 @@ function askRestart() {
 function menuKey(k) {
   const i = MENU_TABS.indexOf(menuTab);
   if (['m', 'M', 'Escape'].includes(k)) toggleMenu(false);
-  else if (['ArrowLeft', 'Numpad4', 'Numpad1', '4', '1', 'a'].includes(k)) showMenuTab(MENU_TABS[(i + MENU_TABS.length - 1) % MENU_TABS.length]);
-  else if (['ArrowRight', 'Numpad6', 'Numpad3', '6', '3', 'd'].includes(k)) showMenuTab(MENU_TABS[(i + 1) % MENU_TABS.length]);
+  else if (['ArrowLeft', 'Numpad4', 'Numpad1', '4', '1', 'a', 'A', 'q', 'Q'].includes(k)) showMenuTab(MENU_TABS[(i + MENU_TABS.length - 1) % MENU_TABS.length]);
+  else if (['ArrowRight', 'Numpad6', 'Numpad3', '6', '3', 'd', 'D', 'e', 'E'].includes(k)) showMenuTab(MENU_TABS[(i + 1) % MENU_TABS.length]);
   else if ([' ', 'Enter', 'NumpadEnter'].includes(k) && menuTab === 'restart') askRestart();
-  else if (['ArrowUp', 'Numpad5', 'Numpad8', '8', '5', 'w'].includes(k)) menuBody.scrollTop -= 80;
-  else if (['ArrowDown', 'Numpad2', '2', 's'].includes(k)) menuBody.scrollTop += 80;
+  else if (['ArrowUp', 'Numpad5', 'Numpad8', '8', '5', 'w', 'W'].includes(k)) menuBody.scrollTop -= 80;
+  else if (['ArrowDown', 'Numpad2', '2', 's', 'S'].includes(k)) menuBody.scrollTop += 80;
 }
 menuEl.querySelectorAll('.tabs button').forEach(b => b.addEventListener('click', ev => { ev.stopPropagation(); showMenuTab(b.dataset.tab); }));
 menuEl.querySelector('.close').addEventListener('click', () => toggleMenu(false));
@@ -1735,21 +1746,23 @@ function handleKey(k) {
   if (mode === 'menu') { menuKey(k); return; }
   if (mode === 'bigmap') {
     if (['Escape', 'm', 'M', ' ', 'Enter', 'Backspace'].includes(k)) closeBigMap();
-    else if (['ArrowRight', 'ArrowUp', 'Numpad6', 'Numpad8', 'd', 'w'].includes(k)) bigMapStep(1);
-    else if (['ArrowLeft', 'ArrowDown', 'Numpad4', 'Numpad2', 'a', 's'].includes(k)) bigMapStep(-1);
+    else if (['ArrowRight', 'ArrowUp', 'Numpad6', 'Numpad8', 'd', 'D', 'w', 'W', 'e', 'E'].includes(k)) bigMapStep(1);
+    else if (['ArrowLeft', 'ArrowDown', 'Numpad4', 'Numpad2', 'a', 'A', 's', 'S', 'q', 'Q'].includes(k)) bigMapStep(-1);
     return;
   }
-  if (mode === 'dialog') { if (k === ' ' || k === 'Enter' || k === 'z') advanceDialog(); return; }
+  if (mode === 'dialog') { if ([' ', 'Enter', 'NumpadEnter', 'z'].includes(k)) advanceDialog(); return; }
   if (mode === 'choice') {
     const i = parseInt(k, 10);
     if (i >= 1 && i <= menuOpts.length) menuOpts[i - 1][1]();
     else if (['Escape', 'm', 'M', 'Backspace'].includes(k)) menuOpts[menuOpts.length - 1][1]();
+    else menuCursorKey(k);
     return;
   }
   if (mode === 'battle') {
     const i = parseInt(k, 10);
     if (i >= 1 && i <= menuOpts.length) menuOpts[i - 1][1]();
-    else if (k === 'Escape' || k === 'Backspace') backInput();
+    else if (['Escape', 'Backspace', 'm', 'M'].includes(k)) backInput();
+    else menuCursorKey(k);
     return;
   }
   if (mode !== 'explore') return;
@@ -1805,6 +1818,9 @@ window.addEventListener('keydown', e => {
   // テンキー：探索中は e.code（NumLock の有無に関係なく）で移動。戦闘・会話中は数字として扱う
   if ((mode === 'explore' || mode === 'menu' || mode === 'bigmap') && /^Numpad[1-8]$|^NumpadEnter$/.test(e.code)) { e.preventDefault(); handleKey(e.code); return; }
   if ((mode === 'battle' || mode === 'choice') && /^Numpad\d$/.test(e.code)) { handleKey(e.code.slice(-1)); return; }
+  // Q W E A S D M・Space は、日本語入力がオンでも同じように効くよう e.code で読む
+  const letter = { KeyQ: 'q', KeyW: 'w', KeyE: 'e', KeyA: 'a', KeyS: 's', KeyD: 'd', KeyM: 'm', KeyH: 'h', Space: ' ' }[e.code];
+  if (letter && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); handleKey(letter); return; }
   handleKey(e.key);
 });
 

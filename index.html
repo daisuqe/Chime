@@ -32,6 +32,7 @@
   #hud { position:absolute; left:0; right:0; bottom:0; padding:6px 8px; pointer-events:none; }
   #cmd { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-bottom:6px; pointer-events:auto; }
   #cmd:empty { display:none; }
+  #cmd button.cur { background:#fff; color:#000; } /* キーボードで選んでいる行動・選択肢 */
   #cmd .who { margin-right:6px; color:var(--warn); background:#000; padding:2px 6px; white-space:pre-line; } /* 改行（
 ）で 2 行に */
   /* 一時メッセージ：枠なし。各行に黒い帯を敷き、時間が経つと消える */
@@ -205,16 +206,17 @@
       <div id="menu">
         <div class="tabs"><button data-tab="help">ヘルプ</button><button data-tab="prog">進捗</button><button data-tab="log">ログ</button><button data-tab="restart">はじめから</button></div>
         <div id="menuBody"></div>
-        <div class="close">M・Esc 閉じる ／ ← → 切り替え ／ ↑ ↓ スクロール（ここをタップでも閉じる）</div>
+        <div class="close">M・Esc 閉じる ／ A D・← → 切り替え ／ W S・↑ ↓ スクロール（ここをタップでも閉じる）</div>
       </div>
       <template id="helpText">
-        <div>テンキー 5 前進 / 2 後退 / 4 左を向く / 6 右を向く</div>
-        <div>テンキー 1 左へ平行移動 / 3 右へ平行移動</div>
+        <div>W・テンキー 5 前進 / S・2 後退 / A・4 左を向く / D・6 右を向く</div>
+        <div>Q・テンキー 1 左へ平行移動 / E・3 右へ平行移動</div>
+        <div>M メニュー</div>
         <div>Space・Enter 話す・調べる・階段を使う</div>
         <div>H 回復（手当て・歌声を使える仲間がいるとき）。前に何もない所で話すと、仲間と話せる</div>
         <div>仲間（職員室の先生など）は、はじめは1人まで。頼まれごとを解決していくと、連れて行ける人数が増える</div>
         <div>いっぱいのときに誘うと、誰と交代するか選べる。外れた仲間は元の場所で待っている</div>
-        <div>戦闘中：数字キーで行動を選ぶ / Esc ひとつ戻る</div>
+        <div>戦闘・選択肢：W・S（A・D）で選んで Space で決める。数字キーでも選べる / M・Esc ひとつ戻る</div>
         <div>地図を押すと全画面表示。＋・−で拡大縮小、ドラッグで移動</div>
         <div>落とし物は、そのマスに乗ると拾う</div>
         <div>進み具合は自動で保存され、次に開くと続きから始まる</div>
