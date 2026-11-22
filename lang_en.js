@@ -307,7 +307,7 @@ const EN = {
   "保健の先生「戻ってきてくれてよかった。まず座って。手当てするね」": "Nurse: \"I'm glad you came back. Sit down first. I'll patch you up.\"",
   "保健の先生「おかえり。ここで少し休んでいく？」": "Nurse: \"Welcome back. Want to rest here for a bit?\"",
   "水野「……調べものの続き、いつでも手伝う」": "Mizuno: \"...I'll help with the research anytime.\"",
-  "図書委員の水野「……静かに。本たちが、いいところを読んでるの」": "Mizuno, the library aide: \"...Quiet. The books are at a good part.\"",
+  "図書委員の水野「……静かに」": "Mizuno, the library aide: \"...Quiet.\"",
   "「この学校の古い記録に、“終わらないチャイム”の話があった」": "\"In this school's old records, there was a story about 'the chime that never ends.'\"",
   "「鐘楼の鐘、一度近くで見てみたかったの」": "\"I've always wanted to see the bell in the bell tower up close.\"",
   "「調べたいことがあるの。私もついていきたい」": "\"There's something I want to look into. I'd like to come with you.\"",
