@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 55;
+const BUILD = 56;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1856,9 +1856,30 @@ document.querySelectorAll('#pad button').forEach(b => {
     if (mode === 'bigmap') { closeBigMap(); return; }
     if (battle && battle.auto) { stopAuto(); return; }
     if (mode === 'battle' || mode === 'choice') { const o = menuOpts[padBtns.indexOf(b)]; if (o) o[1](); return; } // 移動のボタンは何もしない（隠れている）
+    const pos = `${state.fl},${state.x},${state.y}`;
     handleKey(k);
+    if (HOLD_KEYS.includes(k) && mode === 'explore' && `${state.fl},${state.x},${state.y}` !== pos) startHold(b, k, ev.pointerId);
   });
+  for (const t of ['pointerup', 'pointercancel', 'lostpointercapture']) b.addEventListener(t, stopHold);
 });
+// 移動のボタン（前・後ろ・横）は押しっぱなしで歩き続ける（回転は 1 回ずつ）
+//   進めなかったとき・会話や戦闘が始まったときは止まる。指を離し直すまで再開しない
+const HOLD_KEYS = ['Numpad5', 'Numpad2', 'Numpad1', 'Numpad3'], HOLD_MS = 500;
+let holdTimer = null;
+function startHold(b, k, pid) {
+  stopHold();
+  try { b.setPointerCapture(pid); } catch (e) {} // 指がボタンの外にずれても、離すまでは押したまま
+  holdTimer = setInterval(() => {
+    if (mode !== 'explore' || battle) { stopHold(); return; }
+    const pos = `${state.fl},${state.x},${state.y}`;
+    b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 120);
+    handleKey(k);
+    if (`${state.fl},${state.x},${state.y}` === pos || mode !== 'explore') stopHold(); // 壁・扉・人などで進めなかった
+  }, HOLD_MS);
+}
+function stopHold() { clearInterval(holdTimer); holdTimer = null; }
+window.addEventListener('blur', stopHold);
+document.addEventListener('visibilitychange', stopHold);
 // 長押しで出るメニュー（コピー・画像の保存など）を出さない
 document.addEventListener('contextmenu', e => e.preventDefault());
 document.addEventListener('selectstart', e => e.preventDefault());
