@@ -274,10 +274,9 @@
   #license .close { align-self:flex-end; font-size:16px; padding:4px 18px; }
   /* タイトル画面の右上：アプリ一覧へ（アイコンは game.js が 16x16 で描き、32px に拡大） */
   #appsBtn { position:absolute; top:max(10px, env(safe-area-inset-top)); right:max(10px, env(safe-area-inset-right));
-             width:32px; height:32px; padding:0; border:none; background:none; opacity:.7; cursor:pointer; }
-  #appsBtn:hover, #appsBtn:focus-visible { opacity:1; background:none; }
+             padding:4px 6px; border:none; background:none; color:#fff; font-size:16px; line-height:1; opacity:.25; cursor:pointer; } /* 「Exit」の文字。薄く（不透明度 25％）、マウスを乗せる・選ぶとはっきり */
+  #appsBtn:hover, #appsBtn:focus-visible { opacity:1; background:none; color:#fff; }
   #appsBtn:focus-visible { outline:1px solid #fff; outline-offset:3px; }
-  #appsBtn canvas { display:block; width:32px; height:32px; image-rendering:pixelated; }
   /* アプリ一覧へ移動する前の確認：メニューと同じ白黒の枠 */
   #appsDlg { position:fixed; inset:0; z-index:80; background:rgba(0,0,0,.5); display:none; align-items:center; justify-content:center; padding:12px; }
   #appsDlg.on { display:flex; }
@@ -342,7 +341,7 @@
 </div>
 <!-- タイトル画面 -->
 <div id="title" role="dialog" aria-label="Chime">
-  <button id="appsBtn" type="button" aria-label="App list"><canvas width="16" height="16"></canvas></button>
+  <button id="appsBtn" type="button" aria-label="App list">Exit</button>
   <div class="main">
     <h1>Chime</h1>
     <div class="btns"></div>

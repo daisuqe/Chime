@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 72;
+const BUILD = 73;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -2082,31 +2082,8 @@ copyrightEl.addEventListener('click', openLicense);
 licenseEl.querySelector('.close').addEventListener('click', closeLicense);
 licenseEl.addEventListener('click', e => { if (e.target === licenseEl) closeLicense(); }); // 枠の外を押したら閉じる
 
-// タイトル画面の右上：アプリ一覧へ移動するボタン（アイコンは文字のデータから描く。# が白）
-const APPS_ICON = [
-  '......###...###.',
-  '.....#...#.#...#',
-  '.....#...#.#...#',
-  '.....#..#..#..#.',
-  '.....#..#..#..#.',
-  '....##..####..#.',
-  '..##.......#..#.',
-  '.#............#.',
-  '#.............#.',
-  '#..............#',
-  '############...#',
-  '............#..#',
-  '.###########...#',
-  '.#............#.',
-  '..##........##..',
-  '....########....'
-];
+// タイトル画面の右上：アプリ一覧へ移動するボタン（「Exit」の文字）
 const appsBtn = document.getElementById('appsBtn'), appsDlg = document.getElementById('appsDlg');
-{
-  const ctx = appsBtn.querySelector('canvas').getContext('2d');
-  ctx.fillStyle = '#fff';
-  APPS_ICON.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === '#') ctx.fillRect(x, y, 1, 1); }));
-}
 appsDlg.querySelector('.msg').textContent = L('アプリ一覧に移動します。\nこのゲームを離れますがよろしいですか？');
 function openApps() { appsDlg.classList.add('on'); appsDlg.querySelector('.no').focus(); } // 誤って移動しないよう、はじめは No
 function closeApps() { appsDlg.classList.remove('on'); appsBtn.focus(); }
