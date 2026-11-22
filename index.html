@@ -228,6 +228,11 @@
   /* 著作権の表示：小さく薄い文字。押すと License */
   #copyright { flex:none; border:none; background:none; color:#fff; opacity:.5; font-size:11px; padding:6px 8px; margin-top:4px; cursor:pointer; }
   #copyright:hover, #copyright:focus-visible { opacity:1; background:none; color:#fff; outline:1px solid #fff; }
+  /* いちばん下の行：著作権の表示（真ん中）とビルド番号（右端）。狭い画面では 2 つを並べて真ん中に */
+  #titleFoot { flex:none; align-self:stretch; position:relative; display:flex; align-items:center; justify-content:center; margin-top:4px; }
+  #titleFoot #copyright { margin-top:0; }
+  #build { position:absolute; right:0; font-size:11px; opacity:.5; pointer-events:none; white-space:nowrap; }
+  @media (max-width:520px) { #build { position:static; } }
   /* License：メニューと同じ白黒の枠。外側を押しても閉じる */
   #license { position:fixed; inset:0; z-index:70; background:rgba(0,0,0,.7); display:none; align-items:center; justify-content:center;
              padding:max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
@@ -310,7 +315,10 @@
     <h1>Chime</h1>
     <div class="btns"></div>
   </div>
-  <button id="copyright" type="button" aria-haspopup="dialog">© 2026 daisuqe. All rights reserved.</button>
+  <div id="titleFoot">
+    <button id="copyright" type="button" aria-haspopup="dialog">© 2026 daisuqe. All rights reserved.</button>
+    <div id="build"></div>
+  </div>
 </div>
 <!-- アプリ一覧へ移動する前の確認 -->
 <div id="appsDlg" role="dialog" aria-modal="true" aria-labelledby="appsMsg">

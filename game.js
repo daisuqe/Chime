@@ -3,6 +3,8 @@
 //  Chime — 放課後の校舎ダンジョン（プロトタイプ）
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
+// ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
+const BUILD = 53;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1328,7 +1330,8 @@ function mateTalk(c) {
   else if (c.mp < c.maxmp * 0.3) line = `${c.name}「少し疲れてきた。呪文は、あまり使えないかも」`;
   else line = pick([`${c.name}「まだ大丈夫。行こう」`, `${c.name}「チャイム、まだ鳴ってるね」`, `${c.name}「離れないで歩こう」`]);
   const opts = [];
-  if (canHeal(c) && state.party.some(t => t.hp > 0 && t.hp < t.maxhp)) opts.push([c.spells.includes('heal') && c.mp >= SPELLS.heal.mp ? '手当てを頼む' : '歌声を頼む', () => fieldHeal(c)]);
+  // 回復の呪文を知っていれば、いつでも頼める（怪我人がいない・力が足りないときは、選んだあとにそう知らせる）
+  if (c.hp > 0 && (c.spells.includes('heal') || c.spells.includes('chorus'))) opts.push([c.spells.includes('heal') ? '手当てを頼む' : '歌声を頼む', () => fieldHeal(c)]);
   showDialog(q || [line], () => { if (opts.length) showChoice(`${c.name}に頼む？`, [...opts, ['なんでもない', () => {}]]); render(); });
 }
 
@@ -1349,7 +1352,7 @@ function fieldHeal(by) {
     for (const t of aliveParty()) t.hp = Math.min(t.maxhp, t.hp + chorusAmt(choir));
     log('みんな 回復した', 'good'); render(); return;
   }
-  if (!caster) { log('手当てできる人がいない。', 'sys'); return; }
+  if (!caster) { log(by ? `${by.name}は 呪文の力が足りない。` : '手当てできる人がいない。', 'sys'); return; }
   const tgt = state.party.filter(c => c.hp > 0 && c.hp < c.maxhp).sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp)[0];
   if (!tgt) { log('誰も怪我をしていない。', 'sys'); return; }
   caster.mp -= SPELLS.heal.mp;
@@ -1893,6 +1896,7 @@ window.addEventListener('keydown', e => {
 // ---------------------------------------------------------------------
 const titleEl = document.getElementById('title'), titleBtns = titleEl.querySelector('.btns');
 const licenseEl = document.getElementById('license'), copyrightEl = document.getElementById('copyright');
+document.getElementById('build').textContent = `build ${BUILD}`;
 function setTitleButtons(opts, ask, pick = 0) { // pick：はじめに選んでおく選択肢
   titleBtns.innerHTML = ask ? `<div class="ask">${ask}</div>` : '';
   opts.forEach(([label, fn]) => {
