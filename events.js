@@ -380,7 +380,7 @@ const NPCS = [
       ];
     },
     after(s) { if (s.flags.q2fight && !s.flags.q2done) { s.flags.q2done = true; rewardAll(c => { c.maxhp += 3; c.hp += 3; }); rewardExp(20); } } },
-  { id: 'q2foe', quest: 'q2', fl: 1, x: 31, y: 5, name: L('人体模型'), img: 'image/enemy/enemy_anatomical_model.png', ht: 165, foe: true, hide: s => s.flags.q2fight,
+  { id: 'q2foe', quest: 'q2', fl: 1, x: 32, y: 6, name: L('人体模型'), img: 'image/enemy/enemy_anatomical_model.png', ht: 165, foe: true, hide: s => s.flags.q2fight,
     talk(s) { return s.flags.bossDown ? [L('人体模型が二体、立っている。'), L('もう動かない。')] : [L('人体模型が二体、こちらを向いた。')]; },
     after(s) { if (s.flags.bossDown) { s.flags.q2fight = true; return; } startBattle('model', 2, () => { state.flags.q2fight = true; }); } }, // 番人を倒したあとは動かない
 

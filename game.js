@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 76;
+const BUILD = 77;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -132,7 +132,9 @@ const MONS = {
 // 敵の実際の大きさ：cm＝画像の縦の高さ、up＝床から浮いている高さ（cm）。人物の立ち絵と同じ縮尺で描く
 const MON_SIZE = Object.fromEntries(Object.entries(MONS).map(([k, m]) => [k, { cm: m.cm, up: Array.isArray(m.up) ? (m.up[0] + m.up[1]) / 2 : m.up }]));
 function encounterKind(fl, area) {
-  const all = Object.keys(MONS).filter(k => !MONS[k].boss);
+  // 人体模型は「逃げた人体模型」の話だけの敵。ふつうの敵としては出さない
+  //   （止める前は話の敵と見分けがつかず、止めたあとは理科の先生が「しばらくはおとなしい」と言うため）
+  const all = Object.keys(MONS).filter(k => !MONS[k].boss && k !== 'model');
   const floor = all.filter(k => MONS[k].fl.includes(fl));
   const room = area ? all.filter(k => MONS[k].rooms && MONS[k].rooms.test(area.name) && Math.min(...MONS[k].fl) <= fl) : [];
   return pick(room.length && (Math.random() < 0.7 || !floor.length) ? room : floor.length ? floor : all);
@@ -685,6 +687,17 @@ function renderView() {
   for (let l = LAT; l >= 1; l--) order.push(-l, l);
   order.push(0);
   const talking = dialogQ && dialogQ.npc;
+  // 人を描くマス：壁や閉じた扉でさえぎられず、視界（前方に広がる範囲）に入るマス
+  const seeNpc = new Set(['0,0']);
+  for (const q = [[0, 0]]; q.length;) {
+    const [f, l] = q.shift();
+    for (const [df, dl, side] of [[1, 0, 0], [0, 1, 1], [0, -1, 3]]) {
+      const nf = f + df, nl = l + dl, k = nf + ',' + nl;
+      if (nf > DEPTH || Math.abs(nl) > nf || Math.abs(nl) > LAT || seeNpc.has(k)) continue;
+      if (E(f, l, side) !== OPEN || !inMap(state.fl, wx(nf, nl), wy(nf, nl))) continue;
+      seeNpc.add(k); q.push([nf, nl]);
+    }
+  }
   // 視線に平行な面：画面左端 e1／右端 e2。右側の壁は奥が左、左側の壁は手前が左
   const sideFace = (lat, f, e, nFar, nNear, cu) => {
     if (!isFace(e)) return;
@@ -713,7 +726,7 @@ function renderView() {
         // 吊るされた物（鐘楼の鐘など）：天井から下げる
         for (const dc of DECOR) if (dc.fl === state.fl && dc.x === wx(f, l) && dc.y === wy(f, l) && !(dc.hide && dc.hide(state))) drawHanging(l, f, dc);
         const n = npcAt(state.fl, wx(f, l), wy(f, l));
-        if (n && Math.abs(l) <= 1 && n !== talking && !battle) drawNpc(n, l, f); // 戦闘中は戦闘の敵だけを描く
+        if (n && seeNpc.has(f + ',' + l) && n !== talking && !battle) drawNpc(n, l, f); // 見えるマスの人だけ。戦闘中は戦闘の敵だけを描く
       }
       // 横の辺（視線に平行な面）。辺 lat=k+0.5 は一意に描く：右側(l>=1)はマスの左辺、左側(l<=-1)はマスの右辺
       if (l >= 1) sideFace(l - 0.5, f, E(f, l, 3), E(f + 1, l, 3), E(f - 1, l, 3), E(f, l, 3) === WIN ? CU(f, l, 3) : null);
@@ -1257,13 +1270,20 @@ function playEnding() {
     clearTimeout(timer); i++;
     if (i < cast.length) {
       // 左右に交互に出す。会っていない人物は、絵の代わりに「？」（名前は出す）
-      el.classList.remove('show'); void el.offsetWidth;
-      box.classList.toggle('left', i % 2 === 0); box.classList.toggle('right', i % 2 === 1);
-      box.classList.toggle('nope', !cast[i].met);
-      if (cast[i].met) pic.src = cast[i].img;
-      cap.textContent = cast[i].name;
-      el.classList.add('show');
-      timer = setTimeout(show, 2600);
+      //   新しい絵の準備ができてから動きを始める（間に合わないと、前の人物の絵が映ってしまうため）
+      el.classList.remove('show');
+      const my = i, c = cast[i];
+      const go = () => {
+        if (my !== i) return; // 待っている間に次へ送られた
+        box.classList.toggle('left', i % 2 === 0); box.classList.toggle('right', i % 2 === 1);
+        box.classList.toggle('nope', !c.met);
+        cap.textContent = c.name;
+        void el.offsetWidth; el.classList.add('show');
+        timer = setTimeout(show, 2600);
+      };
+      if (!c.met) { go(); return; }
+      pic.src = c.img;
+      (pic.decode ? pic.decode() : Promise.resolve()).then(go, go);
     } else if (i === cast.length) {
       el.classList.remove('show'); fin.classList.add('on'); endingStep = null; endPhase = 'fin'; // おしまい
       timer = setTimeout(() => { back.classList.add('on'); back.focus(); }, 3000); // 3 秒たったら「タイトルに戻る」
