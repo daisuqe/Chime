@@ -216,8 +216,8 @@
            gap:6px; padding:6px; max-width:none; justify-content:center; align-items:start; }
     #top { display:contents; }
     #viewWrap { grid-area:view; flex:none; width:calc((100vh - 96px) * 832 / 611); max-width:calc(100vw - 284px); }
-    #side { grid-area:side; flex:none; width:260px; gap:6px; }
-    #mapBox { width:260px; height:162px; }
+    #side { grid-area:side; flex:none; width:260px; gap:6px; align-self:stretch; min-height:0; } /* 右の列はプレイ画面と同じ高さ */
+    #mapBox { width:260px; height:auto; flex:1 1 0; min-height:100px; } /* 地図はステータスの下の残りの高さをすべて使う */
     #menuHint { display:none; }
     #pad { grid-area:pad; display:grid; gap:6px; margin:0; grid-template-columns:repeat(7, minmax(0, 1fr)); }
     #pad button[data-k] { grid-row:auto; grid-column:auto; }
