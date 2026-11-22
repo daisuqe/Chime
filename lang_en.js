@@ -265,7 +265,7 @@ const EN = {
   "「理科の先生、C棟1階の理科室に戻るって。理科準備室から物音がするそうよ」": "\"The science teacher said he'd go back to the science room, Building C, 1F. Apparently there are noises coming from the science prep room.\"",
   "「C棟2階の美術室に、まだ生徒が残ってるみたい」": "\"It seems a student is still in the art room, Building C, 2F.\"",
   "「司書さんが、返ってこない本があるって言ってたわ。D棟1階の司書室にいるはずよ」": "\"The librarian said there's a book that was never returned. She should be in the librarian's office, Building D, 1F.\"",
-  "「B棟3階の教室のあたりに、下級生がいるみたい」": "\"I think there's a younger student around the classrooms on Building B, 3F.\"",
+  "「さっき、新入生の子が階段を上がっていくのを見たの。B棟3階は3年生の教室なのに……迷子になってないといいけど」": "\"Earlier I saw a new student heading up the stairs. Building B, 3F is all third-year classrooms... I hope they haven't gotten lost.\"",
   "「A棟1階の放送室の子に、下校放送のテープを見なかったか聞かれたの」": "\"The kid in the broadcast room, Building A, 1F, asked if I'd seen the dismissal broadcast tape.\"",
   "「用務員さん、二階の教室を見回ったって。A棟2階の教室に、まだ残ってる子がいたわ」": "\"The custodian said he checked the 2F classrooms. There was a student still in a classroom on Building A, 2F.\"",
   "「用務員さん、二階のあとにどこかへ寄ったのかもね。もう一度聞いてみたら？」": "\"Maybe the custodian stopped somewhere after the second floor. Why not ask him again?\"",
