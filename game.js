@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 59;
+const BUILD = 60;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1333,7 +1333,8 @@ function mateTalk(c) {
   const opts = [];
   // 回復の呪文を知っていれば、いつでも頼める（怪我人がいない・力が足りないときは、選んだあとにそう知らせる）
   if (c.hp > 0 && (c.spells.includes('heal') || c.spells.includes('chorus'))) opts.push([c.spells.includes('heal') ? L('手当てを頼む') : L('歌声を頼む'), () => fieldHeal(c)]);
-  showDialog(q || [line], () => { if (opts.length) showChoice(L`${c.name}に頼む？`, [...opts, [L('なんでもない'), () => {}]]); render(); });
+  const face = c.hp > 0 ? NPCS.find(n => n.id === c.id) : null; // 話している相手の姿（職員室・図書室にいたときと同じ絵）
+  showDialog(q || [line], () => { if (opts.length) showChoice(L`${c.name}に頼む？`, [...opts, [L('なんでもない'), () => {}]]); render(); }, face);
 }
 
 // 全員を全回復。何が満タンになったかの文（なければ null）を返す
