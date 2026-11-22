@@ -247,9 +247,10 @@ const NPCS = [
       const recoveryNotice = healed ? [dialogNotice(healed)] : [];
       const hints = first && s.flags.q1s !== 1 ? [] : questHints(s);
       if (!(s.flags.hadTeacher || s.flags.saeki) && !s.flags.bossDown) return [ // 先生を仲間にするまでは、最初の話を何度でも
-        L('保健の先生「起きられたのね。どこか痛む？」'),
+        L('保健の先生「起きたのね。どこか痛む？」'),
         L('「廊下で倒れていたの。覚えてる？」'),
-        L('「あなたを運んだときも、時計は五時だったの。まだ針が動いてない」'),
+        L('「学校の時計が止まってるみたいなの」'),
+        L('「玄関も開かないみたいだし。色々おかしいの」'),
         L('「ほら。また同じチャイム」'),
         L('「廊下に出るなら、隣の職員室で先生を呼んでね。ひとりで行かないで」'),
         L('「何か困ったことがあったら、私に相談してね」'),

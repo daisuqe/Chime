@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 73;
+const BUILD = 74;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1206,7 +1206,7 @@ function move(offset) {
 const isFrontDoor = (fl, x, y, d) => fl === 1 && x === 0 && y >= 7 && y <= 9 && d === 3;
 function askExit(fl, x, y, d) {
   if (!state.flags.bossDown || !isFrontDoor(fl, x, y, d)) return false;
-  showChoice(L('ゲームがおわりになります。よろしいですか？'), [[L('はい'), () => playEnding()], [L('いいえ'), () => {}]]);
+  showChoice(L('ゲームを終わります。よろしいですか？'), [[L('はい'), () => playEnding()], [L('いいえ'), () => {}]]);
   return true;
 }
 // エンディング：人物を一人ずつ出して、最後に「おしまい」
