@@ -328,10 +328,15 @@ const NPCS = [
     talk: s => s.flags.bossDown
       ? [L('化学部員「……色が、戻っちゃった」'), L('「まあいいか。また明日やろう」')]
       : [L('化学部員「試験管の色が変わるのを待ってるんだ」'), L('「赤くなったら完成。窓の外と同じくらいの赤」')] },
-  { id: 'tenmon', fl: 5, x: 20, y: 12, name: L('天文部員'), img: 'image/chara_tenmon.png', ht: 162,
+  // 天文部員：はじめは屋上。用務員の鍵束を拾って屋上を出ると、プールサイドへ移る（flags.tenmonPool。game.js の useStairs で立てる）
+  { id: 'tenmon', fl: 5, x: 20, y: 12, name: L('天文部員'), img: 'image/chara_tenmon.png', ht: 162, hide: s => s.flags.tenmonPool,
     talk: s => s.flags.bossDown ? [L('天文部員「暗くなってきた。やっと夜だね」')]
       : s.flags.q3done ? [L('天文部員「さっきの放送、ここまで聞こえたよ」'), L('「街の方で、明かりがひとつついた」')]
       : [L('天文部員「星を見に来たんだけど、ずっとこの空で」'), L('「望遠鏡は街の方に向けてるの。誰か手を振ってないかなって」')] },
+  { id: 'tenmon_pool', fl: 1, x: 34, y: 13, name: L('天文部員'), img: 'image/chara_tenmon.png', ht: 162, hide: s => !s.flags.tenmonPool,
+    talk: s => s.flags.bossDown ? [L('天文部員「暗くなってきた。やっと夜だね」')]
+      : s.flags.q3done ? [L('天文部員「さっきの放送、ここまで聞こえたよ」'), L('「街の方で、明かりがひとつついた」')]
+      : [L('天文部員「屋上、なんだか物騒になってきたから、こっちに移ったの」'), L('「ここからでも、空はよく見えるよ」')] },
 
   // ===================== 1 片方の上履き（1年生・保健の先生・用務員） =====================
   { id: 'ichinen', quest: 'q1', fl: 1, x: 4, y: 16, name: L('1年生'), img: 'image/chara_1nen.png', ht: 150, hide: s => s.flags.q1done,

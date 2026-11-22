@@ -629,6 +629,8 @@ const EN = {
   "「アルバムは、図書室の司書さんが探していたな。見つかれば、写真の写しくらいはもらえるだろう」": "\"The librarian was looking for that yearbook. If it turns up, she could probably give you a copy of the photo.\"",
   "佐伯先生「4階か。D棟3階の廊下の奥に、上へ続く階段がある」": "Mr. Saeki: \"4F? There's a staircase going up at the far end of the hallway on Building D, 3F.\"",
   "「上がった廊下の突き当たりが、鐘楼の扉だ。行くなら、しっかり鍛えてからだぞ」": "\"The bell tower door is at the end of the hallway up there. If you're going, train up properly first.\"",
+  "天文部員「屋上、なんだか物騒になってきたから、こっちに移ったの」": "Astronomy club member: \"The roof was starting to feel dangerous, so I moved over here.\"",
+  "「ここからでも、空はよく見えるよ」": "\"You can still see the sky just fine from here.\"",
 };
 // 文に合わせて形を変えるもの
 EN['${}は ${}へ戻っていった。'] = (who, where) => (where === EN['元の場所'] ? `${who} went back to where they were before.` : `${who} went back to the ${where}.`);

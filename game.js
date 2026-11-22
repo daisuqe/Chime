@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 65;
+const BUILD = 66;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1247,6 +1247,7 @@ function useStairs(st) {
   const dst = MAPS[fl].stairs.find(t => t.id === st.id);
   const [ex, ey] = stairEntry(dst);
   Object.assign(state, { fl, x: ex, y: ey, dir: (dst.dir + 2) % 4, room: null, cool: 3 });
+  if (state.flags.got_keys && fl !== 5) state.flags.tenmonPool = true; // 鍵束を拾って屋上を出たら、天文部員はプールサイドへ（events.js）
   log(L`${st.up ? L('階段を上った') : L('階段を下りた')}。${MAPS[fl].name}`, 'sys');
   markSeen(); render();
 }
@@ -1281,7 +1282,7 @@ function afterStep() {
   if (r?.safe || state.cool > 0) return;
   // 話の中で怪異が起きている部屋だけ、人がいても指定の敵が出る。
   const poltergeist = r?.poltergeist?.(state);
-  if (r && !poltergeist && roomHasPerson(state.fl, r)) return;
+  if (r && !poltergeist && !r.foes && roomHasPerson(state.fl, r)) return; // foes の部屋（屋上）は、人がいても出る
   if (Math.random() < 0.09) {
     const k = poltergeist || encounterKind(state.fl, a);
     startBattle(k, groupSize(MONS[k]));
