@@ -261,7 +261,7 @@ const EN = {
   "${}\n連れて行けるのは${}人まで。誰と交代する？": "{0}\nYou can only take {1}. Who should swap out?",
   "${}と交代": "Swap out {0}",
   "「用務員さんに鍵束を見なかったか聞かれたの。A棟1階の用務員室にいるわ」": "\"The custodian asked me if I'd seen his keys. He's in the custodian's room, Building A, 1F.\"",
-  "「B棟1階の1年生の教室に、まだ子が残ってるの。何か困ってるみたいだったわ」": "\"There's still a kid in one of the first-year classrooms on Building B, 1F. She seemed to be in some kind of trouble.\"",
+  "「B棟1階の教室の前を通ったら、生徒の声がしたわ」": "\"When I walked past the classrooms on Building B, 1F, I heard a student's voice.\"",
   "「理科の先生、C棟1階の理科室に戻るって。理科準備室から物音がするそうよ」": "\"The science teacher said he'd go back to the science room, Building C, 1F. Apparently there are noises coming from the science prep room.\"",
   "「C棟2階の美術室に、まだ生徒が残ってるの。声をかけたら、なんだか様子が変だったわ」": "\"There's still a student in the art room, Building C, 2F. When I spoke to her, she seemed a little strange.\"",
   "「司書さんが、返ってこない本があるって言ってたわ。D棟1階の司書室にいるはずよ」": "\"The librarian said there's a book that was never returned. She should be in the librarian's office, Building D, 1F.\"",
