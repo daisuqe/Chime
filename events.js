@@ -540,8 +540,7 @@ const NPCS = [
     talk(s) {
       if (s.flags.bossDown) return [L('肖像画は、ただの絵に戻っていた。')];
       if (hasItem('mirror')) return [L('鏡を向けると、肖像画が身をよじった。')];
-      const told = inParty('midorikawa') && teacherQuestTalk('midorikawa', state);
-      return [L('肖像画と目が合った。'), L('体が動かない。目をそらした。'), ...(told || [])];
+      return [L('肖像画と目が合った。'), L('体が動かない。目をそらした。')]; // 緑川先生を連れていれば、続けて話す（MATE_CHIME）
     },
     after(s) { if (s.flags.bossDown) { if (hasItem('mirror')) takeItem('mirror'); s.flags.q6fight = true; return; } if (!hasItem('mirror')) return; takeItem('mirror'); startBattle('portrait', 1, () => { state.flags.q6fight = true; }); } },
 
@@ -646,6 +645,20 @@ function askSeq(title, opts, answer, ok) {
 
 // ===================== 職員室の先生の話（話の途中で、先生に聞かないとわからないこと） =====================
 //   職員室で話しかけても、仲間として連れている時に話しかけても同じことを話す
+// 仲間として連れている先生は、関係のある人と話したとき（拾った物のときも）、続けて自分から手がかりを話す
+//   キー：先生 → 話しかけた人の id（拾った物は 'item:物の id'）
+const MATE_CHIME = {
+  midorikawa: ['art', 'q6foe'], sanada: ['rika'], saeki: ['housou'],
+  kuroda: ['shisho', 'senpai', 'housou'], shiraishi: ['item:badge'],
+};
+function mateChime(who, s) {
+  const out = [];
+  for (const [key, ids] of Object.entries(MATE_CHIME)) {
+    if (!ids.includes(who) || !inParty(key)) continue;
+    const q = teacherQuestTalk(key, s); if (q) out.push(...q);
+  }
+  return out;
+}
 function teacherQuestTalk(key, s) {
   const f = s.flags;
   if (key === 'midorikawa' && f.q6 && (f.q6s || 1) <= 2 && !hasItem('mirror') && !f.q6fight) { f.q6s = 2; return [

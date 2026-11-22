@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 68;
+const BUILD = 70;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1271,7 +1271,7 @@ function afterStep() {
   if (it) {
     state.flags['got_' + it.id] = true;
     if (it.get) it.get(); state.items.push(it.id);
-    showDialog([...it.text, L`★ ${ITEM_NAME[it.id]}を 手に入れた`], () => render(), null, it.id);
+    showDialog([...it.text, L`★ ${ITEM_NAME[it.id]}を 手に入れた`, ...mateChime('item:' + it.id, state)], () => render(), null, it.id);
     return;
   }
   stairHint();
@@ -1296,7 +1296,7 @@ function interact() {
   const shut = lkAhead && !state.flags[lkAhead]; // 鍵のかかった扉の向こうの人には話しかけられない（扉の錠を調べる）
   const n = !isBlocking(ahead) && !shut && npcAt(state.fl, fx, fy);
   if (n) {
-    const lines = n.talk(state);
+    const lines = [...n.talk(state), ...mateChime(n.id, state)]; // 連れている先生が、続けて手がかりを話すことがある
     showDialog(lines, () => { if (n.after) n.after(state); render(); }, n);
     return;
   }
