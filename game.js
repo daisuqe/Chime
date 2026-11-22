@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 64;
+const BUILD = 65;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1589,8 +1589,10 @@ async function runAway() {
   for (const e of enemiesAlive()) { if (!aliveParty().length) break; await enemyAct(e); render(); }
   await endCheck();
 }
-// 次のレベルまでの経験値（合計）：Lv2 20 / Lv3 104 / Lv4 288 / Lv5 608 / Lv6 1100 / Lv7 1800。ふつうに進めると Lv5〜6 で鐘楼に着く
-const needExp = lv => 6 * lv * lv * lv + 14 * lv * lv;
+// 次のレベルまでの経験値（合計）：Lv2 14 / Lv3 70 / Lv4 200 / Lv5 608 / Lv6 1100 / Lv7 1800。ふつうに進めると Lv5〜6 で鐘楼に着く
+//   Lv4 までは上がりやすく（式の値のおよそ 7 割）。Lv5 からは式のまま
+const EXP_EARLY = { 1: 14, 2: 70, 3: 200 };
+const needExp = lv => EXP_EARLY[lv] ?? 6 * lv * lv * lv + 14 * lv * lv;
 function levelUps() {
   for (const c of state.party) {
     while (c.hp > 0 && c.exp >= needExp(c.lv)) {
