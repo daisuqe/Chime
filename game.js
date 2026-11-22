@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 66;
+const BUILD = 67;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1642,13 +1642,14 @@ function levelDown(c) {
   c.hp = Math.min(c.hp, c.maxhp); c.mp = Math.min(c.mp, c.maxmp);
   return true;
 }
-// 全滅：そのとき連れていた全員のレベルが 1 下がる
+// 全滅：そのとき連れていた全員のレベルが 1 下がる（鐘の番人に負けたときは下がらない）
 //   連れていなかった仲間はそのまま。持ち物や進み具合は失わない
 async function defeat() {
   log(L('パーティは全滅した……'), 'bad');
   await sleep(800);
+  const wasBoss = battle && battle.boss; // 鐘の番人に負けたときだけは、レベルを下げない
   battle = null; mode = 'explore';
-  const down = state.party.filter(levelDown).map(c => dialogNotice(L`${c.name}は レベル${c.lv}に下がった……`));
+  const down = wasBoss ? [] : state.party.filter(levelDown).map(c => dialogNotice(L`${c.name}は レベル${c.lv}に下がった……`));
   // 途中で閉じられても、保健室で回復した状態から再開できるよう、先に戻して保存しておく
   Object.assign(state, { fl: 1, x: START[0], y: START[1], dir: 2, room: null, cool: 6 });
   healAll(); markSeen(); saveGame();
