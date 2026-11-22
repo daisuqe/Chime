@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 54;
+const BUILD = 55;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1127,6 +1127,7 @@ function updatePad() {
   const battleMenu = menuOpts.length > 0;
   document.getElementById('pad').classList.toggle('battle', battleMenu || !!battle); // 横画面で並びを切り替える
   padBtns.forEach((b, i) => {
+    b.classList.toggle('word', !battleMenu && !!battle && !!battle.auto && i === 0); // 「オート」は数字より小さい、文字用の大きさ
     if (!battleMenu && battle && battle.auto) { b.innerHTML = i === 0 ? 'オート<span>止める</span>' : ''; b.disabled = i !== 0; return; } // オート中：左端で止める
     if (!battleMenu && battle) { b.innerHTML = ''; b.disabled = true; return; } // 戦闘中で行動を選んでいない間（敵味方が動いている間）は空
     if (!battleMenu) { b.innerHTML = PAD_DEFAULT[i]; b.disabled = false; return; }

@@ -120,6 +120,7 @@
   #pad button span { font-size:11px; white-space:nowrap; } /* 行動の名前は改行しない（入りきらないときは文字を小さくする：game.js fitPadLabels） */
   #pad button.txt { line-height:1.25; }
   #pad:not(.battle) button.txt { font-size:min(4vw, 20px); white-space:nowrap; } /* 文字だけのボタン（メニュー・話す） */
+  #pad button.word { font-size:min(4vw, 20px); white-space:nowrap; line-height:1.25; } /* 戦闘中の「オート」：改行しない */
   #pad button:hover { background:#000; color:var(--fg); }
   #pad button { min-width:0; overflow:hidden; }
   #pad button.on { background:#fff; color:#000; }
@@ -139,6 +140,7 @@
     #pad { grid-area:pad; align-self:end; display:grid; gap:4px; margin:8px 0 0; }
     #pad button { height:auto; aspect-ratio:1 / 1; font-size:18px; cursor:pointer; }
     #pad:not(.battle) button.txt { font-size:11px; }
+    #pad button.word { font-size:11px; }
     #pad button span { font-size:10px; }
   }
   /* スマホの縦画面：上からマップ、プレイ画面、ステータス（どれも全幅）、いちばん下に大きな操作ボタン */
