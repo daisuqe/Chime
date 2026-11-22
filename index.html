@@ -44,9 +44,35 @@
   #cmd:empty { display:none; }
   #ending { position:fixed; inset:0; z-index:50; background:#000; color:#fff; display:none; align-items:center; justify-content:center; }
   #ending.on { display:flex; }
-  #ending .cast { display:flex; flex-direction:column; align-items:center; gap:18px; opacity:0; }
-  #ending.show .cast { animation:castIn 2.6s ease forwards; }
-  @keyframes castIn { 0% { opacity:0; } 20% { opacity:1; } 80% { opacity:1; } 100% { opacity:0; } }
+  /* 人物は左右に交互に、上からしゅっと現れて、しゅっと下へ消える */
+  #ending .cast { position:absolute; top:50%; display:flex; flex-direction:column; align-items:center; gap:18px; opacity:0; transform:translateY(-50%); }
+  #ending .cast.left { left:14%; } #ending .cast.right { right:14%; }
+  #ending.show .cast { animation:castIn 2.6s forwards; }
+  /* 上から下りてきながら濃くなり（フェードイン）、止まって、下へ抜けながら薄くなる（フェードアウト） */
+  @keyframes castIn {
+    0%   { opacity:0; transform:translateY(calc(-50% - 18vh)); animation-timing-function:cubic-bezier(.15, .85, .3, 1); }
+    18%  { opacity:1; transform:translateY(-50%); }
+    80%  { opacity:1; transform:translateY(-50%); animation-timing-function:cubic-bezier(.7, 0, .85, .15); }
+    100% { opacity:0; transform:translateY(calc(-50% + 18vh)); }
+  }
+  /* 会っていない人物：絵の代わりに「？」。名前は出す */
+  #ending .unknown { display:none; height:min(60vh, 520px); width:min(18vh, 160px); align-items:center; justify-content:center; font-size:min(12vh, 96px); }
+  #ending .cast.nope img { display:none; } #ending .cast.nope .unknown { display:flex; }
+  /* 記録：おしまいのあとに、どれだけ遊んだかを割合で出す */
+  #endStats { position:absolute; inset:0; display:none; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:16px; }
+  #endStats.on { display:flex; }
+  #endStats h2 { margin:0 0 6px; font-weight:normal; font-size:24px; letter-spacing:.3em; }
+  #endStats table { width:min(360px, 100%); border-collapse:collapse; font-size:18px; }
+  #endStats td { border:none; padding:5px 4px; }
+  #endStats td.num { text-align:right; }
+  #endStats { padding-bottom:calc(max(24px, env(safe-area-inset-bottom)) + 52px); } /* 下の「タイトルに戻る」と重ならない */
+  @media (max-height:460px) { #endStats { gap:6px; } #endStats h2 { font-size:18px; margin:0; } #endStats table { font-size:15px; } #endStats td { padding:2px 4px; } }
+  /* おしまいのあと：一番下に「[ タイトルに戻る ]」（タイトル画面の選択肢と同じ形） */
+  #endBack { position:absolute; bottom:max(24px, env(safe-area-inset-bottom)); left:50%; transform:translateX(-50%); display:none;
+             font-size:20px; padding:4px 12px; border:none; background:none; color:#fff; white-space:nowrap; }
+  #endBack.on { display:block; }
+  #endBack::before { content:'[ '; } #endBack::after { content:' ]'; }
+  #endBack:hover, #endBack:focus { background:none; color:#fff; outline:none; }
   #ending img { height:min(60vh, 520px); image-rendering:pixelated; }
   #ending .name { font-size:22px; letter-spacing:.2em; }
   #ending .fin { position:absolute; font-size:32px; letter-spacing:.4em; opacity:0; transition:opacity 2s; }
@@ -290,7 +316,7 @@
         <div>地図を押すと全画面表示。＋・−で拡大縮小、ドラッグで移動</div>
         <div>落とし物は、そのマスに乗ると拾う</div>
         <div>進み具合は自動で保存され、次に開くと続きから始まる</div>
-        <div class="lang">言語 / Language：<button type="button" data-lang="ja">日本語</button> <button type="button" data-lang="en">English</button></div>
+        <div class="lang">Language : <button type="button" data-lang="ja">日本語</button> <button type="button" data-lang="en">English</button> <button type="button" data-lang="ko">한국어</button></div>
       </template>
     </div>
     <div id="side">
@@ -351,7 +377,7 @@ daisuqe が保有します。著作権者の事前の書面による許可なく
   </div>
 </div>
 <!-- エンディング：人物を一人ずつ出して、最後に「おしまい」 -->
-<div id="ending"><div class="cast"><img alt=""><div class="name"></div></div><div class="fin">おしまい</div></div>
+<div id="ending"><div class="cast"><img alt=""><div class="unknown">？</div><div class="name"></div></div><div class="fin">おしまい</div><div id="endStats"><h2>記録</h2><table></table></div><button id="endBack" type="button">タイトルに戻る</button></div>
 <!-- 全画面の地図（小さな地図を押すと開く） -->
 <div id="bigmap" role="dialog" aria-label="校舎の地図">
   <div id="bigmapBar">
@@ -366,6 +392,7 @@ daisuqe が保有します。著作権者の事前の書面による許可なく
   </div>
 </div>
 <script src="lang.js"></script>
+<script src="lang_ko.js"></script>
 <script src="lang_en.js"></script>
 <script src="school.js"></script>
 <script src="events.js"></script>

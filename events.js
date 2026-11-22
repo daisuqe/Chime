@@ -620,7 +620,7 @@ const EXAMINES = [
   }),
   // --- 6 2階のトイレの鏡 ---
   ...[7, 8].map(y => ({ fl: 2, x: 14, y, d: 3, cond: s => s.flags.q6s >= 2 && !hasItem('mirror') && !s.flags.q6fight,
-    talk: () => [L('小さな鏡だ。下の留め具が外れている。'), L('★ 洗面台の鏡を 外して持った')], after: () => state.items.push('mirror') })),
+    talk: () => [L('小さな鏡だ。下の留め具が外れている。'), L('★ 洗面台の鏡を 外して持った')], after: () => { state.items.push('mirror'); state.flags.hadMirror = true; } })),
   // --- 3 校長室の金庫と、ひとつだけ違う時計 ---
   { fl: 1, x: 17, y: 2, d: 1, deco: 'safe', cond: s => !hasItem('equipkey') && !s.flags.q3done,
     talk: () => [L('金庫がある。ダイヤルは時計の形だ。')],

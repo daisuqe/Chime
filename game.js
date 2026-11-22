@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 71;
+const BUILD = 72;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1214,31 +1214,104 @@ function askExit(fl, x, y, d) {
 const ENDING_CAST = () => {
   const npc = id => NPCS.find(n => n.id === id);
   const ids = ['nurse', ...TEACHERS.map(t => 't_' + t.key), 'mizuno', 'ichinen', 'youmu', 's2a', 'rika', 'art', 'shisho', 'senpai', 'shinnyu', 'housou',
-    'genkan', 'basket', 'jukensei', 'cooking', 'kaichou', 'shinro', 'kagaku', 'tenmon', 'bell'];
-  return ids.map(npc).filter(Boolean).map(n => ({ name: n.id === 'mizuno' ? L('水野') : n.name, img: n.id === 'art' ? 'image/chara_art_club.png' : n.img }));
+    'genkan', 'basket', 'jukensei', 'cooking', 'kaichou', 'shinro', 'kagaku', 'tenmon']; // 鐘の番人は出さない
+  return ids.map(npc).filter(Boolean).map(n => ({ name: endName(n), img: n.id === 'art' ? 'image/chara_art_club.png' : n.img, met: metNPC(n.id) }));
 };
+// エンディングでは、生徒は名前と学年で出す（例：岡本（1年））。先生や大人は、ゲームの中と同じ呼び名
+const STUDENT_NAMES = {
+  mizuno: ['水野', 2], ichinen: ['岡本', 1], s2a: ['西村', 2], art: ['小林', 2], senpai: ['松田', 3], shinnyu: ['中島', 1], housou: ['高橋', 2],
+  genkan: ['森', 2], basket: ['石井', 2], jukensei: ['井上', 3], cooking: ['吉田', 1], kaichou: ['藤原', 3], shinro: ['山口', 3], kagaku: ['清水', 2], tenmon: ['林', 1],
+};
+// 大人（職員室の先生のほか）は、名前と役目で出す（例：三浦先生（保健））
+const ADULT_NAMES = { nurse: '三浦先生（保健）', rika: '大野先生（理科）', youmu: '田村さん（用務員）', shisho: '早川さん（司書）' };
+function endName(n) {
+  if (ADULT_NAMES[n.id]) return L(ADULT_NAMES[n.id]);
+  const st = STUDENT_NAMES[n.id]; if (!st) return n.name;
+  const [name, g] = st;
+  if (LANG === 'ja') return `${name}（${g}年）`;
+  if (LANG === 'ko') return `${L(name)}(${g}학년)`;
+  return `${L(name)} (${['1st', '2nd', '3rd'][g - 1]} year)`;
+}
+// 会ったことのある人物か：話しかけた記録（flags.met）と、話の進み具合（記録がない古い保存データのため）から
+function metNPC(id) {
+  const f = state.flags, m = f.met || {};
+  if (m[id] || (id === 'tenmon' && m.tenmon_pool)) return true;
+  if (id.startsWith('t_')) return !!(state.teachers && state.teachers[id.slice(2)]);
+  return !!({
+    nurse: f.metNurse, mizuno: f.metMizuno || f.mizuno, ichinen: f.q1, youmu: f.q7, s2a: f.q7s >= 2, rika: f.q2, art: f.q6,
+    shisho: f.q4, senpai: f.q4lie || f.q4got || f.senpaiDone, shinnyu: f.q5, housou: f.q3 || f.q5done, bell: f.bossDown,
+  })[id];
+}
 let endingStep = null;
 function playEnding() {
   // 終わったら保存を消す：次に開くと、はじめから
   restarting = true; try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
   mode = 'ending';
-  const el = document.getElementById('ending'), pic = el.querySelector('img'), cap = el.querySelector('.name'), fin = el.querySelector('.fin');
+  const el = document.getElementById('ending'), box = el.querySelector('.cast'), pic = el.querySelector('img'), cap = el.querySelector('.name'), fin = el.querySelector('.fin');
+  const back = document.getElementById('endBack'), stats = document.getElementById('endStats');
   const cast = ENDING_CAST();
   let i = -1, timer = 0;
-  el.classList.add('on'); fin.classList.remove('on');
+  endPhase = 'cast'; endRecord = endingStats(cast);
+  el.classList.add('on'); fin.classList.remove('on'); back.classList.remove('on'); stats.classList.remove('on');
   const show = () => {
     clearTimeout(timer); i++;
     if (i < cast.length) {
+      // 左右に交互に出す。会っていない人物は、絵の代わりに「？」（名前は出す）
       el.classList.remove('show'); void el.offsetWidth;
-      pic.src = cast[i].img; cap.textContent = cast[i].name; el.classList.add('show');
+      box.classList.toggle('left', i % 2 === 0); box.classList.toggle('right', i % 2 === 1);
+      box.classList.toggle('nope', !cast[i].met);
+      if (cast[i].met) pic.src = cast[i].img;
+      cap.textContent = cast[i].name;
+      el.classList.add('show');
       timer = setTimeout(show, 2600);
     } else if (i === cast.length) {
-      el.classList.remove('show'); fin.classList.add('on'); endingStep = null; // おしまい：ここで終わる
+      el.classList.remove('show'); fin.classList.add('on'); endingStep = null; endPhase = 'fin'; // おしまい
+      timer = setTimeout(() => { back.classList.add('on'); back.focus(); }, 3000); // 3 秒たったら「タイトルに戻る」
     }
   };
   endingStep = show;
   show();
 }
+// 記録：どれだけ遊んだかの割合（％）。エンディングが始まったときの state から計算する
+let endPhase = null, endRecord = null;
+function endingStats(cast) {
+  const f = state.flags, pct = (a, b) => (b ? Math.round(100 * a / b) : 0);
+  const main = [f.metNurse, f.hadTeacher || f.saeki, f.reveal, f.mizuno, f.bellRoom, f.bossDown];
+  const subs = ['q1', 'q2', 'q3', 'q4', 'q5', 'q6', 'q7'].filter(q => f[q + 'done']).length;
+  // 一度でも手に入れた物（渡してしまった物も数える）
+  const had = {
+    shoe: f.got_shoe, keys: f.got_keys, badge: f.got_badge, memo: f.q1s >= 4, omamori: f.q1s >= 4, tape: f.senpaiDone, album: f.q4got,
+    photo: f.q4done, bookmark: f.q4done, bag: f.q5found, letter: f.q5s >= 3, map: f.q6done, mirror: f.hadMirror || (f.q6fight && !f.bossDown),
+    equipkey: f.q3done,
+  };
+  const items = Object.keys(ITEM_NAME), gotItems = items.filter(id => had[id] || hasItem(id)).length;
+  // 地図：歩ける場所のうち、見たことのあるマス
+  let cells = 0, seen = 0;
+  for (const k of Object.keys(MAPS)) {
+    const F = MAPS[k];
+    for (let y = 0; y < F.H; y++) for (let x = 0; x < F.W; x++) if (inMap(+k, x, y)) { cells++; if (state.seen[k] && state.seen[k].has(x + ',' + y)) seen++; }
+  }
+  const foes = Object.keys(MONS), metFoes = foes.filter(k => (f.foes || {})[k]).length;
+  return [
+    [L('メインミッション'), pct(main.filter(Boolean).length, main.length)],
+    [L('サブミッション'), pct(subs, 7)],
+    [L('アイテム取得'), pct(gotItems, items.length)],
+    [L('キャラクターと会った割合'), pct(cast.filter(c => c.met).length, cast.length)],
+    [L('マップを開いた割合'), pct(seen, cells)],
+    [L('敵と会った割合'), pct(metFoes, foes.length)],
+  ];
+}
+// おしまいのあとの「タイトルに戻る」：まず記録を出し、3 秒たったらもう一度「タイトルに戻る」。
+//   2 回目で読み込み直す（保存はもう消してあるので、タイトル画面の「ベッドから出る」から）
+document.getElementById('endBack').addEventListener('click', () => {
+  const back = document.getElementById('endBack'), stats = document.getElementById('endStats');
+  if (endPhase !== 'fin') { location.reload(); return; }
+  endPhase = 'stats';
+  document.querySelector('#ending .fin').classList.remove('on'); back.classList.remove('on');
+  stats.querySelector('table').innerHTML = endRecord.map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${v}%</td></tr>`).join('');
+  stats.classList.add('on');
+  setTimeout(() => { back.classList.add('on'); back.focus(); }, 3000);
+});
 function turn(delta) { state.dir = (state.dir + delta + 4) % 4; markSeen(); render(); stairHint(); checkReveal(); }
 function stairHint() { const st = stairAhead(); if (st) log((st.up ? L('上り階段だ。') : L('下り階段だ。')) + (usePad() ? '' : L('［5］')), 'sys'); }
 // 昇り降り：つながる階の同じ id の階段の手前のマスへ。向きは階段に背を向ける
@@ -1296,6 +1369,7 @@ function interact() {
   const shut = lkAhead && !state.flags[lkAhead]; // 鍵のかかった扉の向こうの人には話しかけられない（扉の錠を調べる）
   const n = !isBlocking(ahead) && !shut && npcAt(state.fl, fx, fy);
   if (n) {
+    (state.flags.met = state.flags.met || {})[n.id] = true; // 会ったことのある人（エンディングで絵を出す）
     const lines = [...n.talk(state), ...mateChime(n.id, state)]; // 連れている先生が、続けて手がかりを話すことがある
     showDialog(lines, () => { if (n.after) n.after(state); render(); }, n);
     return;
@@ -1403,6 +1477,7 @@ const STATIONARY_ENEMIES = new Set(['chair', 'mop', 'desk', 'beam', 'vault', 'mo
 const appearLine = (kind, m) => L`${m.name}が ${APPEAR[kind] || L('動き出した')}。`; // 数は言わない
 async function startBattle(kind, n, onWin) {
   const m = MONS[kind];
+  (state.flags.foes = state.flags.foes || {})[kind] = true; // 会ったことのある敵の種類（エンディングの記録）
   mode = 'busy';
   battle = {
     kind, boss: !!m.boss, cmds: [], ci: 0, onWin, expMul: expMul(),
@@ -1828,7 +1903,12 @@ window.addEventListener('pagehide', saveGame);
 setInterval(() => { if (state && !document.hidden && mode !== 'title') state.time++; }, 1000);
 setInterval(saveGame, 15000);
 function handleKey(k) {
-  if (mode === 'ending') { if (endingStep && [' ', 'Enter', 'NumpadEnter', 'z'].includes(k)) endingStep(); return; }
+  if (mode === 'ending') {
+    if (![' ', 'Enter', 'NumpadEnter', 'z'].includes(k)) return;
+    const back = document.getElementById('endBack');
+    if (endingStep) endingStep(); else if (back.classList.contains('on')) back.click();
+    return;
+  }
   if (battle && battle.auto) { stopAuto(); return; }
   if (mode === 'menu') { menuKey(k); return; }
   if (mode === 'bigmap') {
@@ -1872,7 +1952,7 @@ document.querySelectorAll('#pad button').forEach(b => {
     ev.preventDefault();
     b.classList.add('on'); setTimeout(() => b.classList.remove('on'), 120);
     const k = b.dataset.k;
-    if (mode === 'ending') { if (endingStep) endingStep(); return; }
+    if (mode === 'ending') { if (endingStep) endingStep(); else if (document.getElementById('endBack').classList.contains('on')) document.getElementById('endBack').click(); return; }
     if (mode === 'dialog') { advanceDialog(); return; }
     if (mode === 'menu') { menuKey(k); return; }
     if (mode === 'bigmap') { closeBigMap(); return; }

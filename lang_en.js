@@ -624,6 +624,17 @@ const EN = {
   "話す<br>調べる": "Talk<br>Examine",
   "M・Esc 閉じる ／ A D・← → 切り替え ／ W S・↑ ↓ スクロール（ここをタップでも閉じる）": "M/Esc: Close / A D, ← →: Switch / W S, ↑ ↓: Scroll (tap here to close)",
   "おしまい": "The End",
+  "記録": "Records",
+  "メインミッション": "Main missions",
+  "サブミッション": "Side missions",
+  "アイテム取得": "Items found",
+  "キャラクターと会った割合": "Characters met",
+  "マップを開いた割合": "Map explored",
+  "敵と会った割合": "Enemies encountered",
+  "三浦先生（保健）": "Ms. Miura (School Nurse)", "大野先生（理科）": "Mr. Ono (Science)",
+  "田村さん（用務員）": "Mr. Tamura (Custodian)", "早川さん（司書）": "Ms. Hayakawa (Librarian)",
+  "岡本": "Okamoto", "西村": "Nishimura", "小林": "Kobayashi", "松田": "Matsuda", "中島": "Nakajima", "高橋": "Takahashi",
+  "森": "Mori", "石井": "Ishii", "井上": "Inoue", "吉田": "Yoshida", "藤原": "Fujiwara", "山口": "Yamaguchi", "清水": "Shimizu", "林": "Hayashi",
   "全体": "Fit",
   "真田先生「理科準備室の錠か。黒板の数字は、薬品の重さだろう」": "Mr. Sanada: \"The science prep room lock? The numbers on the blackboard must be the weights of the chemicals.\"",
   "「“棚は軽いものから”。なら、札も重さの小さい順に並べればいい」": "\"'Shelves: lightest first.' Then put the tags in order from the smallest weight up.\"",
@@ -653,6 +664,6 @@ const EN_HELP = `
   <div>Tap the map for full screen. + / − to zoom, drag to move</div>
   <div>Step onto a dropped item to pick it up</div>
   <div>Progress is saved automatically. Next time, you'll continue where you left off</div>
-  <div class="lang">Language / 言語: <button type="button" data-lang="ja">日本語</button> <button type="button" data-lang="en">English</button></div>`;
+  <div class="lang">Language : <button type="button" data-lang="ja">日本語</button> <button type="button" data-lang="en">English</button> <button type="button" data-lang="ko">한국어</button></div>`;
 
 applyStaticText(); // 画面に書いてある言葉を、ゲームを始める前に切り替える
