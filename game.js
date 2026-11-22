@@ -1893,18 +1893,25 @@ window.addEventListener('keydown', e => {
 // ---------------------------------------------------------------------
 const titleEl = document.getElementById('title'), titleBtns = titleEl.querySelector('.btns');
 const licenseEl = document.getElementById('license'), copyrightEl = document.getElementById('copyright');
-function setTitleButtons(opts, ask) {
+function setTitleButtons(opts, ask, pick = 0) { // pick：はじめに選んでおく選択肢
   titleBtns.innerHTML = ask ? `<div class="ask">${ask}</div>` : '';
-  opts.forEach(([label, fn]) => { const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = fn; titleBtns.appendChild(b); });
-  titleBtns.querySelector('button').focus();
+  opts.forEach(([label, fn]) => {
+    const b = document.createElement('button'); b.type = 'button'; b.textContent = label; b.onclick = fn;
+    b.addEventListener('focus', () => markTitleCur(b)); b.addEventListener('pointerenter', () => markTitleCur(b));
+    titleBtns.appendChild(b);
+  });
+  const first = titleBtns.querySelectorAll('button')[pick]; markTitleCur(first); first.focus();
 }
+// 選んでいる選択肢に印（濃く表示）。フォーカスの表示はブラウザによって出ないことがあるので、自分で付ける
+function markTitleCur(b) { titleBtns.querySelectorAll('button').forEach(x => x.classList.toggle('cur', x === b)); }
+function titleCur() { return titleBtns.querySelector('button.cur') || titleBtns.querySelector('button'); }
 function showTitle(hasSave) {
   mode = 'title'; titleEl.classList.add('on');
   // 進み具合があるときだけ「はじめから」を出す。消す前に 2 回確かめる
   const main = () => setTitleButtons(hasSave
     ? [['つづきから', () => startFromTitle(true)], ['はじめから', () => setTitleButtons([
-        ['はい', () => setTitleButtons([['消してはじめから', () => startFromTitle(false)], ['やめる', main]], '本当によろしいですか？<br>消したデータは元に戻せません。')],
-        ['いいえ', main]], '保存されているデータが消えます。<br>はじめからやり直しますか？')]]
+        ['はい', () => setTitleButtons([['消してはじめから', () => startFromTitle(false)], ['やめる', main]], '本当によろしいですか？<br>消したデータは元に戻せません。', 1)],
+        ['いいえ', main]], '保存されているデータが消えます。<br>はじめからやり直しますか？', 1)]] // 消す確認は、はじめ「いいえ」「やめる」を選んでおく
     : [['ベッドから出る', () => startFromTitle(false)]]);
   main();
 }
@@ -1934,11 +1941,12 @@ function titleKey(e) {
   if (e.key === 'Tab') return; // Tab での移動はブラウザに任せる
   if (e.key === 'Enter' || e.key === ' ' || e.code === 'Space') {
     if (document.activeElement instanceof HTMLButtonElement && titleEl.contains(document.activeElement)) return; // 選んでいるボタンをそのまま押す
-    e.preventDefault(); btns[0].click(); return; // どのボタンも選んでいないときは、いちばん上
+    e.preventDefault(); titleCur().click(); return; // フォーカスがないときは、印の付いている選択肢
   }
-  const i = btns.indexOf(document.activeElement);
-  if (['KeyW', 'KeyA', 'KeyQ'].includes(e.code) || ['ArrowUp', 'ArrowLeft'].includes(e.key)) { e.preventDefault(); btns[(i + btns.length - 1) % btns.length].focus(); }
-  else if (['KeyS', 'KeyD', 'KeyE'].includes(e.code) || ['ArrowDown', 'ArrowRight'].includes(e.key)) { e.preventDefault(); btns[(i + 1) % btns.length].focus(); }
+  const i = btns.indexOf(titleCur());
+  const go = b => { markTitleCur(b); b.focus(); };
+  if (['KeyW', 'KeyA', 'KeyQ'].includes(e.code) || ['ArrowUp', 'ArrowLeft'].includes(e.key)) { e.preventDefault(); go(btns[(i + btns.length - 1) % btns.length]); }
+  else if (['KeyS', 'KeyD', 'KeyE'].includes(e.code) || ['ArrowDown', 'ArrowRight'].includes(e.key)) { e.preventDefault(); go(btns[(i + 1) % btns.length]); }
 }
 function openLicense() { licenseEl.classList.add('on'); licenseEl.querySelector('.close').focus(); }
 function closeLicense() { licenseEl.classList.remove('on'); copyrightEl.focus(); }

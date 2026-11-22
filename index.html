@@ -214,11 +214,16 @@
   #title { position:fixed; inset:0; z-index:60; background:#000; display:none; flex-direction:column; align-items:center;
            padding:max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); }
   #title.on { display:flex; }
-  #title .main { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:clamp(12px, 5vh, 40px); }
+  #title .main { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; align-items:center; gap:clamp(12px, 5vh, 40px); }
+  #title h1 { margin-top:auto !important; } /* 選択肢は下の方。タイトルは残りの高さの真ん中 */
+  #title .btns { margin-top:auto; margin-bottom:clamp(4px, 6vh, 56px); }
   #title h1 { margin:0; font-weight:normal; font-size:30px; letter-spacing:.15em; line-height:1; } /* ボタンの文字（20px）の 1.5 倍 */
   #title .btns { display:flex; flex-direction:column; align-items:stretch; gap:clamp(6px, 2vh, 12px); min-width:200px; }
-  #title .btns button { font-size:20px; padding:clamp(4px, 1.4vh, 10px) 24px; }
-  #title .btns button:focus-visible, #title .btns button:focus { background:#fff; color:#000; outline:none; }
+  /* 選択肢は枠で囲まず「[ つづきから ]」のように出す。選んでいるものは濃く、ほかは薄く */
+  #title .btns button { font-size:20px; padding:clamp(2px, 1vh, 8px) 12px; border:none; background:none; color:#fff; opacity:.5; white-space:nowrap; }
+  #title .btns button::before { content:'[ '; } #title .btns button::after { content:' ]'; }
+  #title .btns button:hover, #title .btns button.cur { background:none; color:#fff; opacity:1; outline:none; }
+  #title .btns button:focus { outline:none; background:none; color:#fff; }
   #title .ask { font-size:16px; text-align:center; line-height:1.6; }
   /* 著作権の表示：小さく薄い文字。押すと License */
   #copyright { flex:none; border:none; background:none; color:#fff; opacity:.5; font-size:11px; padding:6px 8px; margin-top:4px; cursor:pointer; }
