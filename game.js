@@ -1590,7 +1590,7 @@ async function runAway() {
   for (const e of enemiesAlive()) { if (!aliveParty().length) break; await enemyAct(e); render(); }
   await endCheck();
 }
-// 次のレベルまでの経験値（合計）：Lv2 14 / Lv3 70 / Lv4 200 / Lv5 430 / Lv6 770 / Lv7 1260 / Lv8 1960
+// 次のレベルまでの経験値（合計）：Lv2 14 / Lv3 70 / Lv4 200 / Lv5 430 / Lv6 770 / Lv7 1260 / Lv8 1920
 //   元の式（6lv³ + 14lv²）のおよそ 7 割。Lv3 からは 10 の位でそろえる
 const needExp = lv => (lv <= 1 ? 14 : Math.round((6 * lv * lv * lv + 14 * lv * lv) * 0.07) * 10);
 function levelUps() {
