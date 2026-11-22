@@ -101,6 +101,9 @@
   #menuBody { flex:1; min-height:0; overflow-y:auto; }
   #menuBody h4 { margin:8px 0 2px; font-size:14px; font-weight:normal; text-decoration:underline; }
   #menu .restart { margin-top:10px; }
+  #menuBody .lang { margin-top:12px; } /* ヘルプの言語切り替え */
+  #menuBody .lang button { padding:4px 12px; margin:2px 0; }
+  #menuBody .lang button.on { background:#fff; color:#000; }
   #menu .close { margin-top:8px; cursor:pointer; font-size:12px; }
   #menu .close.btn { flex:none; border:2px solid var(--fg); text-align:center; padding:10px 0; font-size:20px !important; }
   #menu .tabs button { white-space:nowrap; min-width:0; overflow:hidden; }
@@ -287,6 +290,7 @@
         <div>地図を押すと全画面表示。＋・−で拡大縮小、ドラッグで移動</div>
         <div>落とし物は、そのマスに乗ると拾う</div>
         <div>進み具合は自動で保存され、次に開くと続きから始まる</div>
+        <div class="lang">言語 / Language：<button type="button" data-lang="ja">日本語</button> <button type="button" data-lang="en">English</button></div>
       </template>
     </div>
     <div id="side">
@@ -361,6 +365,8 @@ daisuqe が保有します。著作権者の事前の書面による許可なく
     <button id="bigmapIn" type="button" aria-label="地図を拡大">＋</button>
   </div>
 </div>
+<script src="lang.js"></script>
+<script src="lang_en.js"></script>
 <script src="school.js"></script>
 <script src="events.js"></script>
 <script src="game.js"></script>

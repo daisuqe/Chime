@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 56;
+const BUILD = 57;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -68,22 +68,22 @@ function decoAt(fl, x, y, d) {
 function mkChar(o) {
   return Object.assign({ lv: 1, exp: 0, defend: false, spells: [] }, o, { hp: o.maxhp, mp: o.maxmp });
 }
-const HERO = () => mkChar({ id: 'hero', name: 'Player', cls: '生徒', maxhp: 20, maxmp: 0, atk: [3, 8], ac: 7, agi: 10, grow: { hp: [4, 8], mp: 0 } });
+const HERO = () => mkChar({ id: 'hero', name: L('あなた'), cls: L('生徒'), maxhp: 20, maxmp: 0, atk: [3, 8], ac: 7, agi: 10, grow: { hp: [4, 8], mp: 0 } });
 const RECRUITS = {
-  saeki: () => mkChar({ id: 'saeki', name: '佐伯', cls: '教員', maxhp: 15, maxmp: 8, atk: [2, 6], ac: 8, agi: 7, spells: ['heal', 'scold'], grow: { hp: [3, 6], mp: 3 } }),
-  mizuno: () => mkChar({ id: 'mizuno', name: '水野', cls: '図書委員', maxhp: 10, maxmp: 10, atk: [1, 4], ac: 9, agi: 12, spells: ['spark', 'thunder'], grow: { hp: [2, 4], mp: 4 } }),
+  saeki: () => mkChar({ id: 'saeki', name: L('佐伯'), cls: L('教員'), maxhp: 15, maxmp: 8, atk: [2, 6], ac: 8, agi: 7, spells: ['heal', 'scold'], grow: { hp: [3, 6], mp: 3 } }),
+  mizuno: () => mkChar({ id: 'mizuno', name: L('水野'), cls: L('図書委員'), maxhp: 10, maxmp: 10, atk: [1, 4], ac: 9, agi: 12, spells: ['spark', 'thunder'], grow: { hp: [2, 4], mp: 4 } }),
 };
 // 回復の量（戦闘中も、探索中の H も同じ）
 const healAmt = c => rnd(5, 9) + Math.floor(c.lv / 2), chorusAmt = c => rnd(3, 5) + Math.floor(c.lv / 2);
 const SPELLS = {
-  heal: { name: '手当て', mp: 3 },
-  scold: { name: '一喝', mp: 3 },
-  spark: { name: '火花', mp: 2 },
-  thunder: { name: '雷鳴', mp: 4 },
-  lecture: { name: 'まどろみ', mp: 2 },  // 敵1体を確実に近く眠らせる
-  quiz: { name: '残響', mp: 4 },         // 敵全体に小ダメージ
-  chorus: { name: '歌声', mp: 5 },       // 仲間全員を少し回復
-  drill: { name: '身構え', mp: 3 },      // この回、仲間全員が身を守る
+  heal: { name: L('手当て'), mp: 3 },
+  scold: { name: L('一喝'), mp: 3 },
+  spark: { name: L('火花'), mp: 2 },
+  thunder: { name: L('雷鳴'), mp: 4 },
+  lecture: { name: L('まどろみ'), mp: 2 },  // 敵1体を確実に近く眠らせる
+  quiz: { name: L('残響'), mp: 4 },         // 敵全体に小ダメージ
+  chorus: { name: L('歌声'), mp: 5 },       // 仲間全員を少し回復
+  drill: { name: L('身構え'), mp: 3 },      // この回、仲間全員が身を守る
 };
 // 敵：学校の備品が勝手に動く（ポルターガイスト）。目や口は描かない
 //   img：画像（image/enemy/）。imgs があれば 1 体ずつ違う画像／cm・up：大きさと、床から浮いている高さ（cm）
@@ -94,40 +94,40 @@ const SPELLS = {
 const E = n => 'image/enemy/enemy_' + n + '.png';
 const MONS = {
   // ---- 教室・廊下 ----
-  paper:    { name: 'プリント',         zoom: 2, imgs: Array.from({ length: 13 }, (_, i) => E('paper_' + String(i + 1).padStart(2, '0'))), cm: 32, up: [90, 170], fl: [1, 2, 3], rooms: /組|廊下|職員室|図書|放送|進路/, hp: [2, 3], atk: [1, 2], ac: 9, agi: 13, exp: 2, grp: [3, 4] },
-  eraser:   { name: '黒板消し',         img: E('eraser'),       cm: 18,  up: 130, fl: [1],       rooms: /組/,                hp: [2, 4],   atk: [1, 2],  ac: 9, agi: 12, exp: 3,  grp: [2, 4] },
-  chair:    { name: '椅子',             img: E('chair'),        cm: 80,  up: 25,   fl: [1, 2],    rooms: /組|自習室/,         hp: [5, 8],   atk: [1, 4],  ac: 8, agi: 8,  exp: 6,  grp: [1, 3] },
-  mop:      { name: 'モップ',           img: E('mop'),          cm: 130, up: 20,   fl: [1, 2],    rooms: /廊下|トイレ|用務員/, hp: [5, 8],  atk: [1, 4],  ac: 8, agi: 8,  exp: 6,  grp: [1, 3] },
-  desk:     { name: '机',               img: E('desk'),         cm: 75,  up: 20,   fl: [1, 2],    rooms: /組|職員室|自習室/,  hp: [11, 15], atk: [2, 5],  ac: 6, agi: 4,  exp: 13, grp: [1, 2] },
-  globe:    { name: '地球儀',           img: E('globe'),        cm: 50,  up: 100,  fl: [2],       rooms: /組|図書|社会/,      hp: [7, 10],  atk: [1, 4],  ac: 7, agi: 8,  exp: 9,  grp: [1, 3] },
-  extinguisher: { name: '消火器',       img: E('extinguisher'), cm: 60,  up: 60,  fl: [2, 3, 4], rooms: /廊下|階段/,         hp: [14, 18], atk: [3, 8],  ac: 5, agi: 6,  exp: 20, grp: [1, 2] },
+  paper:    { name: L('プリント'),         zoom: 2, imgs: Array.from({ length: 13 }, (_, i) => E('paper_' + String(i + 1).padStart(2, '0'))), cm: 32, up: [90, 170], fl: [1, 2, 3], rooms: /組|廊下|職員室|図書|放送|進路/, hp: [2, 3], atk: [1, 2], ac: 9, agi: 13, exp: 2, grp: [3, 4] },
+  eraser:   { name: L('黒板消し'),         img: E('eraser'),       cm: 18,  up: 130, fl: [1],       rooms: /組/,                hp: [2, 4],   atk: [1, 2],  ac: 9, agi: 12, exp: 3,  grp: [2, 4] },
+  chair:    { name: L('椅子'),             img: E('chair'),        cm: 80,  up: 25,   fl: [1, 2],    rooms: /組|自習室/,         hp: [5, 8],   atk: [1, 4],  ac: 8, agi: 8,  exp: 6,  grp: [1, 3] },
+  mop:      { name: L('モップ'),           img: E('mop'),          cm: 130, up: 20,   fl: [1, 2],    rooms: /廊下|トイレ|用務員/, hp: [5, 8],  atk: [1, 4],  ac: 8, agi: 8,  exp: 6,  grp: [1, 3] },
+  desk:     { name: L('机'),               img: E('desk'),         cm: 75,  up: 20,   fl: [1, 2],    rooms: /組|職員室|自習室/,  hp: [11, 15], atk: [2, 5],  ac: 6, agi: 4,  exp: 13, grp: [1, 2] },
+  globe:    { name: L('地球儀'),           img: E('globe'),        cm: 50,  up: 100,  fl: [2],       rooms: /組|図書|社会/,      hp: [7, 10],  atk: [1, 4],  ac: 7, agi: 8,  exp: 9,  grp: [1, 3] },
+  extinguisher: { name: L('消火器'),       img: E('extinguisher'), cm: 60,  up: 60,  fl: [2, 3, 4], rooms: /廊下|階段/,         hp: [14, 18], atk: [3, 8],  ac: 5, agi: 6,  exp: 20, grp: [1, 2] },
   // ---- 体育館 ----
-  bball:    { name: 'バスケットボール', img: E('basketball'),   cm: 25,  up: 110,  fl: [1, 5],    rooms: /体育館/,            hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 11, exp: 4,  grp: [2, 4] },
-  vball:    { name: 'バレーボール',     img: E('volleyball'),   cm: 21,  up: 120,  fl: [1, 5],    rooms: /体育館|屋上/,       hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 12, exp: 4,  grp: [2, 4] },
-  beam:     { name: '平均台',           img: E('balance_beam'), cm: 60,  up: 20,   fl: [1],       rooms: /体育館/,            hp: [12, 16], atk: [2, 6],  ac: 6, agi: 4,  exp: 14, grp: [1, 2] },
-  vault:    { name: '跳び箱',           img: E('vaulting_box'), cm: 100, up: 15,   fl: [1, 2],    rooms: /体育館/,            hp: [16, 20], atk: [3, 6],  ac: 5, agi: 3,  exp: 18, grp: [1, 1] },
-  bat:      { name: 'バット',           img: E('bat'),          cm: 85,  up: 80,  fl: [4, 5],    rooms: /体育館|屋上/,       hp: [13, 17], atk: [4, 9],  ac: 6, agi: 11, exp: 25, grp: [1, 3] },
-  kendo:    { name: '竹刀と剣道着',     img: E('kendo'),        cm: 172, up: 15,   fl: [3, 4, 5], rooms: /体育館|鐘楼/,       hp: [22, 28], atk: [4, 11], ac: 3, agi: 11, exp: 38, grp: [1, 2] },
+  bball:    { name: L('バスケットボール'), img: E('basketball'),   cm: 25,  up: 110,  fl: [1, 5],    rooms: /体育館/,            hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 11, exp: 4,  grp: [2, 4] },
+  vball:    { name: L('バレーボール'),     img: E('volleyball'),   cm: 21,  up: 120,  fl: [1, 5],    rooms: /体育館|屋上/,       hp: [3, 5],   atk: [1, 3],  ac: 8, agi: 12, exp: 4,  grp: [2, 4] },
+  beam:     { name: L('平均台'),           img: E('balance_beam'), cm: 60,  up: 20,   fl: [1],       rooms: /体育館/,            hp: [12, 16], atk: [2, 6],  ac: 6, agi: 4,  exp: 14, grp: [1, 2] },
+  vault:    { name: L('跳び箱'),           img: E('vaulting_box'), cm: 100, up: 15,   fl: [1, 2],    rooms: /体育館/,            hp: [16, 20], atk: [3, 6],  ac: 5, agi: 3,  exp: 18, grp: [1, 1] },
+  bat:      { name: L('バット'),           img: E('bat'),          cm: 85,  up: 80,  fl: [4, 5],    rooms: /体育館|屋上/,       hp: [13, 17], atk: [4, 9],  ac: 6, agi: 11, exp: 25, grp: [1, 3] },
+  kendo:    { name: L('竹刀と剣道着'),     img: E('kendo'),        cm: 172, up: 15,   fl: [3, 4, 5], rooms: /体育館|鐘楼/,       hp: [22, 28], atk: [4, 11], ac: 3, agi: 11, exp: 38, grp: [1, 2] },
   // ---- 理科室・化学室 ----
-  flask:    { name: 'フラスコ',         img: E('flask'),        cm: 30,  up: 110,  fl: [3],       rooms: /理科|化学/,         hp: [7, 10],  atk: [2, 5],  ac: 7, agi: 10, exp: 11, grp: [2, 3] },
-  burner:   { name: 'アルコールランプ', img: E('alcohol_lamp'), cm: 20,  up: 110,  fl: [3],       rooms: /理科|化学/,         hp: [9, 13],  atk: [4, 8],  ac: 6, agi: 9,  exp: 17, grp: [1, 3] },
-  model:    { name: '人体模型',         img: E('anatomical_model'), cm: 165, up: 15, fl: [1, 2],  rooms: /理科/,               hp: [13, 17], atk: [2, 6],  ac: 6, agi: 6,  exp: 16, grp: [1, 2] },
-  skel:     { name: '骨格標本',         img: E('skeleton'),     cm: 170, up: 15,   fl: [2, 3, 4], rooms: /理科|化学/,         hp: [15, 20], atk: [3, 8],  ac: 5, agi: 9,  exp: 22, grp: [1, 3] },
+  flask:    { name: L('フラスコ'),         img: E('flask'),        cm: 30,  up: 110,  fl: [3],       rooms: /理科|化学/,         hp: [7, 10],  atk: [2, 5],  ac: 7, agi: 10, exp: 11, grp: [2, 3] },
+  burner:   { name: L('アルコールランプ'), img: E('alcohol_lamp'), cm: 20,  up: 110,  fl: [3],       rooms: /理科|化学/,         hp: [9, 13],  atk: [4, 8],  ac: 6, agi: 9,  exp: 17, grp: [1, 3] },
+  model:    { name: L('人体模型'),         img: E('anatomical_model'), cm: 165, up: 15, fl: [1, 2],  rooms: /理科/,               hp: [13, 17], atk: [2, 6],  ac: 6, agi: 6,  exp: 16, grp: [1, 2] },
+  skel:     { name: L('骨格標本'),         img: E('skeleton'),     cm: 170, up: 15,   fl: [2, 3, 4], rooms: /理科|化学/,         hp: [15, 20], atk: [3, 8],  ac: 5, agi: 9,  exp: 22, grp: [1, 3] },
   // ---- 美術室 ----
-  portrait: { name: '音楽家の肖像画',   img: E('portrait'),     cm: 110, up: 70,  fl: [2, 3],    rooms: /音楽|美術/,         hp: [12, 16], atk: [2, 9],  ac: 4, agi: 8,  exp: 22, grp: [1, 2] },
-  david:    { name: 'ダビデ像',         img: E('david'),        cm: 175, up: 10,   fl: [2, 3],    rooms: /美術/,              hp: [24, 30], atk: [3, 9],  ac: 3, agi: 4,  exp: 34, grp: [1, 1] },
-  thinker:  { name: '考える人',         img: E('thinker'),      cm: 130, up: 10,   fl: [3, 4],    rooms: /美術/,              hp: [28, 34], atk: [4, 10], ac: 2, agi: 3,  exp: 40, grp: [1, 1] },
+  portrait: { name: L('音楽家の肖像画'),   img: E('portrait'),     cm: 110, up: 70,  fl: [2, 3],    rooms: /音楽|美術/,         hp: [12, 16], atk: [2, 9],  ac: 4, agi: 8,  exp: 22, grp: [1, 2] },
+  david:    { name: L('ダビデ像'),         img: E('david'),        cm: 175, up: 10,   fl: [2, 3],    rooms: /美術/,              hp: [24, 30], atk: [3, 9],  ac: 3, agi: 4,  exp: 34, grp: [1, 1] },
+  thinker:  { name: L('考える人'),         img: E('thinker'),      cm: 130, up: 10,   fl: [3, 4],    rooms: /美術/,              hp: [28, 34], atk: [4, 10], ac: 2, agi: 3,  exp: 40, grp: [1, 1] },
   // ---- 音楽室 ----
-  recorder: { name: 'リコーダー',       zoom: 3, img: E('recorder'),     cm: 35,  up: 110,  fl: [1, 2],    rooms: /音楽|組/,           hp: [4, 7],   atk: [1, 3],  ac: 7, agi: 12, exp: 6,  grp: [2, 4] },
-  cymbal:   { name: 'シンバル',         img: E('cymbals'),      cm: 40,  up: 120, fl: [2, 3],    rooms: /音楽/,              hp: [10, 14], atk: [2, 7],  ac: 5, agi: 9,  exp: 15, grp: [1, 2] },
-  tuba:     { name: 'チューバ',         img: E('tuba'),         cm: 100, up: 50,  fl: [2, 3],    rooms: /音楽/,              hp: [18, 24], atk: [3, 8],  ac: 4, agi: 4,  exp: 26, grp: [1, 2] },
-  drums:    { name: 'ドラムセット',     img: E('drums'),        cm: 110, up: 15,   fl: [3, 4],    rooms: /音楽/,              hp: [26, 32], atk: [3, 10], ac: 3, agi: 5,  exp: 38, grp: [1, 1] },
-  piano:    { name: 'ピアノ',           img: E('piano'),        cm: 130, up: 10,   fl: [4],       rooms: /音楽/,              hp: [36, 44], atk: [5, 12], ac: 2, agi: 2,  exp: 55, grp: [1, 1] },
+  recorder: { name: L('リコーダー'),       zoom: 3, img: E('recorder'),     cm: 35,  up: 110,  fl: [1, 2],    rooms: /音楽|組/,           hp: [4, 7],   atk: [1, 3],  ac: 7, agi: 12, exp: 6,  grp: [2, 4] },
+  cymbal:   { name: L('シンバル'),         img: E('cymbals'),      cm: 40,  up: 120, fl: [2, 3],    rooms: /音楽/,              hp: [10, 14], atk: [2, 7],  ac: 5, agi: 9,  exp: 15, grp: [1, 2] },
+  tuba:     { name: L('チューバ'),         img: E('tuba'),         cm: 100, up: 50,  fl: [2, 3],    rooms: /音楽/,              hp: [18, 24], atk: [3, 8],  ac: 4, agi: 4,  exp: 26, grp: [1, 2] },
+  drums:    { name: L('ドラムセット'),     img: E('drums'),        cm: 110, up: 15,   fl: [3, 4],    rooms: /音楽/,              hp: [26, 32], atk: [3, 10], ac: 3, agi: 5,  exp: 38, grp: [1, 1] },
+  piano:    { name: L('ピアノ'),           img: E('piano'),        cm: 130, up: 10,   fl: [4],       rooms: /音楽/,              hp: [36, 44], atk: [5, 12], ac: 2, agi: 2,  exp: 55, grp: [1, 1] },
   // ---- 技術室の工具 ----
-  hammer:   { name: 'かなづち',         zoom: 3, img: E('hammer'),       cm: 35,  up: 110,  fl: [3],       rooms: /技術/,              hp: [11, 15], atk: [4, 8],  ac: 5, agi: 8,  exp: 20, grp: [1, 3] },
-  saw:      { name: 'のこぎり',         img: E('saw'),          cm: 60,  up: 90,  fl: [3, 4],    rooms: /技術|家庭科/,       hp: [12, 16], atk: [4, 10], ac: 5, agi: 10, exp: 26, grp: [1, 2] },
+  hammer:   { name: L('かなづち'),         zoom: 3, img: E('hammer'),       cm: 35,  up: 110,  fl: [3],       rooms: /技術/,              hp: [11, 15], atk: [4, 8],  ac: 5, agi: 8,  exp: 20, grp: [1, 3] },
+  saw:      { name: L('のこぎり'),         img: E('saw'),          cm: 60,  up: 90,  fl: [3, 4],    rooms: /技術|家庭科/,       hp: [12, 16], atk: [4, 10], ac: 5, agi: 10, exp: 26, grp: [1, 2] },
   // ---- ラスボス：鐘の番人（鐘のそばに立ち、鐘を鳴らし続けている） ----
-  bell:     { name: '鐘の番人',         img: E('time_warden_boss'), cm: 215, up: 10, fl: [], hp: [80, 80], atk: [5, 11], ac: 3, agi: 9, exp: 240, grp: [1, 1], boss: true },
+  bell:     { name: L('鐘の番人'),         img: E('time_warden_boss'), cm: 215, up: 10, fl: [], hp: [80, 80], atk: [5, 11], ac: 3, agi: 9, exp: 240, grp: [1, 1], boss: true },
 };
 // 敵の実際の大きさ：cm＝画像の縦の高さ、up＝床から浮いている高さ（cm）。人物の立ち絵と同じ縮尺で描く
 const MON_SIZE = Object.fromEntries(Object.entries(MONS).map(([k, m]) => [k, { cm: m.cm, up: Array.isArray(m.up) ? (m.up[0] + m.up[1]) / 2 : m.up }]));
@@ -142,7 +142,7 @@ function encounterKind(fl, area) {
 //  Utils
 // ---------------------------------------------------------------------
 const DIRS = [[0, -1], [1, 0], [0, 1], [-1, 0]];
-const DIR_NAME = ['北', '東', '南', '西'];
+const DIR_NAME = [L('北'), L('東'), L('南'), L('西')];
 const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
 const pick = a => a[Math.floor(Math.random() * a.length)];
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
@@ -756,7 +756,7 @@ function tinted(im, col) {
 //   左右：通路の幅（±0.35 マス）に収まるよう並べ、数が多いときは前後に少しずらす
 function enemySpots(n, kind) {
   const sz = MON_SIZE[kind] || { cm: 160 };
-  const base = 0.5; // Player と同じマスの中、すぐ目の前。大きく見える（頭や足もとが画面の外で切れてもよい）
+  const base = 0.5; // 主人公（あなた）と同じマスの中、すぐ目の前。大きく見える（頭や足もとが画面の外で切れてもよい）
   // 3体までは横一列、それより多いときは後ろにもう1列（前列3体・後列は残り）。後列は前列のすき間に入る
   const front = Math.min(3, n), back = n - front, out = [];
   const row = (k, f, shift) => { const gap = Math.min(0.36, 0.72 / Math.max(1, k - 1)); for (let i = 0; i < k; i++) out.push({ l: (i - (k - 1) / 2) * gap + shift, f }); };
@@ -916,11 +916,11 @@ function drawRoomLabels(ctx, floor, known, cs, ox, oy) {
   ctx.font = size + 'px DotGothic16, "MS Gothic", sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   for (const [a, { x, y, width }] of spans) {
-    const w = Math.ceil(ctx.measureText(a.name).width) + 4;
+    const nm = L(a.name), w = Math.ceil(ctx.measureText(nm).width) + 4;
     if (w > width * cs - 4) continue;
     const px = ox + (x + width / 2) * cs, py = oy + y * cs + (size + 6) / 2;
     ctx.fillStyle = '#000'; ctx.fillRect(px - w / 2, py - size / 2 - 1, w, size + 2);
-    ctx.fillStyle = '#fff'; ctx.fillText(a.name, px, py);
+    ctx.fillStyle = '#fff'; ctx.fillText(nm, px, py);
   }
   ctx.textBaseline = 'alphabetic';
 }
@@ -1033,7 +1033,7 @@ function renderHUD() {
   document.getElementById('loc').style.display = battle ? 'none' : ''; // 戦闘中は隠す
   const rows = state.party.map(c => `<tr class="${c.hp <= 0 ? 'dead' : ''}" title="${c.cls} / AC ${c.ac}"><td>${c.name}</td><td class="num">${c.lv}</td>` +
     `<td class="num">${c.hp}/${c.maxhp}</td><td class="num">${c.maxmp ? c.mp : '-'}</td>` +
-    `<td>${c.hp <= 0 ? '不能' : c.defend ? '防御' : 'OK'}</td></tr>`).join('');
+    `<td>${c.hp <= 0 ? L('不能') : c.defend ? L('防御') : 'OK'}</td></tr>`).join('');
   document.getElementById('party').innerHTML =
     '<tr><th>Name</th><th>Lv</th><th>HP</th><th>MP</th><th>Status</th></tr>' + rows;
 }
@@ -1128,7 +1128,7 @@ function updatePad() {
   document.getElementById('pad').classList.toggle('battle', battleMenu || !!battle); // 横画面で並びを切り替える
   padBtns.forEach((b, i) => {
     b.classList.toggle('word', !battleMenu && !!battle && !!battle.auto && i === 0); // 「オート」は数字より小さい、文字用の大きさ
-    if (!battleMenu && battle && battle.auto) { b.innerHTML = i === 0 ? 'オート<span>止める</span>' : ''; b.disabled = i !== 0; return; } // オート中：左端で止める
+    if (!battleMenu && battle && battle.auto) { b.innerHTML = i === 0 ? L('オート<span>止める</span>') : ''; b.disabled = i !== 0; return; } // オート中：左端で止める
     if (!battleMenu && battle) { b.innerHTML = ''; b.disabled = true; return; } // 戦闘中で行動を選んでいない間（敵味方が動いている間）は空
     if (!battleMenu) { b.innerHTML = PAD_DEFAULT[i]; b.disabled = false; return; }
     const o = menuOpts[i];
@@ -1153,7 +1153,7 @@ function shake() { const w = document.getElementById('viewWrap'); w.classList.re
 // ---------------------------------------------------------------------
 //  Exploration
 // ---------------------------------------------------------------------
-const CURTAIN_LINES = ['カーテンが閉まっている。', '外は見えない。'];
+const CURTAIN_LINES = [L('カーテンが閉まっている。'), L('外は見えない。')];
 // 窓の外に空が見えているか。目の前の窓なら、描いた画面のガラス部分に空の色がどれだけあるかで判定。
 // 横の窓（平行移動でぶつかった時）は、外のすぐ近くに校舎があるかで判定
 function skyVisible(x, y, d) {
@@ -1171,34 +1171,34 @@ function skyVisible(x, y, d) {
 }
 // 窓を調べた時の文。外が校舎でふさがっていれば、夕焼けには触れない
 const windowLine = (x, y, d) => {
-  if (edgeAt(state.fl, x, y, d) === FENCE) return '柵の向こうに、空がある。';
+  if (edgeAt(state.fl, x, y, d) === FENCE) return L('柵の向こうに、空がある。');
   if (curtainAt(state.fl, x, y, d) != null) return pick(CURTAIN_LINES);
-  return skyVisible(x, y, d) ? pick(WINDOW_LINES) : '窓は開かない。';
+  return skyVisible(x, y, d) ? pick(WINDOW_LINES) : L('窓は開かない。');
 };
 // 鍵のかかった扉の文。鐘楼の扉だけは、向こうで鐘が鳴っている
-const lockLine = lk => (lk === 'bellopen' ? '扉には鍵がかかっている。向こうで、鐘が鳴っている。' : '扉には鍵がかかっている。');
-const WINDOW_LINES = ['夜が近づいている。', '遠くに街が見える。', '窓は開かない。'];
+const lockLine = lk => (lk === 'bellopen' ? L('扉には鍵がかかっている。向こうで、鐘が鳴っている。') : L('扉には鍵がかかっている。'));
+const WINDOW_LINES = [L('夜が近づいている。'), L('遠くに街が見える。'), L('窓は開かない。')];
 
 // offset: 0 前進 / 2 後退 / 3 左平行 / 1 右平行（向きは変えない）
 function move(offset) {
   const d = (state.dir + offset) % 4;
   const nx = state.x + DIRS[d][0], ny = state.y + DIRS[d][1];
   const e = edgeAt(state.fl, state.x, state.y, d);
-  if (e === DOOR && !inMap(state.fl, nx, ny)) { if (!askExit(state.fl, state.x, state.y, d)) log('扉は開かない。', 'sys'); return; }
-  if (isBlocking(e) || !inMap(state.fl, nx, ny)) { log(e === WIN || e === FENCE ? windowLine(state.x, state.y, d) : '壁だ。', 'sys'); return; }
+  if (e === DOOR && !inMap(state.fl, nx, ny)) { if (!askExit(state.fl, state.x, state.y, d)) log(L('扉は開かない。'), 'sys'); return; }
+  if (isBlocking(e) || !inMap(state.fl, nx, ny)) { log(e === WIN || e === FENCE ? windowLine(state.x, state.y, d) : L('壁だ。'), 'sys'); return; }
   const lk = e === DOOR && lockAt(state.fl, state.x, state.y, d);
   if (lk && !state.flags[lk]) { log(lockLine(lk), 'sys'); return; }
-  if (e === DOOR && offset !== 0) { log('扉は正面を向いて通る。', 'sys'); return; }
-  if (e === DOOR) log('扉を開けた。', 'sys');
+  if (e === DOOR && offset !== 0) { log(L('扉は正面を向いて通る。'), 'sys'); return; }
+  if (e === DOOR) log(L('扉を開けた。'), 'sys');
   const sa = stairAt(state.fl, nx, ny);
   if (sa) {
     if (offset === 0 && sa.i === 0 && sa.st.dir === d) { useStairs(sa.st); return; }
-    log('階段の側面だ。', 'sys'); return;
+    log(L('階段の側面だ。'), 'sys'); return;
   }
   const pr = propAt(state.fl, nx, ny);
-  if (pr) { log({ bed: 'ベッドがある。', desk: '机がある。', getabako: '下駄箱が並んでいる。', getabako_ns: '下駄箱が並んでいる。', stall: 'トイレの個室だ。', sink: '洗面台がある。', stage: 'ステージだ。', tank: '給水タンクだ。', unit: '室外機が並んでいる。', pool: 'プールだ。' }[pr.split(':')[0]] || '何かがある。', 'sys'); return; }
+  if (pr) { log({ bed: L('ベッドがある。'), desk: L('机がある。'), getabako: L('下駄箱が並んでいる。'), getabako_ns: L('下駄箱が並んでいる。'), stall: L('トイレの個室だ。'), sink: L('洗面台がある。'), stage: L('ステージだ。'), tank: L('給水タンクだ。'), unit: L('室外機が並んでいる。'), pool: L('プールだ。') }[pr.split(':')[0]] || L('何かがある。'), 'sys'); return; }
   const n = npcAt(state.fl, nx, ny);
-  if (n) { log(usePad() ? `${n.name}がいる。` : `${n.name}がいる。［Space］`, 'sys'); return; }
+  if (n) { log(usePad() ? L`${n.name}がいる。` : L`${n.name}がいる。［Space］`, 'sys'); return; }
   state.x = nx; state.y = ny;
   afterStep();
 }
@@ -1206,7 +1206,7 @@ function move(offset) {
 const isFrontDoor = (fl, x, y, d) => fl === 1 && x === 0 && y >= 7 && y <= 9 && d === 3;
 function askExit(fl, x, y, d) {
   if (!state.flags.bossDown || !isFrontDoor(fl, x, y, d)) return false;
-  showChoice('ゲームがおわりになります。よろしいですか？', [['はい', () => playEnding()], ['いいえ', () => {}]]);
+  showChoice(L('ゲームがおわりになります。よろしいですか？'), [[L('はい'), () => playEnding()], [L('いいえ'), () => {}]]);
   return true;
 }
 // エンディング：人物を一人ずつ出して、最後に「おしまい」
@@ -1215,7 +1215,7 @@ const ENDING_CAST = () => {
   const npc = id => NPCS.find(n => n.id === id);
   const ids = ['nurse', ...TEACHERS.map(t => 't_' + t.key), 'mizuno', 'ichinen', 'youmu', 's2a', 'rika', 'art', 'shisho', 'senpai', 'shinnyu', 'housou',
     'genkan', 'basket', 'jukensei', 'cooking', 'kaichou', 'shinro', 'kagaku', 'tenmon', 'bell'];
-  return ids.map(npc).filter(Boolean).map(n => ({ name: n.id === 'mizuno' ? '水野' : n.name, img: n.id === 'art' ? 'image/chara_art_club.png' : n.img }));
+  return ids.map(npc).filter(Boolean).map(n => ({ name: n.id === 'mizuno' ? L('水野') : n.name, img: n.id === 'art' ? 'image/chara_art_club.png' : n.img }));
 };
 let endingStep = null;
 function playEnding() {
@@ -1240,14 +1240,14 @@ function playEnding() {
   show();
 }
 function turn(delta) { state.dir = (state.dir + delta + 4) % 4; markSeen(); render(); stairHint(); checkReveal(); }
-function stairHint() { const st = stairAhead(); if (st) log((st.up ? '上り階段だ。' : '下り階段だ。') + (usePad() ? '' : '［5］'), 'sys'); }
+function stairHint() { const st = stairAhead(); if (st) log((st.up ? L('上り階段だ。') : L('下り階段だ。')) + (usePad() ? '' : L('［5］')), 'sys'); }
 // 昇り降り：つながる階の同じ id の階段の手前のマスへ。向きは階段に背を向ける
 function useStairs(st) {
   const fl = +Object.keys(MAPS).find(k => +k !== state.fl && MAPS[k].stairs.some(t => t.id === st.id));
   const dst = MAPS[fl].stairs.find(t => t.id === st.id);
   const [ex, ey] = stairEntry(dst);
   Object.assign(state, { fl, x: ex, y: ey, dir: (dst.dir + 2) % 4, room: null, cool: 3 });
-  log(`${st.up ? '階段を上った' : '階段を下りた'}。${MAPS[fl].name}`, 'sys');
+  log(L`${st.up ? L('階段を上った') : L('階段を下りた')}。${MAPS[fl].name}`, 'sys');
   markSeen(); render();
 }
 // きっかけ：廊下の窓の目の前（距離0）で外を向いた瞬間、部屋のカーテンが開く
@@ -1256,7 +1256,7 @@ function checkReveal() {
   if (edgeAt(state.fl, state.x, state.y, state.dir) !== WIN || curtainAt(state.fl, state.x, state.y, state.dir) != null) return;
   if (!skyVisible(state.x, state.y, state.dir)) return; // 外が校舎でふさがっている窓では起きない
   state.flags.reveal = true;
-  showDialog(['夜が近づいている。'], () => render());
+  showDialog([L('夜が近づいている。')], () => render());
 }
 
 function afterStep() {
@@ -1264,13 +1264,13 @@ function afterStep() {
   const a = areaAt(state.fl, state.x, state.y), r = roomAt(state.fl, state.x, state.y);
   const rn = placeName(state.fl, state.x, state.y);
   if (a && a.name === '鐘楼') state.flags.bellRoom = true; // 進捗の「鐘楼にたどり着いた」は、鐘楼の部屋に入ったとき
-  if (rn !== state.room) { state.room = rn; if (a) log(`― ${a.bld ? a.bld + ' ' : ''}${a.name} ―`, 'sys'); }
+  if (rn !== state.room) { state.room = rn; if (a) log(`― ${a.bld ? L(a.bld) + ' ' : ''}${L(a.name)} ―`, 'sys'); }
   render();
   const it = itemAt(state.fl, state.x, state.y);
   if (it) {
     state.flags['got_' + it.id] = true;
     if (it.get) it.get(); state.items.push(it.id);
-    showDialog([...it.text, `★ ${ITEM_NAME[it.id]}を 手に入れた`], () => render(), null, it.id);
+    showDialog([...it.text, L`★ ${ITEM_NAME[it.id]}を 手に入れた`], () => render(), null, it.id);
     return;
   }
   stairHint();
@@ -1308,16 +1308,16 @@ function interact() {
   if (ahead === DOOR && askExit(state.fl, state.x, state.y, state.dir)) return;
   if (ahead === DOOR) {
     const lk = lockAt(state.fl, state.x, state.y, state.dir);
-    log(!inMap(state.fl, fx, fy) ? '扉は開かない。' : lk && !state.flags[lk] ? lockLine(lk) : '扉だ。', 'sys'); return;
+    log(!inMap(state.fl, fx, fy) ? L('扉は開かない。') : lk && !state.flags[lk] ? lockLine(lk) : L('扉だ。'), 'sys'); return;
   }
   partyTalk();
 }
 // 仲間と話す：前に誰も何もない時。話す相手を選び、回復を頼める
 function partyTalk() {
   const mates = state.party.slice(1);
-  if (!mates.length) { log('特に何もない。', 'sys'); return; }
+  if (!mates.length) { log(L('特に何もない。'), 'sys'); return; }
   if (mates.length === 1) { mateTalk(mates[0]); return; }
-  showChoice('誰と話す？', [...mates.map(c => [c.name, () => mateTalk(c)]), ['やめる', () => {}]]);
+  showChoice(L('誰と話す？'), [...mates.map(c => [c.name, () => mateTalk(c)]), [L('やめる'), () => {}]]);
 }
 const canHeal = c => c.hp > 0 && ((c.spells.includes('heal') && c.mp >= SPELLS.heal.mp) || (c.spells.includes('chorus') && c.mp >= SPELLS.chorus.mp));
 function mateTalk(c) {
@@ -1325,22 +1325,22 @@ function mateTalk(c) {
   const q = c.id && c.id.startsWith('t_') && teacherQuestTalk(c.id.slice(2), state);
   const hurt = state.party.filter(t => t.hp > 0 && t.hp < t.maxhp * 0.6).length, down = state.party.filter(t => t.hp <= 0).length;
   let line;
-  if (c.hp <= 0) line = dialogNotice(`${c.name}は 倒れたまま、目を閉じている。`);
-  else if (down) line = `${c.name}「倒れている人がいる。保健室まで戻ったほうがいい」`;
-  else if (hurt) line = `${c.name}「ずいぶん傷だらけね。少し休もうか」`;
-  else if (c.mp < c.maxmp * 0.3) line = `${c.name}「少し疲れてきた。呪文は、あまり使えないかも」`;
-  else line = pick([`${c.name}「まだ大丈夫。行こう」`, `${c.name}「チャイム、まだ鳴ってるね」`, `${c.name}「離れないで歩こう」`]);
+  if (c.hp <= 0) line = dialogNotice(L`${c.name}は 倒れたまま、目を閉じている。`);
+  else if (down) line = L`${c.name}「倒れている人がいる。保健室まで戻ったほうがいい」`;
+  else if (hurt) line = L`${c.name}「ずいぶん傷だらけね。少し休もうか」`;
+  else if (c.mp < c.maxmp * 0.3) line = L`${c.name}「少し疲れてきた。呪文は、あまり使えないかも」`;
+  else line = pick([L`${c.name}「まだ大丈夫。行こう」`, L`${c.name}「チャイム、まだ鳴ってるね」`, L`${c.name}「離れないで歩こう」`]);
   const opts = [];
   // 回復の呪文を知っていれば、いつでも頼める（怪我人がいない・力が足りないときは、選んだあとにそう知らせる）
-  if (c.hp > 0 && (c.spells.includes('heal') || c.spells.includes('chorus'))) opts.push([c.spells.includes('heal') ? '手当てを頼む' : '歌声を頼む', () => fieldHeal(c)]);
-  showDialog(q || [line], () => { if (opts.length) showChoice(`${c.name}に頼む？`, [...opts, ['なんでもない', () => {}]]); render(); });
+  if (c.hp > 0 && (c.spells.includes('heal') || c.spells.includes('chorus'))) opts.push([c.spells.includes('heal') ? L('手当てを頼む') : L('歌声を頼む'), () => fieldHeal(c)]);
+  showDialog(q || [line], () => { if (opts.length) showChoice(L`${c.name}に頼む？`, [...opts, [L('なんでもない'), () => {}]]); render(); });
 }
 
 // 全員を全回復。何が満タンになったかの文（なければ null）を返す
 function healAll() {
   const hp = state.party.some(c => c.hp < c.maxhp), mp = state.party.some(c => c.mp < c.maxmp);
   state.party.forEach(c => { c.hp = c.maxhp; c.mp = c.maxmp; });
-  return hp && mp ? '体力とMPが回復した。' : hp ? '体力が回復した。' : mp ? 'MPが回復した。' : null;
+  return hp && mp ? L('体力とMPが回復した。') : hp ? L('体力が回復した。') : mp ? L('MPが回復した。') : null;
 }
 
 function fieldHeal(by) {
@@ -1348,18 +1348,18 @@ function fieldHeal(by) {
   const caster = state.party.find(c => ok(c) && c.hp > 0 && c.spells.includes('heal') && c.mp >= SPELLS.heal.mp);
   const choir = !caster && state.party.find(c => ok(c) && c.hp > 0 && c.spells.includes('chorus') && c.mp >= SPELLS.chorus.mp);
   if (choir) {
-    if (!state.party.some(c => c.hp > 0 && c.hp < c.maxhp)) { log('誰も怪我をしていない。', 'sys'); return; }
+    if (!state.party.some(c => c.hp > 0 && c.hp < c.maxhp)) { log(L('誰も怪我をしていない。'), 'sys'); return; }
     choir.mp -= SPELLS.chorus.mp;
     for (const t of aliveParty()) t.hp = Math.min(t.maxhp, t.hp + chorusAmt(choir));
-    log('みんな 回復した', 'good'); render(); return;
+    log(L('みんな 回復した'), 'good'); render(); return;
   }
-  if (!caster) { log(by ? `${by.name}は 呪文の力が足りない。` : '手当てできる人がいない。', 'sys'); return; }
+  if (!caster) { log(by ? L`${by.name}は 呪文の力が足りない。` : L('手当てできる人がいない。'), 'sys'); return; }
   const tgt = state.party.filter(c => c.hp > 0 && c.hp < c.maxhp).sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp)[0];
-  if (!tgt) { log('誰も怪我をしていない。', 'sys'); return; }
+  if (!tgt) { log(L('誰も怪我をしていない。'), 'sys'); return; }
   caster.mp -= SPELLS.heal.mp;
   const amt = Math.min(tgt.maxhp - tgt.hp, healAmt(caster));
   tgt.hp += amt;
-  log(`${caster.name}が ${tgt.name}を手当てした`, 'good');
+  log(L`${caster.name}が ${tgt.name}を手当てした`, 'good');
   render();
 }
 
@@ -1389,16 +1389,16 @@ const enemyAtk = m => m.atk.map(v => Math.max(1, Math.round(v * atkMul())));
 // 敵が現れたときの文：ふだんからそこにある物なので「あらわれた」ではなく、動き出した・飛んできた など
 
 const APPEAR = {
-  paper: '舞い上がった', eraser: '飛んできた', chair: '動き出した', mop: '立ち上がった', desk: '動き出した',
-  globe: '浮かび上がった', extinguisher: '飛んできた', bball: '飛んできた', vball: '飛んできた',
-  beam: '起き上がった', vault: '動き出した', bat: '飛んできた', kendo: '構えた', flask: '浮かび上がった', burner: '浮かび上がった',
-  model: '動き出した', skel: '動き出した', portrait: '浮かび上がった', david: '動き出した', thinker: '顔を上げた',
-  recorder: '飛んできた', cymbal: '飛んできた', tuba: '浮かび上がった', drums: '動き出した', piano: '動き出した',
-  hammer: '飛んできた', saw: '飛んできた',
+  paper: L('舞い上がった'), eraser: L('飛んできた'), chair: L('動き出した'), mop: L('立ち上がった'), desk: L('動き出した'),
+  globe: L('浮かび上がった'), extinguisher: L('飛んできた'), bball: L('飛んできた'), vball: L('飛んできた'),
+  beam: L('起き上がった'), vault: L('動き出した'), bat: L('飛んできた'), kendo: L('構えた'), flask: L('浮かび上がった'), burner: L('浮かび上がった'),
+  model: L('動き出した'), skel: L('動き出した'), portrait: L('浮かび上がった'), david: L('動き出した'), thinker: L('顔を上げた'),
+  recorder: L('飛んできた'), cymbal: L('飛んできた'), tuba: L('浮かび上がった'), drums: L('動き出した'), piano: L('動き出した'),
+  hammer: L('飛んできた'), saw: L('飛んできた'),
 };
 // 出現時にその場から動き出す備品は、戦闘後に動きを止める。
 const STATIONARY_ENEMIES = new Set(['chair', 'mop', 'desk', 'beam', 'vault', 'model', 'skel', 'portrait', 'david', 'thinker', 'drums', 'piano']);
-const appearLine = (kind, m) => `${m.name}が ${APPEAR[kind] || '動き出した'}。`; // 数は言わない
+const appearLine = (kind, m) => L`${m.name}が ${APPEAR[kind] || L('動き出した')}。`; // 数は言わない
 async function startBattle(kind, n, onWin) {
   const m = MONS[kind];
   mode = 'busy';
@@ -1410,7 +1410,7 @@ async function startBattle(kind, n, onWin) {
   state.cool = 6;
   faceOpenSide();
   shake(); render();
-  log(m.boss ? `${m.name}が 襲いかかってきた！` : appearLine(battle.kind, m), 'warn');
+  log(m.boss ? L`${m.name}が 襲いかかってきた！` : appearLine(battle.kind, m), 'warn');
   await sleep(500);
   beginInput();
 }
@@ -1433,8 +1433,8 @@ function autoChoose() {
   battle.ci = state.party.length;
   setTimeout(() => { if (battle) runRound(); }, 250);
 }
-function startAuto() { battle.auto = true; log('― オート戦闘 ―', 'sys'); autoChoose(); }
-function stopAuto() { if (battle && battle.auto) { battle.auto = false; log('オートを止めた。', 'sys'); updatePad(); } }
+function startAuto() { battle.auto = true; log(L('― オート戦闘 ―'), 'sys'); autoChoose(); }
+function stopAuto() { if (battle && battle.auto) { battle.auto = false; log(L('オートを止めた。'), 'sys'); updatePad(); } }
 function promptNext() {
   while (battle.ci < state.party.length && state.party[battle.ci].hp <= 0) battle.ci++;
   if (battle.ci >= state.party.length) { runRound(); return; }
@@ -1443,17 +1443,17 @@ function promptNext() {
 function showBattleMenu(kind) {
   const c = state.party[battle.ci];
   if (kind === 'main') {
-    setMenu(`${c.name}の行動：`, [
-      ['たたかう', () => choose({ t: 'fight' })],
-      ['じゅもん', () => c.spells.length ? showBattleMenu('spell') : log(`${c.name}は じゅもんを知らない`, 'sys')],
-      ['ぼうぎょ', () => choose({ t: 'defend' })],
-      ['にげる', () => runAway()],
-      canBack() ? ['もどる', () => backInput()] : ['オート', () => startAuto()],
+    setMenu(L`${c.name}の行動：`, [
+      [L('たたかう'), () => choose({ t: 'fight' })],
+      [L('じゅもん'), () => c.spells.length ? showBattleMenu('spell') : log(L`${c.name}は じゅもんを知らない`, 'sys')],
+      [L('ぼうぎょ'), () => choose({ t: 'defend' })],
+      [L('にげる'), () => runAway()],
+      canBack() ? [L('もどる'), () => backInput()] : [L('オート'), () => startAuto()],
     ]);
   } else {
-    setMenu(`${c.name}のじゅもん：`, [
-      ...c.spells.map(id => [`${SPELLS[id].name} (${SPELLS[id].mp})`, () => c.mp >= SPELLS[id].mp ? choose({ t: 'spell', id }) : log('MPが足りない', 'sys')]),
-      ['もどる', () => showBattleMenu('main')],
+    setMenu(L`${c.name}のじゅもん：`, [
+      ...c.spells.map(id => [`${SPELLS[id].name} (${SPELLS[id].mp})`, () => c.mp >= SPELLS[id].mp ? choose({ t: 'spell', id }) : log(L('MPが足りない'), 'sys')]),
+      [L('もどる'), () => showBattleMenu('main')],
     ]);
   }
 }
@@ -1493,36 +1493,36 @@ async function endCheck() {
 
 async function hurtEnemy(e, dmg) {
   e.hp -= dmg; e.flash = true; if (e.sleep && Math.random() < 0.5) e.sleep = 0;
-  render(); log(`${e.name}に ${dmg} のダメージ`);
+  render(); log(L`${e.name}に ${dmg} のダメージ`);
   await sleep(SPD); e.flash = false;
   if (e.hp <= 0) {
     e.hp = 0;
-    const result = STATIONARY_ENEMIES.has(battle.kind) ? '動かなくなった' : '消えた';
-    log(e.boss ? `${e.name}を たおした` : `${e.name}は ${result}`, 'good');
+    const result = STATIONARY_ENEMIES.has(battle.kind) ? L('動かなくなった') : L('消えた');
+    log(e.boss ? L`${e.name}を たおした` : L`${e.name}は ${result}`, 'good');
   }
   render(); await sleep(SPD / 3);
 }
 async function partyAct(c, cmd) {
-  if (cmd.t === 'defend') { log(`${c.name}は 身を守っている`); await sleep(SPD / 2); return; }
+  if (cmd.t === 'defend') { log(L`${c.name}は 身を守っている`); await sleep(SPD / 2); return; }
   if (cmd.t === 'fight') {
     const e = pick(enemiesAlive());
-    log(`${c.name}の こうげき`); await sleep(SPD);
+    log(L`${c.name}の こうげき`); await sleep(SPD);
     if (e.sleep > 0 || Math.random() < hitChance(c.lv, e.ac)) await hurtEnemy(e, rnd(c.atk[0], c.atk[1]) + Math.floor(c.lv / 2));
-    else { log('  ……はずれた'); await sleep(SPD); }
+    else { log(L('  ……はずれた')); await sleep(SPD); }
     return;
   }
   const sp = SPELLS[cmd.id];
-  if (c.mp < sp.mp) { log(`${c.name}は 気力が足りない`); await sleep(SPD); return; }
+  if (c.mp < sp.mp) { log(L`${c.name}は 気力が足りない`); await sleep(SPD); return; }
   c.mp -= sp.mp; renderHUD();
-  log(`${c.name}は ${sp.name}を となえた`, 'warn'); await sleep(SPD);
+  log(L`${c.name}は ${sp.name}を となえた`, 'warn'); await sleep(SPD);
   if (cmd.id === 'heal') {
     const t = aliveParty().sort((a, b) => a.hp / a.maxhp - b.hp / b.maxhp)[0];
     const amt = Math.min(t.maxhp - t.hp, healAmt(c)); t.hp += amt;
-    log(`${c.name}が ${t.name}を手当てした`, 'good'); renderHUD(); await sleep(SPD);
+    log(L`${c.name}が ${t.name}を手当てした`, 'good'); renderHUD(); await sleep(SPD);
   } else if (cmd.id === 'scold') {
     for (const e of enemiesAlive()) {
-      if (!e.boss && Math.random() < 0.65) { e.sleep = rnd(1, 3); log(`${e.name}は 眠った`); }
-      else log(`${e.name}には 効かなかった`);
+      if (!e.boss && Math.random() < 0.65) { e.sleep = rnd(1, 3); log(L`${e.name}は 眠った`); }
+      else log(L`${e.name}には 効かなかった`);
       render(); await sleep(SPD / 2);
     }
   } else if (cmd.id === 'spark') {
@@ -1531,16 +1531,16 @@ async function partyAct(c, cmd) {
     for (const e of enemiesAlive()) await hurtEnemy(e, rnd(4, 8) + c.lv);
   } else if (cmd.id === 'lecture') {
     const e = pick(enemiesAlive());
-    if (!e.boss && Math.random() < 0.9) { e.sleep = rnd(2, 3); log(`${e.name}は 眠った`); } else log(`${e.name}には 効かなかった`);
+    if (!e.boss && Math.random() < 0.9) { e.sleep = rnd(2, 3); log(L`${e.name}は 眠った`); } else log(L`${e.name}には 効かなかった`);
     render(); await sleep(SPD);
   } else if (cmd.id === 'quiz') {
     for (const e of enemiesAlive()) await hurtEnemy(e, rnd(2, 5) + Math.floor(c.lv / 2));
   } else if (cmd.id === 'chorus') {
     for (const t of aliveParty()) { const amt = Math.min(t.maxhp - t.hp, chorusAmt(c)); t.hp += amt; }
-    log('みんな 回復した', 'good'); renderHUD(); await sleep(SPD);
+    log(L('みんな 回復した'), 'good'); renderHUD(); await sleep(SPD);
   } else if (cmd.id === 'drill') {
     aliveParty().forEach(t => { t.defend = true; });
-    log('全員が 身構えた', 'good'); renderHUD(); await sleep(SPD);
+    log(L('全員が 身構えた'), 'good'); renderHUD(); await sleep(SPD);
   }
 }
 function pickTarget() {
@@ -1553,38 +1553,38 @@ function pickTarget() {
 async function damageChar(c, dmg) {
   if (c.defend) dmg = Math.ceil(dmg / 2);
   c.hp = Math.max(0, c.hp - dmg); shake(); renderHUD();
-  log(`${c.name}は ${dmg} のダメージを受けた`, 'bad');
-  if (c.hp <= 0) log(`${c.name}は 倒れた……`, 'bad');
+  log(L`${c.name}は ${dmg} のダメージを受けた`, 'bad');
+  if (c.hp <= 0) log(L`${c.name}は 倒れた……`, 'bad');
   await sleep(SPD);
 }
 async function enemyAct(e) {
   if (e.boss) { await bossAct(e); if (e.hp > 0 && aliveParty().length) await bossAct(e); return; } // 番人は 1 ターンに 2 回動く
-  if (e.sleep > 0) { e.sleep--; log(`${e.name}は 眠っている`, 'sys'); await sleep(SPD / 2); return; }
+  if (e.sleep > 0) { e.sleep--; log(L`${e.name}は 眠っている`, 'sys'); await sleep(SPD / 2); return; }
   const c = pickTarget();
-  log(`${e.name}の こうげき`); await sleep(SPD);
+  log(L`${e.name}の こうげき`); await sleep(SPD);
   if (Math.random() < hitChance(e.lv, c.ac)) await damageChar(c, rnd(e.atk[0], e.atk[1]));
-  else { log(`  ${c.name}は かわした`); await sleep(SPD); }
+  else { log(L`  ${c.name}は かわした`); await sleep(SPD); }
 }
 async function bossAct(e) {
   if (Math.random() < 0.3) {
-    log('番人が 鐘を打った。ゴォォン……', 'warn'); shake(); await sleep(SPD * 1.5);
+    log(L('番人が 鐘を打った。ゴォォン……'), 'warn'); shake(); await sleep(SPD * 1.5);
     // 「最後の放送」を聞いていれば、鐘の響きが弱い
     for (const c of aliveParty()) await damageChar(c, state.flags.q3done ? rnd(2, 5) : rnd(4, 8));
     return;
   }
   const c = pickTarget();
-  log(`${e.name}の こうげき`); await sleep(SPD);
+  log(L`${e.name}の こうげき`); await sleep(SPD);
   if (Math.random() < hitChance(e.lv, c.ac)) await damageChar(c, rnd(e.atk[0], e.atk[1]));
-  else { log(`  ${c.name}は かわした`); await sleep(SPD); }
+  else { log(L`  ${c.name}は かわした`); await sleep(SPD); }
 }
 async function runAway() {
   if (mode !== 'battle') return;
   mode = 'busy'; clearMenu();
-  log('逃げ出した……'); await sleep(SPD);
+  log(L('逃げ出した……')); await sleep(SPD);
   if (!battle.boss && Math.random() < 0.6) {
-    log('逃げきれた。', 'sys'); battle = null; mode = 'explore'; render(); return;
+    log(L('逃げきれた。'), 'sys'); battle = null; mode = 'explore'; render(); return;
   }
-  log('回りこまれた', 'bad'); await sleep(SPD);
+  log(L('回りこまれた'), 'bad'); await sleep(SPD);
   for (const e of enemiesAlive()) { if (!aliveParty().length) break; await enemyAct(e); render(); }
   await endCheck();
 }
@@ -1598,7 +1598,7 @@ function levelUps() {
       c.maxhp += hp; c.hp += hp; c.maxmp += c.grow.mp; c.mp += c.grow.mp;
       c.atk = [c.atk[0] + 1, c.atk[1] + 1]; c.ac -= ac;
       (c.gains = c.gains || []).push({ hp, mp: c.grow.mp, ac });
-      log(`${c.name}は レベル${c.lv}に上がった！`, 'good');
+      log(L`${c.name}は レベル${c.lv}に上がった！`, 'good');
     }
   }
 }
@@ -1612,7 +1612,7 @@ async function victory() {
   const share = Math.max(1, Math.floor(total / alive.length));
   const wasBoss = battle.boss, onWin = battle.onWin;
   battle = null; render();
-  log(`勝った。経験値 ${share}`, 'good');
+  log(L`勝った。経験値 ${share}`, 'good');
   alive.forEach(c => { c.exp += share; });
   levelUps();
   mode = 'explore';
@@ -1621,9 +1621,9 @@ async function victory() {
   if (wasBoss) {
     state.flags.bossDown = true;
     showDialog([
-      '番人の手から、大槌が落ちた。',
-      '次の音は、鳴らなかった。',
-      '窓の外の赤が、消えていく。',
+      L('番人の手から、大槌が落ちた。'),
+      L('次の音は、鳴らなかった。'),
+      L('窓の外の赤が、消えていく。'),
     ]);
   }
 }
@@ -1641,14 +1641,14 @@ function levelDown(c) {
 // 全滅：そのとき連れていた全員のレベルが 1 下がる
 //   連れていなかった仲間はそのまま。持ち物や進み具合は失わない
 async function defeat() {
-  log('パーティは全滅した……', 'bad');
+  log(L('パーティは全滅した……'), 'bad');
   await sleep(800);
   battle = null; mode = 'explore';
-  const down = state.party.filter(levelDown).map(c => dialogNotice(`${c.name}は レベル${c.lv}に下がった……`));
+  const down = state.party.filter(levelDown).map(c => dialogNotice(L`${c.name}は レベル${c.lv}に下がった……`));
   // 途中で閉じられても、保健室で回復した状態から再開できるよう、先に戻して保存しておく
   Object.assign(state, { fl: 1, x: START[0], y: START[1], dir: 2, room: null, cool: 6 });
   healAll(); markSeen(); saveGame();
-  showDialog([dialogNotice('パーティは全滅した……'), '……気がつくと、保健室のベッドの上だった。', ...down], () => render());
+  showDialog([dialogNotice(L('パーティは全滅した……')), L('……気がつくと、保健室のベッドの上だった。'), ...down], () => render());
 }
 
 // ---------------------------------------------------------------------
@@ -1664,41 +1664,53 @@ function toggleMenu(open) {
   menuEl.style.display = open ? 'flex' : 'none';
   // スマホ（画面のボタン）では、メニューが操作ボタンを覆うので、下に大きな「閉じる」を出す（キーの説明は出さない）
   const cl = menuEl.querySelector('.close');
-  if (open) { cl.classList.toggle('btn', usePad()); cl.textContent = usePad() ? '閉じる' : 'M・Esc 閉じる ／ ← → 切り替え ／ ↑ ↓ スクロール（ここをタップでも閉じる）'; }
+  if (open) { cl.classList.toggle('btn', usePad()); cl.textContent = usePad() ? L('閉じる') : L('M・Esc 閉じる ／ ← → 切り替え ／ ↑ ↓ スクロール（ここをタップでも閉じる）'); }
   if (open) showMenuTab(menuTab);
 }
 const esc = t => String(t).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 // サブシナリオ：名前・始まったフラグ・終わったフラグ
 const QUESTS = [
-  ['片方の上履き', 'q1', 'q1done'], ['逃げた人体模型', 'q2', 'q2done'], ['最後の放送', 'q3', 'q3done'],
-  ['卒業アルバム', 'q4', 'q4done'], ['迷子の新入生', 'q5', 'q5done'], ['見つめる肖像画', 'q6', 'q6done'], ['用務員の鍵束', 'q7', 'q7done'],
+  [L('片方の上履き'), 'q1', 'q1done'], [L('逃げた人体模型'), 'q2', 'q2done'], [L('最後の放送'), 'q3', 'q3done'],
+  [L('卒業アルバム'), 'q4', 'q4done'], [L('迷子の新入生'), 'q5', 'q5done'], [L('見つめる肖像画'), 'q6', 'q6done'], [L('用務員の鍵束'), 'q7', 'q7done'],
 ];
 // 進捗：体験したことだけを並べる（まだ起きていない本筋・始まっていない話・行っていない階は出さない。全体の数や広さもわからないようにする）
 function progressHTML() {
   const f = state.flags;
-  const t = Math.floor(state.time / 60), time = `${Math.floor(t / 60)}時間${String(t % 60).padStart(2, '0')}分`;
+  const t = Math.floor(state.time / 60), time = L`${Math.floor(t / 60)}時間${String(t % 60).padStart(2, '0')}分`;
   const main = [
-    [f.metNurse, '保健の先生と話した'], [f.hadTeacher || f.saeki, '職員室の先生が仲間になった'], [f.reveal, '窓の外の空を見た'],
-    [f.mizuno, '水野が仲間になった'], [f.bellRoom, '鐘楼にたどり着いた'], [f.bossDown, '鐘の番人を倒した'],
+    [f.metNurse, L('保健の先生と話した')], [f.hadTeacher || f.saeki, L('職員室の先生が仲間になった')], [f.reveal, L('窓の外の空を見た')],
+    [f.mizuno, L('水野が仲間になった')], [f.bellRoom, L('鐘楼にたどり着いた')], [f.bossDown, L('鐘の番人を倒した')],
   ].filter(([b]) => b).map(([, t]) => `<div>■ ${t}</div>`);
-  if (!f.bossDown) main.push('<div>□ ？？？</div>'); // 本筋がまだ終わっていないことだけを示す（中身は出さない）
-  const quests = QUESTS.filter(([, a, b]) => f[a] || f[b]).map(([n, , b]) => `<div>${f[b] ? `■ ${n}　達成` : `□ ${n}　進行中`}</div>`);
+  if (!f.bossDown) main.push(L('<div>□ ？？？</div>')); // 本筋がまだ終わっていないことだけを示す（中身は出さない）
+  const quests = QUESTS.filter(([, a, b]) => f[a] || f[b]).map(([n, , b]) => `<div>${f[b] ? L`■ ${n}　達成` : L`□ ${n}　進行中`}</div>`);
   const floors = Object.keys(MAPS).filter(k => state.seen[k] && state.seen[k].size > 0).map(k => MAPS[k].name);
-  return `<div>現在地：${esc(placeName(state.fl, state.x, state.y))}</div>
+  return L`<div>現在地：${esc(placeName(state.fl, state.x, state.y))}</div>
     <div>連れて行ける人数：${partyCap()}人</div>
     <div>プレイ時間：${time}</div>
     <h4>本筋</h4>${main.join('')}
-    <h4>頼まれごと</h4>${quests.join('') || '<div>まだ何もない</div>'}
-    <h4>行った階</h4><div>${floors.join('　') || 'なし'}</div>
-    <h4>持ち物</h4><div>${state.items.length ? state.items.map(i => esc(ITEM_NAME[i])).join('、') : 'なし'}</div>`;
+    <h4>頼まれごと</h4>${quests.join('') || L('<div>まだ何もない</div>')}
+    <h4>行った階</h4><div>${floors.join(L('　')) || L('なし')}</div>
+    <h4>持ち物</h4><div>${state.items.length ? state.items.map(i => esc(ITEM_NAME[i])).join(L('、')) : L('なし')}</div>`;
 }
 function showMenuTab(tab) {
   menuTab = tab;
   menuEl.querySelectorAll('.tabs button').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
-  if (tab === 'help') menuBody.innerHTML = document.getElementById('helpText').innerHTML;
+  if (tab === 'help') {
+    menuBody.innerHTML = document.getElementById('helpText').innerHTML;
+    // 言語の切り替え：保存して読み込み直し、ヘルプを開いたところから続ける
+    menuBody.querySelectorAll('[data-lang]').forEach(b => {
+      b.classList.toggle('on', b.dataset.lang === LANG);
+      b.onclick = () => {
+        if (b.dataset.lang === LANG) return;
+        saveGame();
+        try { sessionStorage.setItem('chime.langResume', '1'); } catch (e) {}
+        setLang(b.dataset.lang);
+      };
+    });
+  }
   else if (tab === 'prog') menuBody.innerHTML = progressHTML();
-  else if (tab === 'log') menuBody.innerHTML = state.history.length ? state.history.map(t => `<div>${esc(t)}</div>`).join('') : '<div>まだ何もない</div>';
-  else menuBody.innerHTML = '<div>タイトル画面に戻ります。進み具合は保存されていて、「つづきから」で続けられます。</div><div class="restart"><button id="restartBtn">タイトルに戻る</button></div>' + (usePad() ? '' : '<div style="margin-top:6px">（Space・Enter でも選べる）</div>');
+  else if (tab === 'log') menuBody.innerHTML = state.history.length ? state.history.map(t => `<div>${esc(t)}</div>`).join('') : L('<div>まだ何もない</div>');
+  else menuBody.innerHTML = L('<div>タイトル画面に戻ります。進み具合は保存されていて、「つづきから」で続けられます。</div><div class="restart"><button id="restartBtn">タイトルに戻る</button></div>') + (usePad() ? '' : L('<div style="margin-top:6px">（Space・Enter でも選べる）</div>'));
   menuBody.scrollTop = tab === 'log' ? menuBody.scrollHeight : 0;
   const rb = document.getElementById('restartBtn');
   if (rb) rb.onclick = askRestart;
@@ -1775,7 +1787,7 @@ function loadGame() {
     if (!(save.v >= 2)) s.history = legacyStoryHistory(s.history);
     if (s.flags.saeki && !s.flags.teacher) { // 旧版：佐伯先生がいたら、そのまま先生枠に
       const c = (s.party || []).find(c => c.id === 'saeki');
-      s.teachers = { saeki: c || null }; if (c) { c.id = 't_saeki'; c.cls = '体育'; s.flags.teacher = 'saeki'; s.flags.hadTeacher = true; } else delete s.teachers.saeki;
+      s.teachers = { saeki: c || null }; if (c) { c.id = 't_saeki'; c.cls = L('体育'); s.flags.teacher = 'saeki'; s.flags.hadTeacher = true; } else delete s.teachers.saeki;
     }
     if (!MAPS[s.fl] || !inMap(s.fl, s.x, s.y)) Object.assign(s, { fl: 1, x: START[0], y: START[1], dir: 2 }); // 校舎の形が変わって位置が無くなったら保健室から
     const savedStair = stairAt(s.fl, s.x, s.y);
@@ -1792,6 +1804,12 @@ function loadGame() {
       if (!s.teachers[k]) s.teachers[k] = c;
       return s.teachers[k];
     });
+    // 名前と教科は、いま表示している言葉で持ち直す（言葉を切り替えたとき・旧版の「Player」）
+    for (const c of [...s.party, ...Object.values(s.teachers)]) {
+      if (!c) continue;
+      const src = c.id === 'hero' ? HERO() : c.id === 'mizuno' ? RECRUITS.mizuno() : c.id && c.id.startsWith('t_') ? teacherOf(c.id.slice(2)) : null;
+      if (src) { c.name = src.name; c.cls = src.cls; }
+    }
     if (s.flags.mizuno) s.flags.metMizuno = true;
     for (const c of [...s.party, ...Object.values(s.teachers)]) if (c && c.spells) c.spells = [...new Set(c.spells.map(id => (id === 'chalk' ? 'spark' : id)))];
     return true;
@@ -1935,24 +1953,24 @@ function showTitle(hasSave) {
   mode = 'title'; titleEl.classList.add('on');
   // 進み具合があるときだけ「はじめから」を出す。消す前に 2 回確かめる
   const main = () => setTitleButtons(hasSave
-    ? [['つづきから', () => startFromTitle(true)], ['はじめから', () => setTitleButtons([
-        ['はい', () => setTitleButtons([['消してはじめから', () => startFromTitle(false)], ['やめる', main]], '本当によろしいですか？<br>消したデータは元に戻せません。', 1)],
-        ['いいえ', main]], '保存されているデータが消えます。<br>はじめからやり直しますか？', 1)]] // 消す確認は、はじめ「いいえ」「やめる」を選んでおく
-    : [['ベッドから出る', () => startFromTitle(false)]]);
+    ? [[L('つづきから'), () => startFromTitle(true)], [L('はじめから'), () => setTitleButtons([
+        [L('はい'), () => setTitleButtons([[L('消してはじめから'), () => startFromTitle(false)], [L('やめる'), main]], L('本当によろしいですか？<br>消したデータは元に戻せません。'), 1)],
+        [L('いいえ'), main]], L('保存されているデータが消えます。<br>はじめからやり直しますか？'), 1)]] // 消す確認は、はじめ「いいえ」「やめる」を選んでおく
+    : [[L('ベッドから出る'), () => startFromTitle(false)]]);
   main();
 }
 function startFromTitle(cont) {
   titleEl.classList.remove('on');
   document.activeElement?.blur();
   mode = 'explore';
-  if (cont) { render(); log('― 続きから再開した ―', 'sys'); return; }
+  if (cont) { render(); log(L('― 続きから再開した ―'), 'sys'); return; }
   try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
   newGame(); markSeen(); state.room = placeName(1, START[0], START[1]);
   render();
   showDialog([
-    '……目を覚ますと、保健室のベッドの上だった。',
-    '下校時刻は、とうに過ぎている。',
-    'どこか遠くで、チャイムが鳴っている。',
+    L('……目を覚ますと、保健室のベッドの上だった。'),
+    L('下校時刻は、とうに過ぎている。'),
+    L('どこか遠くで、チャイムが鳴っている。'),
   ]);
 }
 // タイトル画面のキー：W S（↑ ↓）で選び、Space・Enter で決める。Tab でも移動できる（著作権の表示にも届く）
@@ -2005,11 +2023,7 @@ const appsBtn = document.getElementById('appsBtn'), appsDlg = document.getElemen
   ctx.fillStyle = '#fff';
   APPS_ICON.forEach((row, y) => [...row].forEach((ch, x) => { if (ch === '#') ctx.fillRect(x, y, 1, 1); }));
 }
-// 言葉：ブラウザの言語が ja なら日本語（確かめるときは ?lang=en / ?lang=ja でも切り替えられる）
-const isJa = () => (new URLSearchParams(location.search).get('lang') || navigator.language || '').toLowerCase().startsWith('ja');
-appsDlg.querySelector('.msg').textContent = isJa()
-  ? 'アプリ一覧に移動します。\nこのゲームを離れますがよろしいですか？'
-  : 'This will take you to the app list.\nDo you want to leave this game?';
+appsDlg.querySelector('.msg').textContent = L('アプリ一覧に移動します。\nこのゲームを離れますがよろしいですか？');
 function openApps() { appsDlg.classList.add('on'); appsDlg.querySelector('.no').focus(); } // 誤って移動しないよう、はじめは No
 function closeApps() { appsDlg.classList.remove('on'); appsBtn.focus(); }
 appsBtn.addEventListener('click', openApps);
@@ -2041,6 +2055,10 @@ const hasSave = loadGame();
 if (!hasSave) { newGame(); markSeen(); }
 state.room = placeName(state.fl, state.x, state.y);
 render();
-showTitle(hasSave);
+// 言語を切り替えて読み込み直したときは、タイトルを出さずにヘルプを開いたところから
+let langResume = false;
+try { langResume = sessionStorage.getItem('chime.langResume') === '1'; sessionStorage.removeItem('chime.langResume'); } catch (e) {}
+if (langResume && hasSave) { startFromTitle(true); menuTab = 'help'; toggleMenu(true); }
+else showTitle(hasSave);
 // fonts may load late; redraw once they do
 if (document.fonts) document.fonts.ready.then(() => render());

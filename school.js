@@ -278,5 +278,5 @@ const propAt = (fl, x, y) => MAPS[fl].props[x + ',' + y] || null;
 // 現在地の表示名：「B棟 1F 保健室」「1F 渡り廊下」
 function placeName(fl, x, y) {
   const a = areaAt(fl, x, y);
-  return (a && a.bld ? a.bld + ' ' : '') + MAPS[fl].name + ' ' + (a ? a.name : '');
+  return (a && a.bld ? L(a.bld) + ' ' : '') + MAPS[fl].name + ' ' + (a ? L(a.name) : '');
 }
