@@ -42,11 +42,12 @@ const DECOR = [
 // --- ごほうび ---
 function rewardExp(n) { aliveParty().forEach(c => { c.exp += n; }); levelUps(); }
 function rewardAll(fn) { state.party.forEach(fn); }
-// 持っているかぎり効くアイテム：交代していた仲間や、あとで仲間になる人にも効く（1人に1度だけ）
+// 持っているかぎり効くアイテム（と気付け薬）：交代していた仲間や、あとで仲間になる人にも効く（1人に1度だけ）
 function applyCharms(c) {
   if (!c) return;
   if (hasItem('omamori') && !c.omamori) { c.omamori = true; c.ac--; }
   if (hasItem('bookmark') && c.maxmp && !c.bookmark) { c.bookmark = true; c.maxmp += 2; c.mp += 2; }
+  if (state.flags.q2done && !c.tonic) { c.tonic = true; c.maxhp += 3; c.hp += 3; } // 理科の先生の気付け薬
 }
 function applyCharmsAll() { state.party.forEach(applyCharms); Object.values(state.teachers || {}).forEach(applyCharms); }
 
@@ -382,6 +383,7 @@ const NPCS = [
         L('理科の先生「止めてくれたのか。助かった」'),
         L('「これは気付け薬だ。昔の薬品棚にあったものだが、よく効くよ」'),
         L('★ 気付け薬を もらった'),
+        L('★ みんなの最大HPが 3 上がる'),
       ];
       if (f.q2open) return [L('理科の先生「準備室の方で、さっき錠の音がしたな。扉が開いても、気をつけてくれ」')];
       f.q2 = true; // 錠が開くまでは、何度でも同じ話
@@ -391,7 +393,7 @@ const NPCS = [
         L('「札にある名前は、実験に使った薬品だ。黒板の記録が手がかりになるかもしれん」'),
       ];
     },
-    after(s) { if (s.flags.q2fight && !s.flags.q2done) { s.flags.q2done = true; rewardAll(c => { c.maxhp += 3; c.hp += 3; }); rewardExp(20); } } },
+    after(s) { if (s.flags.q2fight && !s.flags.q2done) { s.flags.q2done = true; applyCharmsAll(); rewardExp(20); } } },
   { id: 'q2foe', quest: 'q2', fl: 1, x: 32, y: 6, name: L('人体模型'), img: 'image/enemy/enemy_anatomical_model.png', ht: 165, foe: true, hide: s => s.flags.q2fight,
     talk(s) { return s.flags.bossDown ? [L('人体模型が二体、立っている。'), L('もう動かない。')] : [L('人体模型が二体、こちらを向いた。')]; },
     after(s) { if (s.flags.bossDown) { s.flags.q2fight = true; return; } startBattle('model', 2, () => { state.flags.q2fight = true; }); } }, // 番人を倒したあとは動かない

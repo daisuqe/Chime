@@ -186,6 +186,7 @@ const EN = {
   "<div>まだ何もない</div>": "<div>Nothing yet</div>",
   "　": ", ",
   "なし": "None",
+  "★ みんなの最大HPが 3 上がる": "★ Everyone's max HP goes up by 3",
   "★ みんなの守りが 1 上がる": "★ Everyone's defense goes up by 1",
   "★ あなたの攻撃が 2 上がる": "★ Your attack goes up by 2",
   "みんなの守り＋1": "Party defense +1",

@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 79;
+const BUILD = 80;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1373,6 +1373,7 @@ function afterStep() {
   state.cool--;
   if (state.flags.bossDown) return; // 番人を倒したら、もう敵は出ない
   if (r?.safe || state.cool > 0) return;
+  if (state.fl === 5 && !state.flags.tenmonPool) return; // 屋上は、鍵束を拾って4階に下りるまで敵が出ない（天文部員がいるあいだ）
   // 話の中で怪異が起きている部屋だけ、人がいても指定の敵が出る。
   const poltergeist = r?.poltergeist?.(state);
   if (r && !poltergeist && !r.foes && roomHasPerson(state.fl, r)) return; // foes の部屋（屋上）は、人がいても出る
@@ -1910,8 +1911,8 @@ function loadGame() {
       if (src) { c.name = src.name; c.cls = src.cls; }
     }
     if (s.flags.mizuno) s.flags.metMizuno = true;
-    if (!s.flags.charmV) { // 旧版：お守り・栞は、そのとき一緒にいた人にだけ効いていた。その人は効いたことにして、ほかの人にも効かせる
-      for (const c of s.party) { if (s.items.includes('omamori')) c.omamori = true; if (s.items.includes('bookmark') && c.maxmp) c.bookmark = true; }
+    if (!s.flags.charmV) { // 旧版：お守り・栞・気付け薬は、そのとき一緒にいた人にだけ効いていた。その人は効いたことにして、ほかの人にも効かせる
+      for (const c of s.party) { if (s.items.includes('omamori')) c.omamori = true; if (s.items.includes('bookmark') && c.maxmp) c.bookmark = true; if (s.flags.q2done) c.tonic = true; }
       s.flags.charmV = 1;
     }
     applyCharmsAll();
