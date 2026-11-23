@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 82;
+const BUILD = 83;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -2097,6 +2097,12 @@ window.addEventListener('keydown', e => {
   if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) e.preventDefault();
   // テンキー 0：Space と同じ（話す・調べる・会話を進める・決める）。NumLock の有無に関係なく
   if (e.code === 'Numpad0') { e.preventDefault(); handleKey(' '); return; }
+  // Tab・テンキー .：全画面の地図を開く・閉じる（NumLock の有無に関係なく）
+  if ((e.code === 'Tab' || e.code === 'NumpadDecimal') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+    e.preventDefault();
+    if (mode === 'explore') openBigMap(); else if (mode === 'bigmap') closeBigMap();
+    return;
+  }
   // テンキー：探索中は e.code（NumLock の有無に関係なく）で移動。戦闘・会話中は数字として扱う
   if ((mode === 'explore' || mode === 'menu' || mode === 'bigmap') && /^Numpad[1-8]$|^NumpadEnter$/.test(e.code)) { e.preventDefault(); handleKey(e.code); return; }
   if ((mode === 'battle' || mode === 'choice') && /^Numpad\d$/.test(e.code)) { handleKey(e.code.slice(-1)); return; }
@@ -2111,7 +2117,7 @@ window.addEventListener('keydown', e => {
 // ---------------------------------------------------------------------
 const titleEl = document.getElementById('title'), titleBtns = titleEl.querySelector('.btns');
 const licenseEl = document.getElementById('license'), copyrightEl = document.getElementById('copyright');
-document.getElementById('padKeys').innerHTML = `<div>${L('5・W　直進')}</div><div>${L('0・Space　話す・調べる')}</div><div>${L('M　メニュー')}</div>`;
+document.getElementById('padKeys').innerHTML = `<div>${L('5・W　直進')}</div><div>${L('0・Space　話す・調べる')}</div><div>${L('.・Tab　地図')}</div><div>${L('M　メニュー')}</div>`;
 document.getElementById('build').textContent = `build ${BUILD}`;
 function setTitleButtons(opts, ask, pick = 0) { // pick：はじめに選んでおく選択肢
   titleBtns.innerHTML = ask ? `<div class="ask">${ask}</div>` : '';

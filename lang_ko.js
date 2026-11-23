@@ -633,6 +633,7 @@ const KO = {
   "おしまい": "끝",
   "5・W　直進": "5・W　전진",
   "0・Space　話す・調べる": "0・Space　말하기・조사하기",
+  ".・Tab　地図": ".・Tab　지도",
   "M　メニュー": "M　메뉴",
   "記録": "기록",
   "メインミッション": "메인 미션",
@@ -682,7 +683,7 @@ const KO_HELP = `
   <div>동료(교무실 선생님 등)는 처음에는 1명까지. 부탁받은 일을 해결해 나가면 데려갈 수 있는 인원이 늘어난다</div>
   <div>인원이 꽉 찼을 때 권하면 누구와 교대할지 고를 수 있다. 빠진 동료는 원래 있던 곳에서 기다린다</div>
   <div>전투・선택지: W・S (A・D)로 고르고 Space로 결정. 숫자 키로도 고를 수 있다 / M・Esc 하나 돌아가기</div>
-  <div>지도를 누르면 전체 화면. ＋・−로 확대 축소, 드래그로 이동</div>
+  <div>지도를 누르거나 Tab・숫자패드 . 를 누르면 전체 화면. ＋・−로 확대 축소, 드래그로 이동</div>
   <div>떨어진 물건은 그 칸에 올라서면 줍는다</div>
   <div>진행 상황은 자동으로 저장되며, 다음에 열면 이어서 시작한다</div>
   <div class="lang">Language : <button type="button" data-lang="ja">日本語</button> <button type="button" data-lang="en">English</button> <button type="button" data-lang="ko">한국어</button></div>`;

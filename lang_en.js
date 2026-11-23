@@ -635,6 +635,7 @@ const EN = {
   "おしまい": "The End",
   "5・W　直進": "5 / W: Forward",
   "0・Space　話す・調べる": "0 / Space: Talk / Examine",
+  ".・Tab　地図": ". / Tab: Map",
   "M　メニュー": "M: Menu",
   "記録": "Records",
   "メインミッション": "Main missions",
@@ -673,7 +674,7 @@ const EN_HELP = `
   <div>At first you can bring one companion (such as a teacher from the staff room). Solving requests lets you bring more</div>
   <div>If your party is full when you invite someone, you can choose who to swap out. Companions who leave wait where you found them</div>
   <div>Battles and choices: pick with W / S (A / D) and confirm with Space. Number keys work too / M or Esc: go back</div>
-  <div>Tap the map for full screen. + / − to zoom, drag to move</div>
+  <div>Tap the map, or press Tab / Numpad ., for full screen. + / − to zoom, drag to move</div>
   <div>Step onto a dropped item to pick it up</div>
   <div>Progress is saved automatically. Next time, you'll continue where you left off</div>
   <div class="lang">Language : <button type="button" data-lang="ja">日本語</button> <button type="button" data-lang="en">English</button> <button type="button" data-lang="ko">한국어</button></div>`;
