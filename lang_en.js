@@ -625,6 +625,9 @@ const EN = {
   "話す<br>調べる": "Talk<br>Examine",
   "M・Esc 閉じる ／ A D・← → 切り替え ／ W S・↑ ↓ スクロール（ここをタップでも閉じる）": "M/Esc: Close / A D, ← →: Switch / W S, ↑ ↓: Scroll (tap here to close)",
   "おしまい": "The End",
+  "5・W　直進": "5 / W: Forward",
+  "0・Space　話す・調べる": "0 / Space: Talk / Examine",
+  "M　メニュー": "M: Menu",
   "記録": "Records",
   "メインミッション": "Main missions",
   "サブミッション": "Side missions",
@@ -657,7 +660,7 @@ const EN_HELP = `
   <div>W / Numpad 5: forward · S / 2: back · A / 4: turn left · D / 6: turn right</div>
   <div>Q / Numpad 1: step left · E / 3: step right</div>
   <div>M: menu</div>
-  <div>Space / Enter: talk, examine, use stairs</div>
+  <div>Space / Enter / Numpad 0: talk, examine</div>
   <div>H: heal (when a companion knows First Aid or Song). Talk with nothing in front of you to talk to your companions</div>
   <div>At first you can bring one companion (such as a teacher from the staff room). Solving requests lets you bring more</div>
   <div>If your party is full when you invite someone, you can choose who to swap out. Companions who leave wait where you found them</div>

@@ -114,7 +114,6 @@
   #bigmapCanvas { position:absolute; inset:0; width:100%; height:100%; touch-action:none; cursor:grab; }
   #bigmapCanvas:active { cursor:grabbing; }
   /* ステータスの下：枠なしの一行 */
-  #menuHint { font-size:14px; }
   /* メニュー（M）：プレイ画面の上に重ねる */
   /* プレイ画面の中に収め、中身だけをスクロールする */
   /* メニュー：画面全体に出す（スマホの操作ボタンの上にも重なる） */
@@ -158,6 +157,7 @@
   #pad button[data-k="Numpad2"] { grid-row:2; grid-column:3; }
   #pad button[data-k="Numpad3"] { grid-row:2; grid-column:4; }
   #pad.battle button.extra { visibility:hidden; }
+  #padKeys { display:none; } /* キーの説明は PC だけ（スマホでは出さない） */
   /* PC（マウス）：右の列の下に、スマホと同じ操作ボタンを出す。マウスだけでも遊べるように
      左にプレイ画面、右の列の上にステータスとマップ、下に操作ボタン（プレイ画面の下端にそろえる） */
   @media (pointer:fine) and (min-width:701px), (pointer:fine) and (orientation:landscape) {
@@ -171,6 +171,7 @@
     #pad:not(.battle) button.txt { font-size:11px; }
     #pad button.word { font-size:11px; }
     #pad button span { font-size:10px; }
+    #padKeys { display:block; grid-column:1 / -1; grid-row:3; font-size:11px; line-height:1.5; opacity:.6; margin-top:2px; }
   }
   /* スマホの縦画面：上からマップ、プレイ画面、ステータス（どれも全幅）、いちばん下に大きな操作ボタン */
   @media (max-width:700px) and (orientation:portrait), (pointer:coarse) and (orientation:portrait) {
@@ -192,7 +193,6 @@
     #top > *, #side > * { min-width:0; max-width:100%; } /* どの部品も画面の幅を超えない */
     #party th, #party td { padding:2px 4px; }
     #mapBox { flex:1 1 0; min-height:0; width:100%; height:auto; } /* 横は画面の幅、縦は残りの高さ（足りなければ低くなる） */
-    #menuHint { display:none; }
     #pad { display:grid; flex:none; margin:6px 0 0; }
     #pad button { height:auto; aspect-ratio:1 / 1; } /* ボタンは正方形 */
     #loc { font-size:18px; top:4px; right:4px; }
@@ -218,7 +218,6 @@
     #viewWrap { grid-area:view; flex:none; width:calc((100vh - 96px) * 832 / 611); max-width:calc(100vw - 284px); }
     #side { grid-area:side; flex:none; width:260px; gap:6px; align-self:stretch; min-height:0; } /* 右の列はプレイ画面と同じ高さ */
     #mapBox { width:260px; height:auto; flex:1 1 0; min-height:100px; } /* 地図はステータスの下の残りの高さをすべて使う */
-    #menuHint { display:none; }
     #pad { grid-area:pad; display:grid; gap:6px; margin:0; grid-template-columns:repeat(7, minmax(0, 1fr)); }
     #pad button[data-k] { grid-row:auto; grid-column:auto; }
     #pad button[data-k="Numpad2"] { display:none; }
@@ -307,7 +306,7 @@
         <div>W・テンキー 5 前進 / S・2 後退 / A・4 左を向く / D・6 右を向く</div>
         <div>Q・テンキー 1 左へ平行移動 / E・3 右へ平行移動</div>
         <div>M メニュー</div>
-        <div>Space・Enter 話す・調べる・階段を使う</div>
+        <div>Space・Enter・テンキー 0 話す・調べる</div>
         <div>H 回復（手当て・歌声を使える仲間がいるとき）。前に何もない所で話すと、仲間と話せる</div>
         <div>仲間（職員室の先生など）は、はじめは1人まで。頼まれごとを解決していくと、連れて行ける人数が増える</div>
         <div>いっぱいのときに誘うと、誰と交代するか選べる。外れた仲間は元の場所で待っている</div>
@@ -320,7 +319,6 @@
     </div>
     <div id="side">
       <table id="party"></table>
-      <div id="menuHint">M : Menu</div>
       <div id="mapBox"><canvas id="map" width="240" height="150" tabindex="0" role="button" aria-label="全画面の地図を開く"></canvas></div>
     </div>
   </div>
@@ -337,6 +335,7 @@
     <button data-k="Numpad3" class="extra">→</button>
     <button data-k=" " class="txt">話す<br>調べる</button>
     <button data-k="Numpad2" class="extra">↓</button>
+    <div id="padKeys"></div><!-- PC だけ：キーの説明 -->
   </div>
 </div>
 <!-- タイトル画面 -->
