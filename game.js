@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 81;
+const BUILD = 82;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -901,7 +901,7 @@ function drawMap(mg, W, H, cs, ox, oy, fl = state.fl, labels = false) { // fl：
     const k = F.v[y][x], px = ox + x * cs, py = oy + y * cs;
     if (k === DOOR) { seg(WALL, px, py, px, py + 3 * k1); seg(WALL, px, py + cs - 3 * k1, px, py + cs); } else seg(k, px, py, px, py + cs);
   }
-  if (labels) drawRoomLabels(mg, F, S, cs, ox, oy);
+  if (labels) { drawRoomLabels(mg, F, S, cs, ox, oy); drawBldLabels(mg, F, state.seen[fl], cs, ox, oy); }
   if (fl !== state.fl) return; // 自分の印は、いる階だけ
   const px = ox + state.x * cs + cs / 2, py = oy + state.y * cs + cs / 2, [dx, dy] = DIRS[state.dir];
   mg.fillStyle = '#ffffff'; mg.beginPath();
@@ -937,6 +937,64 @@ function drawRoomLabels(ctx, floor, known, cs, ox, oy) {
   }
   ctx.textBaseline = 'alphabetic';
 }
+// 棟の名前：建物の外の空いた所に書く。その階でその棟のマスを見たことがあるときだけ（見取り図で埋まった所は数えない）
+//   置き場所は、棟のマスに接した、建物の外（地図の端からつながる空き。地図の外側 3 マスも使う）。
+//   上 → 下 → 左右の順に、棟の真ん中に近い所。ほかの棟に接する所（どちらの名前か紛らわしい）はなるべく避ける
+const BLD_PAD = 3;
+function bldLabelSpots(ctx, floor, visited, cs) {
+  const size = clamp(Math.round(cs * 0.6), 11, 17), h = size + 2;
+  ctx.font = size + 'px DotGothic16, "MS Gothic", sans-serif';
+  const cells = new Map();
+  for (let y = 0; y < floor.H; y++) for (let x = 0; x < floor.W; x++) {
+    const a = floor.grid[y][x]; if (!a?.bld) continue;
+    if (!cells.has(a.bld)) cells.set(a.bld, { list: [], seen: false });
+    const c = cells.get(a.bld); c.list.push([x, y]); if (visited.has(x + ',' + y)) c.seen = true;
+  }
+  if (!floor.outside) {
+    const out = floor.outside = new Set(), q = [], P = BLD_PAD;
+    const add = (x, y) => { const k = x + ',' + y; if (x < -P || y < -P || x >= floor.W + P || y >= floor.H + P || floor.grid[y]?.[x] || out.has(k)) return; out.add(k); q.push([x, y]); };
+    add(-P, -P);
+    while (q.length) { const [x, y] = q.pop(); add(x + 1, y); add(x - 1, y); add(x, y + 1); add(x, y - 1); }
+  }
+  const empty = (x, y) => floor.outside.has(x + ',' + y);
+  const spots = [];
+  for (const [bld, { list, seen }] of cells) {
+    if (!seen) continue;
+    const nm = L(bld), w = Math.ceil(ctx.measureText(nm).width) + 4;
+    const wc = Math.ceil(w / cs), hc = Math.ceil(h / cs); // 名前が占めるマス数
+    const mx = list.reduce((t, [x]) => t + x, 0) / list.length + 0.5, my = list.reduce((t, [, y]) => t + y, 0) / list.length + 0.5;
+    const other = (x, y) => { const a = floor.grid[y]?.[x]; return a?.bld && a.bld !== bld; };
+    let best = null;
+    for (const [x, y] of list) for (const [dx, dy, pri] of [[0, -1, 0], [0, 1, 1], [-1, 0, 2], [1, 0, 2]]) {
+      if (!empty(x + dx, y + dy)) continue;
+      // 名前の四角（マス単位）：棟から離れる向きに置く
+      const gx0 = dx ? (dx < 0 ? x - wc : x + 1) : x - Math.floor((wc - 1) / 2);
+      const gy0 = dy ? (dy < 0 ? y - hc : y + 1) : y - Math.floor((hc - 1) / 2);
+      let ok = true, near = false;
+      for (let yy = gy0 - 2; yy <= gy0 + hc + 1 && ok; yy++) for (let xx = gx0 - 2; xx <= gx0 + wc + 1 && ok; xx++) { // ほかの棟と 2 マス以内なら near
+        const inside = yy >= gy0 && yy < gy0 + hc && xx >= gx0 && xx < gx0 + wc;
+        if (inside && !empty(xx, yy)) ok = false; else if (!inside && other(xx, yy)) near = true;
+      }
+      if (!ok) continue;
+      const cx = gx0 + wc / 2, cy = gy0 + hc / 2;
+      if (spots.some(r => Math.abs(r.cx - cx) * 2 < r.wc + wc && Math.abs(r.cy - cy) * 2 < r.hc + hc)) continue;
+      const score = pri * 4 + (near ? 20 : 0) + Math.hypot(cx - mx, cy - my);
+      if (!best || score < best.score) best = { score, nm, w, h, cx, cy, wc, hc };
+    }
+    if (best) spots.push(best);
+  }
+  return spots;
+}
+function drawBldLabels(ctx, floor, visited, cs, ox, oy) {
+  const spots = bldLabelSpots(ctx, floor, visited, cs);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  for (const { nm, w, h, cx, cy } of spots) {
+    const px = ox + cx * cs, py = oy + cy * cs;
+    ctx.fillStyle = '#000'; ctx.fillRect(px - w / 2, py - h / 2, w, h);
+    ctx.fillStyle = '#fff'; ctx.fillText(nm, px, py);
+  }
+  ctx.textBaseline = 'alphabetic';
+}
 // 全画面の地図：判明済みの範囲を表示し、階ごとに拡大・ドラッグできる。
 const bigEl = document.getElementById('bigmap'), bc = document.getElementById('bigmapCanvas'), bg = bc.getContext('2d');
 const bigFloorsEl = document.getElementById('bigmapFloors'), bigClose = document.getElementById('bigmapClose');
@@ -960,8 +1018,13 @@ function renderBigMap() {
     x0 = Math.min(x0, state.x); x1 = Math.max(x1, state.x + 1);
     y0 = Math.min(y0, state.y); y1 = Math.max(y1, state.y + 1);
   }
-  const midX = (x0 + x1) / 2, midY = (y0 + y1) / 2;
   const margin = 12, innerW = Math.max(1, W - margin * 2), innerH = Math.max(1, H - margin * 2);
+  // 棟の名前（建物の外に書く）も収まるように広げる
+  for (const r of bldLabelSpots(bg, MAPS[bigFl], state.seen[bigFl], Math.min(40, innerW / (x1 - x0), innerH / (y1 - y0)))) {
+    x0 = Math.min(x0, r.cx - r.wc / 2); x1 = Math.max(x1, r.cx + r.wc / 2);
+    y0 = Math.min(y0, r.cy - r.hc / 2); y1 = Math.max(y1, r.cy + r.hc / 2);
+  }
+  const midX = (x0 + x1) / 2, midY = (y0 + y1) / 2;
   const fit = Math.min(40, innerW / (x1 - x0), innerH / (y1 - y0));
   bigScale = Math.min(144, fit * BIG_ZOOMS[bigZoom]);
   const center = bigCenter || { x: midX, y: midY };
