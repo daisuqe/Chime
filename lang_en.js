@@ -285,8 +285,8 @@ const EN = {
   "「理科準備室の錠、薬品の札なんですって。札の並べ方なら、真田先生に聞いてみたら？」": "\"They say the lock on the science prep room uses chemical tags. If it's about the order of the tags, why not ask Mr. Sanada?\"",
   "「理科準備室の扉が開いたって。中に何かいるみたい。気をつけてね」": "\"I heard the science prep room door opened. Something's inside. Be careful.\"",
   "「理科の先生が、C棟1階の理科室で待ってたわ」": "\"The science teacher was waiting in the science room, Building C, 1F.\"",
-  "「美術準備室の肖像画のこと、緑川先生が気にしてたわ。美術の先生だもの、何か知ってるかも」": "\"Ms. Midorikawa was worried about the portrait in the art prep room. She's the art teacher, so she might know something.\"",
-  "「緑川先生の言ってた鏡、A棟2階のトイレのことね」": "\"The mirror Ms. Midorikawa mentioned must be the one in the restroom on Building A, 2F.\"",
+  "「美術準備室の肖像画のこと、緑川先生が気にしてたわ。美術の先生だもの、何か知ってるかも」": "\"Mr. Midorikawa was worried about the portrait in the art prep room. He's the art teacher, so he might know something.\"",
+  "「緑川先生の言ってた鏡、A棟2階のトイレのことね」": "\"The mirror Mr. Midorikawa mentioned must be the one in the restroom on Building A, 2F.\"",
   "「鏡があるなら、C棟2階の美術準備室へ」": "\"If you have the mirror, go to the art prep room, Building C, 2F.\"",
   "「C棟2階の美術室の子が、あなたを待ってたわ」": "\"The student in the art room, Building C, 2F, was waiting for you.\"",
   "「司書さん、図書室の机に貸出カードを出してあるって。D棟1階の図書室よ」": "\"The librarian said she left the checkout cards on a desk in the library. That's Building D, 1F.\"",
@@ -555,8 +555,8 @@ const EN = {
   "……何も起きない。": "...Nothing happens.",
   "・": " · ",
   "${}：${}": "{0}: {1}",
-  "緑川先生「準備室で絵を片づけてたら、肖像画の目がこっちを追ってきたの」": "Ms. Midorikawa: \"I was putting paintings away in the prep room when the portrait's eyes started following me.\"",
-  "「向かいの鏡に絵が映ったときだけ、目が止まったわ。二階のトイレの鏡なら、小さいから持っていけるかも」": "\"The eyes only stopped when the painting was reflected in the mirror across from it. The mirror in the 2F restroom is small enough to carry.\"",
+  "緑川先生「準備室で絵を片づけてたら、肖像画の目がこっちを追ってきたんだ」": "Mr. Midorikawa: \"I was putting paintings away in the prep room when the portrait's eyes started following me.\"",
+  "「向かいの鏡に絵が映ったときだけ、目が止まった。二階のトイレの鏡なら、小さいから持っていけるかもしれない」": "\"The eyes only stopped when the painting was reflected in the mirror across from it. The mirror in the 2F restroom is small enough to carry.\"",
   "白石先生「その校章、見つけてくれたのね」": "Ms. Shiraishi: \"You found that school badge for me.\"",
   "「私がここの生徒だったころのものなの。あの日、鐘の音を聞きながらなくしたのよ」": "\"It's from when I was a student here. I lost it that day, while listening to the bell.\"",
   "「あなたが持っていて。まだ放課後は続いてるから」": "\"You keep it. After-school isn't over yet.\"",
@@ -661,7 +661,7 @@ const EN = {
 EN['${}は ${}へ戻っていった。'] = (who, where) => (where === EN['元の場所'] ? `${who} went back to where they were before.` : `${who} went back to the ${where}.`);
 
 // 先生の敬称（英語の名前 → Mr. / Ms.）
-const EN_TITLE = { Saeki: 'Mr.', Furukawa: 'Ms.', Sanada: 'Mr.', Shiraishi: 'Ms.', Kuroda: 'Mr.', Aoyama: 'Ms.', Midorikawa: 'Ms.', Akai: 'Ms.' };
+const EN_TITLE = { Saeki: 'Mr.', Furukawa: 'Ms.', Sanada: 'Mr.', Shiraishi: 'Ms.', Kuroda: 'Mr.', Aoyama: 'Ms.', Midorikawa: 'Mr.', Akai: 'Ms.' };
 
 // ヘルプ（index.html の helpText の英語版。最後の行は言語の切り替え）
 const EN_HELP = `
