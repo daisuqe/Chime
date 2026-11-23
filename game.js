@@ -4,7 +4,7 @@
 //  校舎データは school.js、人物・サブシナリオは events.js
 // =====================================================================
 // ビルド番号：タイトル画面の右下に出す。コミットのたびに .git/hooks/pre-commit が「何番目のコミットか」に書き換える
-const BUILD = 78;
+const BUILD = 79;
 const stairCells = st => [[st.x, st.y], [st.x + DIRS[st.dir][0], st.y + DIRS[st.dir][1]]];
 const stairEntry = st => [st.x - DIRS[st.dir][0], st.y - DIRS[st.dir][1]];
 // (x,y) を含む階段と、そのマスが何段目のマスか（0 手前 / 1 奥）
@@ -1364,7 +1364,7 @@ function afterStep() {
   if (it) {
     state.flags['got_' + it.id] = true;
     if (it.get) it.get(); state.items.push(it.id);
-    showDialog([...it.text, L`★ ${ITEM_NAME[it.id]}を 手に入れた`, ...mateChime('item:' + it.id, state)], () => render(), null, it.id);
+    showDialog([...it.text, L`★ ${ITEM_NAME[it.id]}を 手に入れた`, ...(it.effect || []), ...mateChime('item:' + it.id, state)], () => render(), null, it.id);
     return;
   }
   stairHint();
@@ -1789,7 +1789,7 @@ function progressHTML() {
     <h4>本筋</h4>${main.join('')}
     <h4>頼まれごと</h4>${quests.join('') || L('<div>まだ何もない</div>')}
     <h4>行った階</h4><div>${floors.join(L('　')) || L('なし')}</div>
-    <h4>持ち物</h4><div>${state.items.length ? state.items.map(i => esc(ITEM_NAME[i])).join(L('、')) : L('なし')}</div>`;
+    <h4>持ち物</h4><div>${state.items.length ? state.items.map(i => esc(itemLabel(i))).join(L('、')) : L('なし')}</div>`;
 }
 function showMenuTab(tab) {
   menuTab = tab;
@@ -1910,6 +1910,11 @@ function loadGame() {
       if (src) { c.name = src.name; c.cls = src.cls; }
     }
     if (s.flags.mizuno) s.flags.metMizuno = true;
+    if (!s.flags.charmV) { // 旧版：お守り・栞は、そのとき一緒にいた人にだけ効いていた。その人は効いたことにして、ほかの人にも効かせる
+      for (const c of s.party) { if (s.items.includes('omamori')) c.omamori = true; if (s.items.includes('bookmark') && c.maxmp) c.bookmark = true; }
+      s.flags.charmV = 1;
+    }
+    applyCharmsAll();
     for (const c of [...s.party, ...Object.values(s.teachers)]) if (c && c.spells) c.spells = [...new Set(c.spells.map(id => (id === 'chalk' ? 'spark' : id)))];
     return true;
   } catch (e) { return false; }

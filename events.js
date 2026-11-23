@@ -24,6 +24,9 @@ const ITEM_NAME = {
   bag: L('新入生のカバン'), omamori: L('お守り'), badge: L('校章バッジ'), bookmark: L('古い栞'), map: L('2階の見取り図'),
   memo: L('古い紙切れ'), mirror: L('洗面台の鏡'), photo: L('集合写真の写し'), letter: L('古い封筒'), equipkey: L('機材の鍵'),
 };
+// 持っていると効くアイテム：メニューの持ち物で、名前に添える
+const ITEM_NOTE = { omamori: L('みんなの守り＋1'), badge: L('あなたの攻撃＋2'), bookmark: L('先生たちの MP＋2') };
+const itemLabel = i => ITEM_NOTE[i] ? L`${ITEM_NAME[i]}（${ITEM_NOTE[i]}）` : ITEM_NAME[i];
 // 落とし物の画像と、床に置いたときの幅（1 = 1マス。小さい物は見えるよう少し大きめ）
 const ITEM_IMG = {
   shoe: { src: 'image/item_shoe.png', w: 0.26 }, keys: { src: 'image/item_keys.png', w: 0.15 },
@@ -39,12 +42,19 @@ const DECOR = [
 // --- ごほうび ---
 function rewardExp(n) { aliveParty().forEach(c => { c.exp += n; }); levelUps(); }
 function rewardAll(fn) { state.party.forEach(fn); }
+// 持っているかぎり効くアイテム：交代していた仲間や、あとで仲間になる人にも効く（1人に1度だけ）
+function applyCharms(c) {
+  if (!c) return;
+  if (hasItem('omamori') && !c.omamori) { c.omamori = true; c.ac--; }
+  if (hasItem('bookmark') && c.maxmp && !c.bookmark) { c.bookmark = true; c.maxmp += 2; c.mp += 2; }
+}
+function applyCharmsAll() { state.party.forEach(applyCharms); Object.values(state.teachers || {}).forEach(applyCharms); }
 
 const ITEMS = [
   // cond：拾えるようになる条件（話がそこまで進むと、そこに落ちている）
   { id: 'shoe', quest: 'q1', fl: 2, x: 11, y: 10, cond: s => s.flags.q1s >= 2, text: [L('床に、上履きが片方だけ落ちている。'), L('かかとに「1-A」とある。')] },
   { id: 'keys', quest: 'q7', fl: 5, x: 6, y: 10, cond: s => s.flags.q7s >= 4, text: [L('給水タンクのそばに、鍵束が落ちている。'), L('タグに「用務員室」とある。')] },
-  { id: 'badge', fl: 1, x: 31, y: 12, cond: s => s.flags.gakufu, text: [L('楽譜の下に、校章バッジがあった。')], get() { const p = state.party[0]; p.atk = [p.atk[0] + 2, p.atk[1] + 2]; } },
+  { id: 'badge', fl: 1, x: 31, y: 12, cond: s => s.flags.gakufu, text: [L('楽譜の下に、校章バッジがあった。')], effect: [L('★ あなたの攻撃が 2 上がる')], get() { const p = state.party[0]; p.atk = [p.atk[0] + 2, p.atk[1] + 2]; } },
 ];
 
 // ===================== 職員室の先生（1人だけ連れて行ける。職員室で交代できる） =====================
@@ -102,6 +112,7 @@ function mateChar(key) {
     if (key === 'mizuno') state.teachers[key] = RECRUITS.mizuno();
     else { const t = teacherOf(key); state.teachers[key] = mkChar({ id: 't_' + key, name: t.name, cls: t.cls, spells: t.spells.slice(), ...JSON.parse(JSON.stringify(t.st)) }); }
   }
+  applyCharms(state.teachers[key]);
   return state.teachers[key];
 }
 function addMate(key, outKey) {
@@ -349,6 +360,7 @@ const NPCS = [
         L('「字がかすれてる。裏に『用務員室』って印があるから、見せた方がいいかも」'),
         L('「これ、お守り。持っていって」'),
         L('★ 古い紙切れと お守りを 受け取った'),
+        L('★ みんなの守りが 1 上がる'),
       ];
       if (f.q1s >= 4) return [L('1年生「紙切れ、用務員さんに見せた？」')];
       if (f.q1 && f.q1s >= 2) return [L('1年生「上履き、どこまで行っちゃったんだろう」')];
@@ -359,7 +371,7 @@ const NPCS = [
         L('「保健室の方に跳ねてったの。先生、見てないかな」'),
       ];
     },
-    after(s) { if (hasItem('shoe')) { takeItem('shoe'); state.items.push('memo', 'omamori'); rewardAll(c => { c.ac--; }); s.flags.q1s = 4; } } },
+    after(s) { if (hasItem('shoe')) { takeItem('shoe'); state.items.push('memo', 'omamori'); applyCharmsAll(); s.flags.q1s = 4; } } },
 
   // ===================== 2 逃げた人体模型（理科の先生・黒板・準備室の錠） =====================
   { id: 'rika', quest: 'q2', fl: 1, x: 32, y: 2, name: L('理科の先生'), img: 'image/chara_rika.png', ht: 172,
@@ -447,6 +459,7 @@ const NPCS = [
         L('「アルバムは棚に戻すわ。写真の写しだけ、持っていって」'),
         L('「それと、これ。読みかけの気持ちを、なくさないように」'),
         L('★ 集合写真の写しと 古い栞を もらった'),
+        L('★ 先生たちの MP が 2 上がる'),
       ];
       if (f.q4s >= 4) return [L('司書「アルバム、見つかりそう？」')];
       if (f.q4) return [L('司書「図書室の机に、貸出カードを出してあるの」'), L('「最後の日付と、借りた人の名前を見てきてくれない？」')];
@@ -457,7 +470,7 @@ const NPCS = [
         L('「悪いけど、最後の日付と、借りた人の名前を見てきてくれない？」'),
       ];
     },
-    after(s) { if (hasItem('album') && !s.flags.q4done) { takeItem('album'); state.items.push('photo', 'bookmark'); rewardAll(c => { if (c.maxmp) { c.maxmp += 2; c.mp += 2; } }); s.flags.q4done = true; rewardExp(15); } } },
+    after(s) { if (hasItem('album') && !s.flags.q4done) { takeItem('album'); state.items.push('photo', 'bookmark'); applyCharmsAll(); s.flags.q4done = true; rewardExp(15); } } },
   { id: 'senpai', fl: 3, x: 30, y: 6, name: L('3年の先輩'), img: 'image/chara_senior_year3.png', ht: 150,
     talk(s) {
       const f = s.flags;
